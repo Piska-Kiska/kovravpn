@@ -1,0 +1,258 @@
+/* src/app/globals.css */
+@import "tailwindcss";
+
+/* ── Theme variables (runtime-switchable) ──────────── */
+:root {
+  --nm-bg: #e0e4e8;
+  --nm-light: #f5f9ff;
+  --nm-dark: #bec2c7;
+  --nm-surface: #e0e4e8;
+  --nm-accent: #6b948d;
+  --nm-accent-hover: #7ba8a0;
+  --nm-text: #2e3338;
+  --nm-text-secondary: #747980;
+}
+
+[data-theme="dark"] {
+  --nm-bg: #282835;
+  --nm-light: #333342;
+  --nm-dark: #1d1d28;
+  --nm-surface: #282835;
+  --nm-accent: #7ba8a0;
+  --nm-accent-hover: #8fbeb5;
+  --nm-text: #e4e4f0;
+  --nm-text-secondary: #8888a0;
+}
+
+/* ── Tailwind theme ──────────────────────────────────── */
+@theme {
+  --font-sans: var(--font-rubik);
+  --font-heading: var(--font-rubik);
+
+  --color-nm-bg: var(--nm-bg);
+  --color-nm-light: var(--nm-light);
+  --color-nm-dark: var(--nm-dark);
+  --color-nm-surface: var(--nm-surface);
+  --color-nm-accent: var(--nm-accent);
+  --color-nm-accent-hover: var(--nm-accent-hover);
+  --color-nm-text: var(--nm-text);
+  --color-nm-text-secondary: var(--nm-text-secondary);
+
+  --animate-marquee: marquee 35s linear infinite;
+  --animate-marquee-reverse: marquee-reverse 35s linear infinite;
+}
+
+/* ── Base ────────────────────────────────────────────── */
+html,
+body {
+  /* Prevent any descendant (wide neumorphism shadow, long unbreakable
+     token like "ПроксисВпнович", absolute-positioned decoration) from
+     introducing a horizontal scroll on narrow viewports. The page is
+     designed for vertical scroll only.
+     overflow-x: clip > hidden because hidden creates a scroll container
+     that breaks position: sticky; clip does not. */
+  overflow-x: clip;
+  /* Belt-and-braces against off-by-one in mobile Safari. */
+  max-width: 100%;
+}
+
+body {
+  background: var(--nm-bg);
+  color: var(--nm-text);
+  transition: background 0.4s ease, color 0.4s ease;
+  /* Respect iPhone notch / Dynamic Island safe areas so the navbar
+     does not get tucked under the status bar in landscape and so
+     content does not skim the curved screen edges. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* ── iOS Safari: prevent auto-zoom on input focus ────
+   When a focused input's font-size is < 16px, mobile Safari zooms in
+   to the field. The viewport stays zoomed afterward, so the next tap
+   anywhere else (e.g. the "На главную" navbar button) first dismisses
+   the zoom and only the second tap actually triggers navigation —
+   which reads to the user as "the button is broken". Forcing 16px on
+   touch-sized viewports kills the auto-zoom entirely. The 640px cap
+   matches Tailwind's `sm:` breakpoint, so desktops keep `text-sm`. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* ── Snappier tap response on interactive elements ──
+   `touch-action: manipulation` tells the browser to skip waiting for
+   a possible double-tap-to-zoom gesture before firing the click. On
+   modern iOS this is already the default in most cases, but being
+   explicit eliminates any residual 300ms delay or scroll/zoom
+   ambiguity for buttons and links. */
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* ── Neumorphic shadows ──────────────────────────────── */
+.nm-raised {
+  border-radius: 20px;
+  background: var(--nm-surface);
+  box-shadow:
+    8px 8px 20px var(--nm-dark),
+   -8px -8px 20px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+.nm-raised-sm {
+  border-radius: 14px;
+  background: var(--nm-surface);
+  box-shadow:
+    5px 5px 12px var(--nm-dark),
+   -5px -5px 12px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+.nm-pressed {
+  border-radius: 20px;
+  background: var(--nm-surface);
+  box-shadow:
+    inset 5px 5px 12px var(--nm-dark),
+    inset -5px -5px 12px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+.nm-pressed-sm {
+  border-radius: 14px;
+  background: var(--nm-surface);
+  box-shadow:
+    inset 3px 3px 8px var(--nm-dark),
+    inset -3px -3px 8px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+.nm-flat {
+  border-radius: 20px;
+  background: var(--nm-surface);
+  box-shadow:
+    4px 4px 10px var(--nm-dark),
+   -4px -4px 10px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+/* ── Neumorphic button ───────────────────────────────── */
+.nm-btn {
+  border-radius: 14px;
+  background: var(--nm-surface);
+  box-shadow:
+    5px 5px 12px var(--nm-dark),
+   -5px -5px 12px var(--nm-light);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.nm-btn:hover {
+  box-shadow:
+    3px 3px 8px var(--nm-dark),
+   -3px -3px 8px var(--nm-light);
+}
+.nm-btn:active {
+  box-shadow:
+    inset 3px 3px 8px var(--nm-dark),
+    inset -3px -3px 8px var(--nm-light);
+}
+
+/* ── Accent button ───────────────────────────────────── */
+.nm-btn-accent {
+  border-radius: 14px;
+  background: var(--nm-accent);
+  color: white;
+  box-shadow:
+    5px 5px 12px var(--nm-dark),
+   -5px -5px 12px var(--nm-light),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.nm-btn-accent:hover {
+  background: var(--nm-accent-hover);
+  box-shadow:
+    3px 3px 8px var(--nm-dark),
+   -3px -3px 8px var(--nm-light),
+    0 0 30px rgba(107, 148, 141, 0.25);
+}
+
+/* ── Circles ─────────────────────────────────────────── */
+.nm-circle {
+  border-radius: 50%;
+  background: var(--nm-surface);
+  box-shadow:
+    6px 6px 14px var(--nm-dark),
+   -6px -6px 14px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+.nm-circle-pressed {
+  border-radius: 50%;
+  background: var(--nm-surface);
+  box-shadow:
+    inset 4px 4px 10px var(--nm-dark),
+    inset -4px -4px 10px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+
+/* ── Theme toggle ────────────────────────────────────── */
+.nm-toggle-track {
+  background: var(--nm-surface);
+  box-shadow:
+    inset 4px 4px 10px var(--nm-dark),
+    inset -4px -4px 10px var(--nm-light);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+.nm-toggle-pill {
+  background: var(--nm-surface);
+  box-shadow:
+    4px 4px 10px var(--nm-dark),
+   -4px -4px 10px var(--nm-light);
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.4s ease,
+              background 0.4s ease;
+}
+
+/* ── Dashboard sidebar ────────────────────────────────── */
+.nm-sidebar {
+  background: #1e2028;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  transition: background 0.4s ease;
+}
+[data-theme="dark"] .nm-sidebar {
+  background: #1a1a24;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Accordion ───────────────────────────────────────── */
+.accordion-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+}
+.accordion-content.open {
+  grid-template-rows: 1fr;
+}
+.accordion-inner {
+  overflow: hidden;
+}
+
+/* ── Marquee ─────────────────────────────────────────── */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.33%); }
+}
+@keyframes marquee-reverse {
+  0% { transform: translateX(-33.33%); }
+  100% { transform: translateX(0); }
+}
+
+/* ── Selection ───────────────────────────────────────── */
+::selection {
+  background: rgba(107, 148, 141, 0.2);
+}

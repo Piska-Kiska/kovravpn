@@ -1,0 +1,3 @@
+# .gitleaksignore — fingerprints of findings to suppress.
+# Format: one fingerprint per line, as printed by gitleaks output.
+# Example: a1b2c3d4...:path/to/file.go:rule-id:42

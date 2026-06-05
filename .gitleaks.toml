@@ -1,0 +1,88 @@
+# Gitleaks config — extends the default rules.
+# Docs: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+
+[extend]
+useDefault = true
+
+# ─── Additional rules not covered by defaults ─────────────────
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot API token"
+regex = '''[0-9]{8,12}:[A-Za-z0-9_-]{30,}'''
+keywords = ["telegram", "bot", "token"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''re_[A-Za-z0-9_-]{20,}'''
+keywords = ["resend", "re_"]
+
+[[rules]]
+id = "upstash-redis-token"
+description = "Upstash Redis REST token"
+regex = '''gQAAAA[A-Za-z0-9_-]{40,}'''
+keywords = ["upstash", "redis"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]{20,}'''
+keywords = ["anthropic", "sk-ant"]
+
+[[rules]]
+id = "openai-project-key"
+description = "OpenAI project API key"
+regex = '''sk-proj-[A-Za-z0-9_-]{40,}'''
+keywords = ["openai", "sk-proj"]
+
+[[rules]]
+id = "huggingface-token"
+description = "Hugging Face access token"
+regex = '''hf_[A-Za-z0-9]{30,}'''
+keywords = ["huggingface", "hf_"]
+
+[[rules]]
+id = "replicate-api-key"
+description = "Replicate API key"
+regex = '''r8_[A-Za-z0-9]{30,}'''
+keywords = ["replicate", "r8_"]
+
+[[rules]]
+id = "yookassa-secret"
+description = "YooKassa secret key"
+regex = '''live_[A-Za-z0-9_-]{40,}|test_[A-Za-z0-9_-]{40,}'''
+keywords = ["yookassa", "юкасса"]
+
+[[rules]]
+id = "ethereum-private-key"
+description = "Ethereum private key (hex)"
+regex = '''(?i)(private[_-]?key|priv[_-]?key|secret[_-]?key|wallet[_-]?key)[\s]*[:=][\s]*['\"]?0x[a-f0-9]{64}['\"]?'''
+keywords = ["private", "wallet", "0x"]
+
+[[rules]]
+id = "bip39-mnemonic-hint"
+description = "Possible BIP39 mnemonic assignment"
+regex = '''(?i)(mnemonic|seed[_-]?phrase|recovery[_-]?phrase)[\s]*[:=][\s]*['\"][a-z ]{60,}['\"]'''
+keywords = ["mnemonic", "seed", "recovery"]
+
+# ─── Global allowlist ─────────────────────────────────────────
+[allowlist]
+description = "Global allowlist"
+paths = [
+    '''package-lock\.json$''',
+    '''yarn\.lock$''',
+    '''pnpm-lock\.yaml$''',
+    '''node_modules/''',
+    '''\.next/''',
+    '''\.git/''',
+    '''public/.*\.(png|jpg|jpeg|gif|webp|svg|ico)$''',
+    # The scanner itself contains the patterns it looks for:
+    '''\.githooks/secret-scanner\.py$''',
+    '''\.gitleaks\.toml$''',
+]
+regexes = [
+    # Common false positives:
+    '''EXAMPLE_KEY_PLACEHOLDER''',
+    '''your[_-]?api[_-]?key[_-]?here''',
+    '''xxxxxxxxxxxxxxxxxxxx''',
+]

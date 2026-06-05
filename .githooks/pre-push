@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-push hook: multi-layer secret protection.
+#   1. gitleaks (if installed)
+#   2. secret-scanner.py — extended rules + BIP39 + entropy
+# Emergency bypass: git push --no-verify
+
+set -u
+
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'; BLUE=$'\033[0;34m'; NC=$'\033[0m'
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "🔒 Pre-push secret scan..."
+FAIL=0
+
+if command -v gitleaks >/dev/null 2>&1; then
+    printf "%b\n" "${BLUE}▸ gitleaks${NC}"
+    GITLEAKS_ARGS=(detect --source "$REPO_ROOT" --no-banner --redact --exit-code 1)
+    [ -f "$REPO_ROOT/.gitleaks.toml" ]   && GITLEAKS_ARGS+=(--config "$REPO_ROOT/.gitleaks.toml")
+    [ -f "$REPO_ROOT/.gitleaksignore" ]  && GITLEAKS_ARGS+=(--gitleaks-ignore-path "$REPO_ROOT/.gitleaksignore")
+    gitleaks "${GITLEAKS_ARGS[@]}" || FAIL=1
+else
+    printf "%b\n" "${YELLOW}⚠ gitleaks not installed. Install: brew install gitleaks${NC}"
+fi
+
+printf "%b\n" "${BLUE}▸ secret-scanner${NC}"
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$REPO_ROOT/.githooks/secret-scanner.py" || FAIL=1
+else
+    printf "%b\n" "${RED}❌ python3 not found${NC}"
+    FAIL=1
+fi
+
+[ "$FAIL" -eq 1 ] && exit 1
+printf "%b\n" "${GREEN}✓ Push allowed${NC}"
+exit 0

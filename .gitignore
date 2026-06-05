@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.vercel
+.DS_Store
+*.tsbuildinfo
+
+# Env files - never commit
+.env
+.env.*
+!.env.example
+
+# Editor backups
+*.bak
+*.orig
+.env*.local
