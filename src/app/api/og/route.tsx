@@ -36,7 +36,7 @@ const MAX_SUBTITLE = 120;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const title = (searchParams.get("title") || "ПроксисВпнович").slice(0, MAX_TITLE);
+  const title = (searchParams.get("title") || "Kovra").slice(0, MAX_TITLE);
   const subtitle = (searchParams.get("subtitle") || "VPN для всех устройств").slice(0, MAX_SUBTITLE);
 
   return new ImageResponse(
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
             П
           </div>
           <span style={{ color: TEXT, fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}>
-            ПроксисВпнович
+            Kovra
           </span>
         </div>
 
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
         {/* Bottom: domain + tagline */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: ACCENT, fontSize: 28, fontWeight: 600, letterSpacing: "-0.01em" }}>
-            proxysvpn.com
+            kovravpn.com
           </span>
           <span style={{ color: TEXT_SECONDARY, fontSize: 22, fontWeight: 500 }}>
             от 10 ₽ · 100 ₽/мес за устройство

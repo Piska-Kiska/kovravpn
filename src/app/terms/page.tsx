@@ -4,10 +4,10 @@ import Logo from "@/components/Logo";
 import NavToggles from "@/components/NavToggles";
 
 export const metadata = {
-  title: "Пользовательское соглашение — ПроксисВпнович",
+  title: "Пользовательское соглашение — Kovra",
   description:
-    "Условия использования сервиса ПроксисВпнович: оплата, возвраты, ответственность, реферальная программа.",
-  alternates: { canonical: "https://proxysvpn.com/terms" },
+    "Условия использования сервиса Kovra: оплата, возвраты, ответственность, реферальная программа.",
+  alternates: { canonical: "https://kovravpn.com/terms" },
   robots: { index: true, follow: true },
 };
 
@@ -24,7 +24,7 @@ export default function TermsPage() {
               className="hidden sm:inline font-semibold text-nm-text tracking-tight"
               data-i18n="common.brand"
             >
-              ПроксисВпнович
+              Kovra
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -56,8 +56,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-nm-text mb-3" data-i18n="terms.s1.h">1. Общие положения</h2>
             <p data-i18n="terms.s1.p1">
               Настоящее соглашение (далее — «Соглашение») определяет условия использования
-              сервиса «ПроксисВпнович» (далее — «Сервис»), доступного на сайте proxysvpn.com
-              и через Telegram-бота @proxysvpn_bot.
+              сервиса «Kovra» (далее — «Сервис»), доступного на сайте kovravpn.com
+              и через Telegram-бота @KovraVPN_bot.
             </p>
             <p className="mt-2" data-i18n="terms.s1.p2">
               Используя Сервис — регистрируясь на сайте, запуская бота, оплачивая услуги или
@@ -140,8 +140,8 @@ export default function TermsPage() {
               поступившие по истечении этого срока, не рассматриваются.
             </p>
             <p className="mt-2" data-i18n="terms.s5.p3">
-              Заявление направляется через Telegram-бота @proxysvpn_support_bot или на адрес
-              support@proxysvpn.com. В обращении указываются: email или Telegram-аккаунт
+              Заявление направляется через Telegram-бота @KovraVPN_bot или на адрес
+              support@kovravpn.com. В обращении указываются: email или Telegram-аккаунт
               Пользователя, дата и сумма платежа, описание причины возврата.
             </p>
             <p className="mt-2" data-i18n="terms.s5.p4">
@@ -307,12 +307,12 @@ export default function TermsPage() {
             <p data-i18n-html="terms.s13.p1.html">
               По всем вопросам, связанным с работой Сервиса, Пользователь может обратиться через
               Telegram-бота{" "}
-              <a href="https://t.me/proxysvpn_support_bot" className="text-nm-accent hover:underline">
-                @proxysvpn_support_bot
+              <a href="https://t.me/KovraVPN_bot" className="text-nm-accent hover:underline">
+                @KovraVPN_bot
               </a>{" "}
               или на адрес{" "}
-              <a href="mailto:support@proxysvpn.com" className="text-nm-accent hover:underline">
-                support@proxysvpn.com
+              <a href="mailto:support@kovravpn.com" className="text-nm-accent hover:underline">
+                support@kovravpn.com
               </a>
               .
             </p>

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getProfiles, getAccount } from "@/lib/accounts";
+import { getSubscriptions, activeSlots } from "@/lib/subscriptions";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
 import { getEnabledInbounds, getEnabledInboundsForUser, type InboundEntry } from "@/lib/inbounds";
@@ -82,32 +83,17 @@ const HAPP_UI: Record<string, string> = {
   "profile-title": "base64:8J+boe+4jyBQcm94eXNWUE4=",
   "profile-update-interval": "1",
   "ping-result": "icon",
-  "support-url": "https://t.me/proxysvpn_bot",
+  "support-url": "https://t.me/KovraVPN_bot",
   "subscription-ping-onopen-enabled": "1",
-  "profile-web-page-url": "https://proxysvpn.com",
+  "profile-web-page-url": "https://kovravpn.com",
   "subscription-pin": "1",
   "color-profile": HAPP_THEME,
   "routing-enable": "false",
   "providerid": "lxnO96xl",
 };
 
-// Local balance check — duplicated from balance.ts to avoid importing
-// the xpanel/xpanel-sync chain into the subscription route runtime.
-const DEVICE_DAILY_COST_LOCAL = 100 / 30;
-function currentBalanceLocal(
-  account: { balance?: number; balanceUpdatedAt?: number; createdAt?: number },
-  profileCount: number
-): number {
-  if (!account.balance || account.balance <= 0) return 0;
-  const dailyRate = profileCount * DEVICE_DAILY_COST_LOCAL;
-  if (dailyRate <= 0) return account.balance;
-  const elapsed =
-    (Date.now() - (account.balanceUpdatedAt || account.createdAt || Date.now())) / 86400000;
-  const consumed = elapsed * dailyRate;
-  return Math.max(0, Math.round((account.balance - consumed) * 100) / 100);
-}
 
-const EMPTY_BALANCE_TITLE = "base64:" + Buffer.from("⚠️ Нет средств", "utf-8").toString("base64");
+const EMPTY_BALANCE_TITLE = "base64:" + Buffer.from("⚠️ No active plan", "utf-8").toString("base64");
 
 function balanceInfoHeaders(empty: boolean): Record<string, string> {
   if (!empty) {
@@ -115,23 +101,23 @@ function balanceInfoHeaders(empty: boolean): Record<string, string> {
     // response), so send "0" which Happ treats as "block disabled".
     return { "sub-info-text": "0" };
   }
-  const text = "Ваш баланс на нуле. Пополните, чтобы продолжить пользоваться сервисом.";
+  const text = "No active plan. Buy a plan to keep using Kovra.";
   return {
     "sub-info-color": "red",
     "sub-info-text": "base64:" + Buffer.from(text, "utf-8").toString("base64"),
-    "sub-info-button-text": "Top up",
-    "sub-info-button-link": "https://proxysvpn.com",
+    "sub-info-button-text": "Get plan",
+    "sub-info-button-link": "https://kovravpn.com",
   };
 }
 
 const EMPTY_BALANCE_ANNOUNCE =
   "base64:" +
   Buffer.from(
-    "Ваш баланс на нуле. Пополните на proxysvpn.com или в боте, чтобы продолжить пользоваться сервисом.",
+    "No active plan. Buy a plan at kovravpn.com to keep using Kovra.",
     "utf-8",
   ).toString("base64");
 const EMPTY_BALANCE_BODY = Buffer.from(
-  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#%D0%9F%D0%BE%D0%BF%D0%BE%D0%BB%D0%BD%D0%B8%D1%82%D0%B5%20%D0%B1%D0%B0%D0%BB%D0%B0%D0%BD%D1%81%20-%20proxysvpn.com",
+  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#No%20active%20plan%20-%20kovravpn.com",
 ).toString("base64");
 
 function emptyHeaders(): HeadersInit {
@@ -141,8 +127,8 @@ function emptyHeaders(): HeadersInit {
     ...HAPP_UI,
     ...balanceInfoHeaders(true),
     announce: EMPTY_BALANCE_ANNOUNCE,
-    "profile-web-page-url": "https://proxysvpn.com",
-    "support-url": "https://t.me/proxysvpn_bot",
+    "profile-web-page-url": "https://kovravpn.com",
+    "support-url": "https://t.me/KovraVPN_bot",
     "profile-title": EMPTY_BALANCE_TITLE,
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-cache, no-store",
@@ -238,7 +224,8 @@ export async function GET(
       if (!profile)
         return new NextResponse("Profile not found", { status: 404 });
 
-      if (currentBalanceLocal(account, profiles.length) <= 0) {
+      const _subs = await getSubscriptions(userId);
+      if (activeSlots(_subs) <= 0) {
         return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
       }
 
@@ -277,7 +264,8 @@ export async function GET(
     if (profiles.length === 0)
       return new NextResponse("No profiles", { status: 404 });
 
-    if (currentBalanceLocal(account, profiles.length) <= 0) {
+    const _subs2 = await getSubscriptions(userId);
+    if (activeSlots(_subs2) <= 0) {
       return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
     }
 

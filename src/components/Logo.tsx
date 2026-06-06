@@ -10,7 +10,7 @@ export default function Logo({ size = 28, className = "" }: Props) {
   return (
     <Image
       src="/logo.png"
-      alt="ПроксисВпнович"
+      alt="Kovra"
       width={size}
       height={size}
       className={className}

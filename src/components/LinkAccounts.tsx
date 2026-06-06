@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Mail, Send, Check, Loader2, Link2, Eye, EyeOff, X } from "lucide-react";
+import { useDashLang } from "@/lib/dash-i18n";
 
 interface Props {
   userId: string;
@@ -13,17 +14,17 @@ interface Props {
 }
 
 export default function LinkAccounts({ userId, authMethod, email, telegramId, onUpdate }: Props) {
+  const { t } = useDashLang();
   const hasEmail = !!email;
   const hasTelegram = !!telegramId;
   const [unlinking, setUnlinking] = useState<string | null>(null);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
-  // Can only unlink secondary identity (not the one matching userId prefix)
   const canUnlinkEmail = hasEmail && !userId.startsWith("em_");
   const canUnlinkTelegram = hasTelegram && !userId.startsWith("tg_");
 
   const handleUnlink = async (type: "email" | "telegram") => {
-    if (!confirm(`Отвязать ${type === "email" ? "Email" : "Telegram"}?`)) return;
+    if (!confirm(type === "email" ? t.link_unlink_confirm_email : t.link_unlink_confirm_tg)) return;
     setUnlinking(type);
     setUnlinkError(null);
     try {
@@ -33,24 +34,20 @@ export default function LinkAccounts({ userId, authMethod, email, telegramId, on
         body: JSON.stringify({ type }),
       });
       const data = await res.json();
-      if (data.success) {
-        onUpdate?.();
-      } else {
-        setUnlinkError(data.error);
-      }
+      if (data.success) onUpdate?.();
+      else setUnlinkError(data.error);
     } catch {
-      setUnlinkError("Ошибка");
+      setUnlinkError(t.err_generic);
     } finally {
       setUnlinking(null);
     }
   };
 
-  // Both linked — show status with unlink buttons
   if (hasEmail && hasTelegram) {
     return (
       <div className="nm-raised p-4 md:p-5">
         <h3 className="font-bold text-nm-text text-sm mb-3 flex items-center gap-2">
-          <Link2 className="w-4 h-4 text-nm-accent" />Привязки
+          <Link2 className="w-4 h-4 text-nm-accent" />{t.link_title}
         </h3>
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
@@ -68,7 +65,7 @@ export default function LinkAccounts({ userId, authMethod, email, telegramId, on
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Send className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-nm-text-secondary">Telegram ID {telegramId}</span>
+            <span className="text-nm-text-secondary">{t.link_tg_id} {telegramId}</span>
             <div className="ml-auto flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-green-400" />
               {canUnlinkTelegram && (
@@ -88,10 +85,9 @@ export default function LinkAccounts({ userId, authMethod, email, telegramId, on
   return (
     <div className="nm-raised p-4 md:p-5">
       <h3 className="font-bold text-nm-text text-sm mb-3 flex items-center gap-2">
-        <Link2 className="w-4 h-4 text-nm-accent" />Привязки
+        <Link2 className="w-4 h-4 text-nm-accent" />{t.link_title}
       </h3>
 
-      {/* Show linked identity */}
       {hasEmail && (
         <div className="flex items-center gap-2 text-sm mb-3">
           <Mail className="w-3.5 h-3.5 text-green-400" />
@@ -102,15 +98,12 @@ export default function LinkAccounts({ userId, authMethod, email, telegramId, on
       {hasTelegram && (
         <div className="flex items-center gap-2 text-sm mb-3">
           <Send className="w-3.5 h-3.5 text-green-400" />
-          <span className="text-nm-text-secondary">Telegram ID {telegramId}</span>
+          <span className="text-nm-text-secondary">{t.link_tg_id} {telegramId}</span>
           <Check className="w-3.5 h-3.5 text-green-400 ml-auto" />
         </div>
       )}
 
-      {/* Link Telegram (for email users) */}
       {!hasTelegram && <LinkTelegram />}
-
-      {/* Link Email (for telegram users) */}
       {!hasEmail && <LinkEmail />}
     </div>
   );
@@ -118,6 +111,7 @@ export default function LinkAccounts({ userId, authMethod, email, telegramId, on
 
 /* ─── Link Telegram ────────────────────────────── */
 function LinkTelegram() {
+  const { t } = useDashLang();
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
@@ -131,14 +125,10 @@ function LinkTelegram() {
     try {
       const res = await fetch("/api/auth/link/telegram", { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        setCode(data.code);
-        setPolling(true);
-      } else {
-        setError(data.error);
-      }
+      if (res.ok) { setCode(data.code); setPolling(true); }
+      else setError(data.error);
     } catch {
-      setError("Ошибка соединения");
+      setError(t.err_conn);
     } finally {
       setLoading(false);
     }
@@ -150,13 +140,8 @@ function LinkTelegram() {
       try {
         const res = await fetch(`/api/auth/link/telegram/verify?code=${code}`);
         const data = await res.json();
-        if (data.linked) {
-          setPolling(false);
-          setDone(true);
-        } else if (data.error && res.status === 409) {
-          setPolling(false);
-          setError(data.error);
-        }
+        if (data.linked) { setPolling(false); setDone(true); }
+        else if (data.error && res.status === 409) { setPolling(false); setError(data.error); }
       } catch { /* retry */ }
     }, 3000);
     return () => clearInterval(interval);
@@ -165,9 +150,7 @@ function LinkTelegram() {
   if (done) {
     return (
       <div className="flex items-center gap-2 text-sm text-green-400">
-        <Send className="w-3.5 h-3.5" />
-        <Check className="w-3.5 h-3.5" />
-        Telegram привязан!
+        <Send className="w-3.5 h-3.5" /><Check className="w-3.5 h-3.5" />{t.link_tg_linked}
       </div>
     );
   }
@@ -178,21 +161,17 @@ function LinkTelegram() {
         <div className="nm-pressed p-4 rounded-2xl text-center mb-3 cursor-pointer select-none"
           onClick={() => { navigator.clipboard.writeText(code!); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); }}>
           <p className="text-[10px] text-nm-text-secondary mb-1 uppercase tracking-wider">
-            {codeCopied ? "✓ Скопировано!" : "Нажмите чтобы скопировать"}
+            {codeCopied ? t.link_copied : t.link_copy_hint}
           </p>
           <p className="text-2xl font-bold text-nm-text tracking-[0.3em] font-mono">{code}</p>
         </div>
-        <a
-          href={`https://t.me/proxysvpn_bot?start=${code}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2"
-        >
-          <Send className="w-3.5 h-3.5" />Открыть бота
+        <a href={`https://t.me/KovraVPN_bot?start=${code}`} target="_blank" rel="noopener noreferrer"
+          className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2">
+          <Send className="w-3.5 h-3.5" />{t.link_tg_open}
         </a>
         {polling && (
           <div className="flex items-center justify-center gap-2 mt-3 text-xs text-nm-text-secondary">
-            <Loader2 className="w-3 h-3 animate-spin" />Ожидаем...
+            <Loader2 className="w-3 h-3 animate-spin" />{t.link_waiting}
           </div>
         )}
         {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
@@ -202,13 +181,10 @@ function LinkTelegram() {
 
   return (
     <div>
-      <button
-        onClick={startLink}
-        disabled={loading}
-        className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-      >
+      <button onClick={startLink} disabled={loading}
+        className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
         {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-nm-text-secondary" />}
-        Привязать Telegram
+        {t.link_tg_btn}
       </button>
       {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
     </div>
@@ -219,6 +195,7 @@ function LinkTelegram() {
 type EmailStep = "form" | "verify";
 
 function LinkEmail() {
+  const { t } = useDashLang();
   const [step, setStep] = useState<EmailStep>("form");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -243,26 +220,21 @@ function LinkEmail() {
       const data = await res.json();
       if (data.success) {
         setStep("verify");
-        if (isResend) {
-          setResendCount((c) => c + 1);
-        }
+        if (isResend) setResendCount((c) => c + 1);
         const seconds = isResend && resendCount >= 1 ? 180 : 60;
         setCooldown(seconds);
-      } else {
-        setError(data.error);
-      }
+      } else setError(data.error);
     } catch {
-      setError("Ошибка соединения");
+      setError(t.err_conn);
     } finally {
       setLoading(false);
     }
   };
 
-  // Cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
+    const tm = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(tm);
   }, [cooldown]);
 
   const verifyEmail = async () => {
@@ -277,15 +249,14 @@ function LinkEmail() {
         body: JSON.stringify({ email, code }),
       });
       const data = await res.json();
-      if (data.linked) {
-        setDone(true);
-      } else {
+      if (data.linked) setDone(true);
+      else {
         setError(data.error);
         setVerifyCode(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
       }
     } catch {
-      setError("Ошибка");
+      setError(t.err_generic);
     } finally {
       setLoading(false);
     }
@@ -313,17 +284,15 @@ function LinkEmail() {
     }
   };
 
-  // Auto-submit when all 6 digits filled
   useEffect(() => {
     if (verifyCode.every((d) => d !== "")) verifyEmail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verifyCode]);
 
   if (done) {
     return (
       <div className="flex items-center gap-2 text-sm text-green-400">
-        <Mail className="w-3.5 h-3.5" />
-        <Check className="w-3.5 h-3.5" />
-        Email привязан!
+        <Mail className="w-3.5 h-3.5" /><Check className="w-3.5 h-3.5" />{t.link_email_linked}
       </div>
     );
   }
@@ -332,43 +301,29 @@ function LinkEmail() {
     return (
       <div>
         <p className="text-xs text-nm-text-secondary text-center mb-3">
-          Код отправлен на <span className="text-nm-text font-medium">{email}</span>
+          {t.link_code_sent} <span className="text-nm-text font-medium">{email}</span>
         </p>
         <div className="flex justify-center gap-1.5 mb-3" onPaste={handleCodePaste}>
           {verifyCode.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => { inputRefs.current[i] = el; }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
+            <input key={i} ref={(el) => { inputRefs.current[i] = el; }}
+              type="text" inputMode="numeric" maxLength={1} value={digit}
               onChange={(e) => handleCodeInput(i, e.target.value)}
               onKeyDown={(e) => handleCodeKeyDown(i, e)}
-              className="w-9 h-11 nm-pressed-sm text-center text-lg font-bold text-nm-text bg-transparent outline-none focus:ring-2 focus:ring-nm-accent/30 rounded-xl"
-            />
+              className="w-9 h-11 nm-pressed-sm text-center text-lg font-bold text-nm-text bg-transparent outline-none focus:ring-2 focus:ring-nm-accent/30 rounded-xl" />
           ))}
         </div>
-        <button
-          onClick={verifyEmail}
-          disabled={loading || verifyCode.some((d) => !d)}
-          className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Подтвердить"}
+        <button onClick={verifyEmail} disabled={loading || verifyCode.some((d) => !d)}
+          className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t.link_confirm}
         </button>
         <div className="flex items-center justify-between mt-2">
-          <button
-            onClick={() => { setStep("form"); setVerifyCode(["","","","","",""]); setError(null); }}
-            className="text-xs text-nm-text-secondary cursor-pointer"
-          >
-            ← Назад
+          <button onClick={() => { setStep("form"); setVerifyCode(["","","","","",""]); setError(null); }}
+            className="text-xs text-nm-text-secondary cursor-pointer">
+            {t.link_back}
           </button>
-          <button
-            onClick={() => sendCode(true)}
-            disabled={cooldown > 0 || loading}
-            className="text-xs text-nm-accent cursor-pointer disabled:opacity-40 disabled:cursor-default"
-          >
-            {cooldown > 0 ? `Повторно через ${cooldown}с` : "Отправить снова"}
+          <button onClick={() => sendCode(true)} disabled={cooldown > 0 || loading}
+            className="text-xs text-nm-accent cursor-pointer disabled:opacity-40 disabled:cursor-default">
+            {cooldown > 0 ? `${t.link_resend_in} ${cooldown}s` : t.link_resend}
           </button>
         </div>
         {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
@@ -378,36 +333,22 @@ function LinkEmail() {
 
   return (
     <div className="space-y-2.5">
-      <input
-        type="email"
-        placeholder="you@example.com"
-        value={email}
+      <input type="email" placeholder="you@example.com" value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full nm-pressed-sm px-3 py-2.5 text-sm text-nm-text placeholder:text-nm-text-secondary/50 bg-transparent outline-none"
-      />
+        className="w-full nm-pressed-sm px-3 py-2.5 text-sm text-nm-text placeholder:text-nm-text-secondary/50 bg-transparent outline-none" />
       <div className="relative">
-        <input
-          type={show ? "text" : "password"}
-          placeholder="Пароль (мин. 8)"
-          value={password}
+        <input type={show ? "text" : "password"} placeholder={t.link_pwd_ph} value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full nm-pressed-sm px-3 py-2.5 pr-10 text-sm text-nm-text placeholder:text-nm-text-secondary/50 bg-transparent outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => setShow(!show)}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-nm-text-secondary hover:text-nm-text transition cursor-pointer"
-        >
+          className="w-full nm-pressed-sm px-3 py-2.5 pr-10 text-sm text-nm-text placeholder:text-nm-text-secondary/50 bg-transparent outline-none" />
+        <button type="button" onClick={() => setShow(!show)}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-nm-text-secondary hover:text-nm-text transition cursor-pointer">
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
       </div>
-      <button
-        onClick={() => sendCode()}
-        disabled={loading || !email || password.length < 8}
-        className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-      >
+      <button onClick={() => sendCode()} disabled={loading || !email || password.length < 8}
+        className="nm-btn w-full py-2.5 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
         {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5 text-nm-text-secondary" />}
-        Привязать Email
+        {t.link_email_btn}
       </button>
       {error && <p className="text-xs text-red-400 text-center mt-2">{error}</p>}
     </div>

@@ -11,7 +11,7 @@ import { ogImageUrl } from "@/lib/og-url";
 
 const TITLE = "Как подключить VPN: пошаговая инструкция";
 const DESC =
-  "Подключение ПроксисВпнович за 5 минут на Android, iPhone, iPad, Windows и macOS. Установка приложений Happ и V2RayTun, импорт подписки, первый запуск.";
+  "Подключение Kovra за 5 минут на Android, iPhone, iPad, Windows и macOS. Установка приложений Happ и V2RayTun, импорт подписки, первый запуск.";
 
 const OG_IMAGE = {
   url: ogImageUrl("Как подключить VPN", "Пошаговая инструкция для всех устройств"),
@@ -25,13 +25,13 @@ export const metadata: Metadata = {
   description: DESC,
   alternates: { canonical: "/guide" },
   openGraph: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
     url: "/guide",
     images: [OG_IMAGE],
   },
   twitter: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
     images: [OG_IMAGE.url],
   },
@@ -95,7 +95,7 @@ function Platform({
 
 /* ══════════════════════════════════════════════════════ */
 
-const GUIDE_URL = "https://proxysvpn.com/guide";
+const GUIDE_URL = "https://kovravpn.com/guide";
 
 const STEPS_ANDROID = [
   { name: "Установите Happ или V2RayTun", text: "Откройте Google Play, найдите Happ или V2RayTun и установите приложение." },
@@ -123,28 +123,28 @@ const STEPS_MACOS = [
 
 const HOW_TO_ANDROID = buildHowToSchema({
   name: "Как подключить VPN на Android",
-  description: "Установка ПроксисВпнович на Android через Happ или V2RayTun.",
+  description: "Установка Kovra на Android через Happ или V2RayTun.",
   url: `${GUIDE_URL}#android`,
   totalTime: "PT5M",
   steps: STEPS_ANDROID,
 });
 const HOW_TO_IOS = buildHowToSchema({
   name: "Как подключить VPN на iPhone и iPad",
-  description: "Установка ПроксисВпнович на iOS через Happ.",
+  description: "Установка Kovra на iOS через Happ.",
   url: `${GUIDE_URL}#ios`,
   totalTime: "PT5M",
   steps: STEPS_IOS,
 });
 const HOW_TO_WINDOWS = buildHowToSchema({
   name: "Как подключить VPN на Windows",
-  description: "Установка ПроксисВпнович на Windows через Happ или V2RayTun.",
+  description: "Установка Kovra на Windows через Happ или V2RayTun.",
   url: `${GUIDE_URL}#windows`,
   totalTime: "PT5M",
   steps: STEPS_WINDOWS,
 });
 const HOW_TO_MACOS = buildHowToSchema({
   name: "Как подключить VPN на macOS",
-  description: "Установка ПроксисВпнович на Mac через Happ Proxy Utility.",
+  description: "Установка Kovra на Mac через Happ Proxy Utility.",
   url: `${GUIDE_URL}#macos`,
   totalTime: "PT5M",
   steps: STEPS_MACOS,
@@ -167,8 +167,8 @@ export default function GuidePage() {
         dangerouslySetInnerHTML={{
           __html: jsonLd(
             buildBreadcrumbSchema([
-              { name: "Главная", url: "https://proxysvpn.com/" },
-              { name: "Инструкция", url: "https://proxysvpn.com/guide" },
+              { name: "Главная", url: "https://kovravpn.com/" },
+              { name: "Инструкция", url: "https://kovravpn.com/guide" },
             ]),
           ),
         }}
@@ -185,7 +185,7 @@ export default function GuidePage() {
               className="hidden sm:inline font-semibold text-nm-text tracking-tight"
               data-i18n="common.brand"
             >
-              ПроксисВпнович
+              Kovra
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -407,7 +407,7 @@ export default function GuidePage() {
             Напишите нам — поможем настроить за пару минут.
           </p>
           <a
-            href="https://t.me/proxysvpn_bot"
+            href="https://t.me/KovraVPN_bot"
             target="_blank"
             rel="noopener noreferrer"
             className="nm-btn-accent inline-block px-8 py-3 font-semibold text-sm"

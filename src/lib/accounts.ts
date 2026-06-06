@@ -7,10 +7,10 @@ export interface UserAccount {
   plan: "free" | "active" | "base" | "optimal" | "max";
   maxProfiles: number;
   extraProfiles: number;
-  paidUntil: number; // timestamp, 0 = trial
+  paidUntil: number;
   createdAt: number;
-  balance: number;         // ₽ at time of last update
-  balanceUpdatedAt: number; // timestamp of last balance change
+  balance?: number;
+  balanceUpdatedAt?: number;
 }
 
 export interface VpnProfile {
@@ -162,9 +162,9 @@ export async function getOrCreateSubToken(userId: string): Promise<string> {
  *  returns the deep-link import page; otherwise the plain endpoint. */
 export function getSubUrl(token: string, userId?: string | null): string {
   if (isHappEncryptedEnabled(userId)) {
-    return `https://proxysvpn.com/p/${token}`;
+    return `https://kovravpn.com/p/${token}`;
   }
-  return `https://proxysvpn.com/api/sub/${token}`;
+  return `https://kovravpn.com/api/sub/${token}`;
 }
 
 /** Generate per-profile subscription token and store mapping */

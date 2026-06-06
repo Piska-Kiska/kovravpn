@@ -4,16 +4,18 @@ import crypto from "crypto";
 const API_BASE = "https://api.nowpayments.io/v1";
 const API_KEY = process.env.NOWPAYMENTS_API_KEY || "";
 const IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://proxysvpn.com";
-const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "proxysvpn_bot";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "KovraVPN_bot";
 
 // ─── Types ────────────────────────────────────────────
 
-export interface CreateCryptoInvoiceParams {
-  userId: string;
-  amountRub: number;
+export interface CreateInvoiceParams {
+  /** Pre-built order_id (encodes what is being purchased). */
+  orderId: string;
+  /** Price in USD charged once. */
+  amountUsd: number;
   description?: string;
-  /** Where the invoice was created from — affects success/cancel URLs. Default: "bot". */
+  /** Where the invoice was created from — affects success/cancel URLs. */
   source?: "bot" | "web";
 }
 
@@ -46,30 +48,30 @@ export interface IpnPayload {
 // ─── Invoice creation ────────────────────────────────
 
 /**
- * Create a NOWPayments invoice (hosted checkout page).
- * User picks the crypto on their page. On payment, webhook fires.
+ * Create a NOWPayments hosted-checkout invoice priced in USD.
+ * The caller builds `orderId` (see subscriptions.ts buildPlanOrderId /
+ * buildDeviceOrderId) so the webhook can decode the purchase on payment.
+ * User picks the crypto on the hosted page.
  */
-export async function createCryptoInvoice(
-  params: CreateCryptoInvoiceParams
+export async function createInvoice(
+  params: CreateInvoiceParams,
 ): Promise<CryptoInvoice> {
   if (!API_KEY) throw new Error("NOWPAYMENTS_API_KEY is not set");
 
-  const orderId = `topup_${params.userId}_${Date.now()}`;
-  const source = params.source || "bot";
+  const source = params.source || "web";
 
-  const successUrl = source === "web"
-    ? `${SITE_URL}/dashboard?topupcrypto=1`
-    : `https://t.me/${BOT_USERNAME}?start=paidcrypto`;
-  const cancelUrl = source === "web"
-    ? `${SITE_URL}/dashboard`
-    : `https://t.me/${BOT_USERNAME}`;
+  const successUrl =
+    source === "web"
+      ? `${SITE_URL}/dashboard?paid=1`
+      : `https://t.me/${BOT_USERNAME}?start=paid`;
+  const cancelUrl =
+    source === "web" ? `${SITE_URL}/dashboard` : `https://t.me/${BOT_USERNAME}`;
 
   const body = {
-    price_amount: params.amountRub,
-    price_currency: "rub",
-    order_id: orderId,
-    order_description:
-      params.description || `ProxysVPN — пополнение баланса ${params.amountRub} ₽`,
+    price_amount: params.amountUsd,
+    price_currency: "usd",
+    order_id: params.orderId,
+    order_description: params.description || `Kovra — ${params.orderId}`,
     ipn_callback_url: `${SITE_URL}/api/payment/crypto-webhook`,
     success_url: successUrl,
     cancel_url: cancelUrl,
@@ -94,15 +96,40 @@ export async function createCryptoInvoice(
   const data = await res.json();
   if (!data?.invoice_url || !data?.id) {
     throw new Error(
-      `NOWPayments: malformed response: ${JSON.stringify(data).slice(0, 200)}`
+      `NOWPayments: malformed response: ${JSON.stringify(data).slice(0, 200)}`,
     );
   }
 
   return {
     invoiceUrl: String(data.invoice_url),
     invoiceId: String(data.id),
-    orderId,
+    orderId: params.orderId,
   };
+}
+
+// ─── Legacy alias (kept so any leftover caller compiles) ──────────────
+// Old signature took { userId, amountRub, source }. Map to USD invoice.
+// NOTE: only the disabled rub paths referenced this; subscription flows use
+// createInvoice directly.
+export interface CreateCryptoInvoiceParams {
+  userId: string;
+  amountRub?: number;
+  amountUsd?: number;
+  description?: string;
+  source?: "bot" | "web";
+}
+
+export async function createCryptoInvoice(
+  params: CreateCryptoInvoiceParams,
+): Promise<CryptoInvoice> {
+  const amountUsd = params.amountUsd ?? params.amountRub ?? 0;
+  const orderId = `topup_${params.userId}_${Date.now()}`;
+  return createInvoice({
+    orderId,
+    amountUsd,
+    description: params.description,
+    source: params.source,
+  });
 }
 
 // ─── IPN signature verification ───────────────────────
@@ -143,7 +170,7 @@ export function verifyIpnSignature(rawBody: string, signature: string): boolean 
     if (computed.length !== signature.length) return false;
     return crypto.timingSafeEqual(
       Buffer.from(computed, "hex"),
-      Buffer.from(signature, "hex")
+      Buffer.from(signature, "hex"),
     );
   } catch (err) {
     console.error("[nowpayments] signature verify error:", err);
@@ -151,12 +178,12 @@ export function verifyIpnSignature(rawBody: string, signature: string): boolean 
   }
 }
 
-// ─── Order ID parsing ─────────────────────────────────
+// ─── Order ID parsing (legacy topup_) ─────────────────
+// Subscription order_ids (sub_/dev_) are parsed in subscriptions.ts.
+// This legacy parser stays for any old topup_ invoices still in flight.
 
-/** Parse our internal orderId: "topup_<userId>_<timestamp>".
- *  userId itself may contain underscores (e.g. "tg_12345"), so use lastIndexOf. */
 export function parseOrderId(
-  orderId: string
+  orderId: string,
 ): { userId: string; timestamp: number } | null {
   if (!orderId?.startsWith("topup_")) return null;
   const rest = orderId.slice("topup_".length);

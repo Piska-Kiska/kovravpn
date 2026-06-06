@@ -5,7 +5,7 @@ import { listInbounds, buildVlessForClient, addClient } from "@/lib/xpanel";
 import { addClientSync } from "@/lib/xpanel-sync";
 import { addClientToDE } from "@/lib/xpanel-de";
 import { getEnabledInbounds } from "@/lib/inbounds";
-import { canCreateProfile, getCurrentBalance, calcExpiry, syncAllExpiry } from "@/lib/balance";
+import { canCreateProfileAsync, syncAllExpiry, calcExpiryForUser } from "@/lib/balance";
 import { authenticateRequest } from "@/lib/auth";
 import { rateLimit, acquireLock } from "@/lib/ratelimit";
 import { redis } from "@/lib/redis";
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       if (!account) account = await createAccount(userId);
       const profiles = await getProfiles(userId);
 
-      const check = canCreateProfile(account, profiles.length);
+      const check = await canCreateProfileAsync(userId);
       if (!check.ok) {
         return NextResponse.json({ error: check.error, limit: true }, { status: 403 });
       }
@@ -61,12 +61,7 @@ export async function POST(req: NextRequest) {
       const uuid = randomUUID();
       const email = `vpn_${userId}_${Date.now()}`;
 
-      const balance = getCurrentBalance(account, profiles.length);
-      const newDeviceCount = profiles.length + 1;
-      const expiryTime = calcExpiry(balance, newDeviceCount);
-
-      account.balance = balance;
-      account.balanceUpdatedAt = Date.now();
+      const expiryTime = await calcExpiryForUser(userId);
       account.paidUntil = expiryTime;
       await redis.set(`account:${userId}`, JSON.stringify(account));
 

@@ -1,21 +1,21 @@
 // src/app/register/layout.tsx
 import type { Metadata } from "next";
 
-const TITLE = "Регистрация";
+const TITLE = "Sign up";
 const DESC =
-  "Создайте аккаунт ПроксисВпнович за минуту: подтверждение по email или один клик через Telegram. Первое пополнение от 10 ₽, без подписки и автосписаний.";
+  "Create your Kovra account in a minute - email or one-tap Telegram. Crypto payments, up to 3 devices, from $6.59/mo.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESC,
   alternates: { canonical: "/register" },
   openGraph: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
     url: "/register",
   },
   twitter: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
   },
   robots: { index: false, follow: true },

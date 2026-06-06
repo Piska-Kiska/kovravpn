@@ -8,7 +8,7 @@ import { MetadataRoute } from "next";
  * as a soft error in Search Console.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://proxysvpn.com";
+  const base = "https://kovravpn.com";
   return [
     { url: base, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
     { url: `${base}/guide`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },

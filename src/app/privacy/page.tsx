@@ -4,10 +4,10 @@ import Logo from "@/components/Logo";
 import NavToggles from "@/components/NavToggles";
 
 export const metadata = {
-  title: "Политика конфиденциальности — ПроксисВпнович",
+  title: "Политика конфиденциальности — Kovra",
   description:
-    "Какие данные собирает сервис ПроксисВпнович, как они используются и защищаются.",
-  alternates: { canonical: "https://proxysvpn.com/privacy" },
+    "Какие данные собирает сервис Kovra, как они используются и защищаются.",
+  alternates: { canonical: "https://kovravpn.com/privacy" },
   robots: { index: true, follow: true },
 };
 
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
               className="hidden sm:inline font-semibold text-nm-text tracking-tight"
               data-i18n="common.brand"
             >
-              ПроксисВпнович
+              Kovra
             </span>
           </Link>
           <div className="flex items-center gap-2">
@@ -57,8 +57,8 @@ export default function PrivacyPage() {
             <p data-i18n="privacy.s1.p1">
               Настоящая Политика конфиденциальности (далее — «Политика») регулирует
               порядок сбора, использования и защиты информации, которую Пользователь
-              передаёт при использовании сервиса «ПроксисВпнович» (далее — «Сервис»),
-              доступного на сайте proxysvpn.com и через Telegram-бота @proxysvpn_bot.
+              передаёт при использовании сервиса «Kovra» (далее — «Сервис»),
+              доступного на сайте kovravpn.com и через Telegram-бота @KovraVPN_bot.
             </p>
             <p className="mt-2" data-i18n="privacy.s1.p2">
               Используя Сервис, Пользователь подтверждает согласие с условиями настоящей
@@ -173,7 +173,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-nm-text mb-3" data-i18n="privacy.s10.h">10. Изменения в Политике</h2>
             <p data-i18n="privacy.s10.p1">
               Сервис вправе вносить изменения в настоящую Политику. Актуальная редакция
-              публикуется по адресу proxysvpn.com/privacy с указанием даты обновления.
+              публикуется по адресу kovravpn.com/privacy с указанием даты обновления.
               Продолжение использования Сервиса после публикации изменений означает согласие
               с новой редакцией.
             </p>
@@ -184,12 +184,12 @@ export default function PrivacyPage() {
             <p data-i18n-html="privacy.s11.p1.html">
               По всем вопросам, связанным с обработкой персональных данных, Пользователь
               может обратиться через Telegram-бота{" "}
-              <a href="https://t.me/proxysvpn_support_bot" className="text-nm-accent hover:underline">
-                @proxysvpn_support_bot
+              <a href="https://t.me/KovraVPN_bot" className="text-nm-accent hover:underline">
+                @KovraVPN_bot
               </a>{" "}
               или на адрес{" "}
-              <a href="mailto:support@proxysvpn.com" className="text-nm-accent hover:underline">
-                support@proxysvpn.com
+              <a href="mailto:support@kovravpn.com" className="text-nm-accent hover:underline">
+                support@kovravpn.com
               </a>
               .
             </p>

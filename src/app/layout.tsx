@@ -1,6 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Rubik } from "next/font/google";
+import { Rubik, Figtree, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import AttributionCapture from "@/components/AttributionCapture";
@@ -12,33 +12,45 @@ const rubik = Rubik({
   display: "swap",
 });
 
-const SITE_URL = "https://proxysvpn.com";
-const SITE_NAME = "ПроксисВпнович";
-const SITE_NAME_LATIN = "Proxysvpnovich";
+const figtree = Figtree({
+  subsets: ["latin"],
+  variable: "--font-figtree",
+  display: "swap",
+});
+
+const schibsted = Schibsted_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-schibsted",
+  display: "swap",
+});
+
+const SITE_URL = "https://kovravpn.com";
+const SITE_NAME = "Kovra";
+const SITE_NAME_LATIN = "Kovra";
 const DEFAULT_TITLE =
-  "ПроксисВпнович (Proxysvpnovich) — приватный VPN с низким пингом · 100 ₽/мес";
+  "Kovra (Kovra) — приватный VPN с низким пингом · 100 ₽/мес";
 const DEFAULT_DESC =
-  "Proxysvpnovich (ПроксисВпнович) — VPN на VLESS Reality. Низкий пинг, надёжное шифрование, серверы в Европе. Подключение за 2 минуты, оплата от 10 ₽.";
+  "Kovra (Kovra) — VPN на VLESS Reality. Низкий пинг, надёжное шифрование, серверы в Европе. Подключение за 2 минуты, оплата от 10 ₽.";
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but
  * Yandex still uses it lightly, and more importantly: every spelling
  * variant Google sees on-page (title + description + keywords + JSON-LD
  * alternateName + visible body text) increases the chance the algorithm
- * stops auto-correcting "proxysvpn" -> "proxy vpn" in SERPs. The current
+ * stops auto-correcting "kovra" -> "proxy vpn" in SERPs. The current
  * auto-correct is the single biggest reason brand searches fail.
  */
 const BRAND_KEYWORDS = [
   // Latin spellings (the critical signal — without these Google
   // collapses the brand into the generic "proxy vpn" mass-market term)
-  "Proxysvpnovich",
-  "proxysvpnovich",
-  "proxysvpn",
+  "Kovra",
+  "kovra",
+  "kovra",
   "Proxys VPN",
-  "ProxysVPN",
+  "Kovra",
   // Cyrillic
-  "ПроксисВпнович",
-  "ПроксисВПН",
+  "Kovra",
+  "Kovra",
   "Прокси ВПН",
   // Technical / topical
   "VPN VLESS Reality",
@@ -55,7 +67,7 @@ const BRAND_KEYWORDS = [
  * Root metadata.
  *
  * - `title.template` lets every page override only its own segment ("Войти")
- *   while we always append " | ПроксисВпнович" for brand recall in SERPs.
+ *   while we always append " | Kovra" for brand recall in SERPs.
  * - `title.default` is what the homepage uses (it has no template arg).
  * - `metadataBase` makes relative OG/canonical URLs resolve against the
  *   production origin, fixes Yandex/Google complaining about bare paths.
@@ -65,8 +77,8 @@ const BRAND_KEYWORDS = [
  *
  * Brand-recognition tweaks (April 2026, Tier-0 SEO patch):
  * - DEFAULT_TITLE / DEFAULT_DESC now carry the Latin spelling
- *   "Proxysvpnovich" alongside Cyrillic so Google can connect the two
- *   forms and stop auto-correcting "proxysvpn" -> "proxy vpn".
+ *   "Kovra" alongside Cyrillic so Google can connect the two
+ *   forms and stop auto-correcting "kovra" -> "proxy vpn".
  * - `keywords` exposes every spelling variant we want indexed.
  * - `verification.google` is a placeholder — fill in the
  *   `google-site-verification` content string from GSC -> Settings ->
@@ -164,7 +176,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ru"
-      className={`${rubik.variable} antialiased scroll-smooth`}
+      className={`${rubik.variable} ${figtree.variable} ${schibsted.variable} antialiased scroll-smooth`}
       suppressHydrationWarning
     >
       <head>

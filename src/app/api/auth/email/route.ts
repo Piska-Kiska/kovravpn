@@ -61,19 +61,25 @@ export async function POST(req: NextRequest) {
       await redis.set(`email_code:${normalized}`, code, { ex: 600 });
     }
 
-    await getResend().emails.send({
-      from: "ПроксисВпнович <noreply@proxysvpn.com>",
+    const { data: sendData, error: sendError } = await getResend().emails.send({
+      from: "Kovra <onboarding@resend.dev>",
       to: normalized,
       subject: `${code} — код подтверждения`,
       html: `
         <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px">
-          <h2 style="margin:0 0 8px">ПроксисВпнович</h2>
+          <h2 style="margin:0 0 8px">Kovra</h2>
           <p style="color:#666;margin:0 0 24px">Код подтверждения:</p>
           <div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px">${code}</div>
           <p style="color:#999;font-size:12px;margin:24px 0 0">Код действителен 10 минут. Если вы не запрашивали код — проигнорируйте это письмо.</p>
         </div>
       `,
     });
+
+    if (sendError) {
+      console.error("[auth/email] Resend error:", sendError);
+      return NextResponse.json({ error: "Не удалось отправить код" }, { status: 500 });
+    }
+    console.log("[auth/email] Resend ok, id:", sendData?.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

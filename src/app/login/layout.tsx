@@ -8,19 +8,19 @@ import type { Metadata } from "next";
 
 const TITLE = "Войти в личный кабинет";
 const DESC =
-  "Вход в личный кабинет ПроксисВпнович: управление подписками, оплата, добавление устройств. Авторизация через email или Telegram.";
+  "Вход в личный кабинет Kovra: управление подписками, оплата, добавление устройств. Авторизация через email или Telegram.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESC,
   alternates: { canonical: "/login" },
   openGraph: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
     url: "/login",
   },
   twitter: {
-    title: `${TITLE} | ПроксисВпнович`,
+    title: `${TITLE} | Kovra`,
     description: DESC,
   },
   // Auth pages shouldn't show up in SERPs.

@@ -20,10 +20,10 @@
 
 import { FAQ_HOME, type FaqItem } from "./faq-items";
 
-const SITE_URL = "https://proxysvpn.com";
-const ORG_NAME = "ПроксисВпнович";
-const ORG_NAME_LATIN = "Proxysvpnovich";
-const ORG_LEGAL_NAME = "ПроксисВпнович";
+const SITE_URL = "https://kovravpn.com";
+const ORG_NAME = "Kovra";
+const ORG_NAME_LATIN = "Kovra";
+const ORG_LEGAL_NAME = "Kovra";
 
 /**
  * Organization schema — appears in Google knowledge panel when someone
@@ -32,9 +32,9 @@ const ORG_LEGAL_NAME = "ПроксисВпнович";
  *
  * Tier-0 brand-recognition tweaks (April 2026):
  * - `alternateName` carries every spelling variant (Latin transliteration
- *   "Proxysvpnovich", short forms, Cyrillic alternatives). This is the
+ *   "Kovra", short forms, Cyrillic alternatives). This is the
  *   strongest single signal we can give Google to stop treating
- *   "proxysvpn" as a typo of "proxy vpn".
+ *   "kovra" as a typo of "proxy vpn".
  * - `knowsAbout` declares topical authority for VPN / VLESS / ML-KEM
  *   queries. Helps Google match the org to topical SERPs.
  * - `foundingDate` and `slogan` add knowledge-panel completeness signals.
@@ -53,9 +53,9 @@ export function buildOrganizationSchema() {
     legalName: ORG_LEGAL_NAME,
     alternateName: [
       ORG_NAME_LATIN,
-      "ProxysVPN",
+      "Kovra",
       "Proxys VPN",
-      "ПроксисВПН",
+      "Kovra",
       "Прокси ВПН",
     ],
     url: SITE_URL,
@@ -64,7 +64,7 @@ export function buildOrganizationSchema() {
     slogan: "VPN на VLESS Reality для России",
     foundingDate: "2026-04",
     description:
-      "Proxysvpnovich (ПроксисВпнович) — VPN-сервис на протоколе VLESS Reality. Низкий пинг, обход блокировок, серверы в Европе. 100 ₽/мес за устройство.",
+      "Kovra (Kovra) — VPN-сервис на протоколе VLESS Reality. Низкий пинг, обход блокировок, серверы в Европе. 100 ₽/мес за устройство.",
     knowsAbout: [
       "VPN",
       "VLESS Reality",
@@ -76,13 +76,13 @@ export function buildOrganizationSchema() {
       "VPN для игр",
     ],
     sameAs: [
-      "https://t.me/proxysvpn_bot",
+      "https://t.me/KovraVPN_bot",
     ],
     contactPoint: [
       {
         "@type": "ContactPoint",
         contactType: "customer support",
-        email: "noreply@proxysvpn.com",
+        email: "noreply@kovravpn.com",
         availableLanguage: ["Russian", "ru"],
       },
     ],
@@ -104,7 +104,7 @@ export function buildWebSiteSchema() {
     name: ORG_NAME,
     alternateName: ORG_NAME_LATIN,
     description:
-      "Proxysvpnovich (ПроксисВпнович) — VPN-сервис на VLESS Reality для России.",
+      "Kovra (Kovra) — VPN-сервис на VLESS Reality для России.",
     inLanguage: "ru-RU",
     publisher: { "@id": `${SITE_URL}/#organization` },
   };
@@ -123,7 +123,7 @@ export function buildProductSchema() {
     "@type": "SoftwareApplication",
     name: `${ORG_NAME} (${ORG_NAME_LATIN})`,
     description:
-      "VPN-приложение Proxysvpnovich (ПроксисВпнович). VLESS Reality, пост-квантовое шифрование ML-KEM, серверы в Европе, низкий пинг. Поддержка Windows, macOS, iOS, Android.",
+      "VPN-приложение Kovra (Kovra). VLESS Reality, пост-квантовое шифрование ML-KEM, серверы в Европе, низкий пинг. Поддержка Windows, macOS, iOS, Android.",
     applicationCategory: "SecurityApplication",
     applicationSubCategory: "VPN",
     operatingSystem: "Windows, macOS, iOS, Android, Linux",
@@ -189,7 +189,7 @@ export interface HowToStep {
 }
 
 /**
- * HowTo schema — for /guide. Describes a task ("Connect to ProxysVPN") with
+ * HowTo schema — for /guide. Describes a task ("Connect to Kovra") with
  * ordered steps. Google may render a step-by-step rich result with numbers.
  *
  * Guide has per-platform sections (Android, iOS, Windows, macOS). We export
@@ -229,7 +229,7 @@ export interface BreadcrumbItem {
 /**
  * BreadcrumbList schema — helps search engines replace the raw URL path
  * in result snippets with a localized, human-readable crumb trail
- * ("Главная › Инструкция" instead of "proxysvpn.com › guide").
+ * ("Главная › Инструкция" instead of "kovravpn.com › guide").
  *
  * Even on flat sites like ours, Yandex and Bing pick this up reliably;
  * Google sometimes substitutes its own URL-derived crumbs.

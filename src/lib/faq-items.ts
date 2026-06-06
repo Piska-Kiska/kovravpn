@@ -25,7 +25,7 @@ export interface FaqItem {
 /** Homepage FAQ — covers purchase decision questions. */
 export const FAQ_HOME: readonly FaqItem[] = [
   {
-    q: "Какие устройства поддерживает ПроксисВпнович?",
+    q: "Какие устройства поддерживает Kovra?",
     a: "Android, iPhone, iPad, Mac, Windows. До 100 устройств на аккаунте — каждому создаётся отдельная ссылка подписки.",
   },
   {
@@ -46,7 +46,7 @@ export const FAQ_HOME: readonly FaqItem[] = [
   },
   {
     q: "Что если VPN не заработает на моём устройстве?",
-    a: "Напишите в наш бот поддержки @proxysvpn_support_bot или на support@proxysvpn.com — поможем настроить. Если подключить не получится — вернём деньги.",
+    a: "Напишите в наш бот поддержки @KovraVPN_bot или на support@kovravpn.com — поможем настроить. Если подключить не получится — вернём деньги.",
   },
 ] as const;
 

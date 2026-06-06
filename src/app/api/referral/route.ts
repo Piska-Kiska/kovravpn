@@ -13,11 +13,11 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     code: stats.code,
-    link: `https://proxysvpn.com/register?ref=${stats.code}`,
-    botLink: `https://t.me/proxysvpn_bot?start=ref_${stats.code}`,
+    link: `https://kovravpn.com/register?ref=${stats.code}`,
+    botLink: `https://t.me/KovraVPN_bot?start=ref_${stats.code}`,
     total: stats.total,
     rewarded: stats.rewarded,
     pending: stats.pending,
-    rewardDays: 7,
+    rewardDays: 14,
   });
 }

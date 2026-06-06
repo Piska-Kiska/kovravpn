@@ -1,33 +1,37 @@
 // src/app/api/payment/crypto-webhook/route.ts
 //
-// NOWPayments IPN webhook receiver.
+// NOWPayments IPN webhook receiver (subscription model).
 //
 // Security model:
 //   1. Verify HMAC-SHA512 signature against IPN secret (header
 //      `x-nowpayments-sig`). Reject 401 on mismatch.
 //   2. ATOMIC dedup via `crypto_payment_done:<payment_id>` SET NX (90 days).
 //      Reserved BEFORE any side effect.
-//   3. userId resolved from `parseOrderId(payload.order_id)` - order_id is
-//      formed by us at invoice creation and round-trips through NOWPayments.
+//   3. Purchase decoded from `parseSubOrderId(payload.order_id)` (sub_/dev_).
+//      Legacy `topup_` orders are ignored (balance model retired).
+//
+// On a finished payment we ADD the corresponding subscription and re-sync
+// every profile's 3X-UI expiry to the furthest active subscription.
 
 import { NextRequest, NextResponse } from "next/server";
+import { getUserRecord } from "@/lib/accounts";
 import {
-  getAccount,
-  getProfiles,
-  getUserRecord,
-  markTopup,
-} from "@/lib/accounts";
-import { addBalance, getBalanceInfo, getTopupBonus } from "@/lib/balance";
+  parseSubOrderId,
+  resolvePlan,
+  applyPlanPurchase,
+  applyDeviceAddon,
+  applyReferralReward,
+  summarize,
+  getSubscriptions,
+} from "@/lib/subscriptions";
+import { syncAllExpiry } from "@/lib/balance";
+import { markTopup } from "@/lib/accounts";
 import { grantReferralReward } from "@/lib/referrals";
-import {
-  parseOrderId,
-  verifyIpnSignature,
-  type IpnPayload,
-} from "@/lib/nowpayments";
+import { verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
 import { reserveDedupKey } from "@/lib/dedup";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
 
 async function notifyTelegram(userId: string, message: string): Promise<void> {
@@ -51,6 +55,14 @@ async function notifyTelegram(userId: string, message: string): Promise<void> {
     });
   } catch (err) {
     console.error("[crypto-webhook] notifyTelegram error:", err);
+  }
+}
+
+function fmtDate(ms: number): string {
+  try {
+    return new Date(ms).toISOString().slice(0, 10);
+  } catch {
+    return "";
   }
 }
 
@@ -83,12 +95,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: "not finished" });
     }
 
-    const parsed = parseOrderId(payload.order_id);
+    const parsed = parseSubOrderId(payload.order_id);
     if (!parsed) {
-      console.warn("[crypto-webhook] unrecognized order_id:", payload.order_id);
-      return NextResponse.json({ ok: true, ignored: "unknown order_id" });
+      // Legacy topup_ or unknown — nothing to grant in subscription model.
+      console.warn("[crypto-webhook] non-subscription order_id ignored:", payload.order_id);
+      return NextResponse.json({ ok: true, ignored: "non-subscription order_id" });
     }
-    const { userId } = parsed;
+    const userId = parsed.userId;
 
     const paymentId = String(payload.payment_id);
     if (!/^[a-zA-Z0-9_\-]{1,128}$/.test(paymentId)) {
@@ -105,48 +118,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: "duplicate" });
     }
 
-    const account = await getAccount(userId);
-    if (!account) {
-      console.warn("[crypto-webhook] account not found:", userId);
-      return NextResponse.json({ ok: true, ignored: "account not found" });
+    // ─── Grant entitlement ───
+    let summaryLine = "";
+    if (parsed.type === "plan") {
+      const plan = resolvePlan(parsed.kind, parsed.term);
+      if (!plan) {
+        return NextResponse.json({ ok: true, ignored: "bad plan in order_id" });
+      }
+      await applyPlanPurchase(userId, plan);
+      const label = parsed.kind === "plan3" ? "3 devices" : "1 device";
+      summaryLine = `${label} · ${parsed.term} mo`;
+    } else {
+      await applyDeviceAddon(userId);
+      summaryLine = "+1 device · 30 days";
     }
 
-    const amount = Number(payload.price_amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json({ ok: true, ignored: "bad amount" });
-    }
-
-    const bonus = getTopupBonus(amount);
-    const totalCredit = amount + bonus;
-
-    const updated = await addBalance(userId, totalCredit);
-    const profiles = await getProfiles(userId);
-    const bal = getBalanceInfo(updated, profiles.length);
-
+    await syncAllExpiry(userId);
     await markTopup(userId);
 
+    const subs = await getSubscriptions(userId);
+    const s = summarize(subs);
+
+    // Notify buyer.
     const lines = [
-      `✅ <b>Баланс пополнен!</b>`,
+      `✅ <b>Payment received</b>`,
       ``,
-      `💰 +${amount} ₽ (криптой)`,
+      `🎟 ${summaryLine}`,
+      `📱 Active devices: <b>${s.activeSlots}</b>`,
     ];
-    if (bonus > 0) lines.push(`🎁 Бонус: +${bonus} ₽`);
-    lines.push(`💳 Баланс: <b>${bal.balance.toFixed(2)} ₽</b>`);
-    if (bal.dailyRate > 0) lines.push(`📅 Хватит на ~${bal.daysRemaining} дн.`);
+    if (s.maxExpiry > 0) lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
     await notifyTelegram(userId, lines.join("\n"));
 
+    // ─── Referral reward: first paid purchase → referrer gets 14d sub ───
     try {
       const ref = await grantReferralReward(userId);
-      if (ref.rewarded && ref.referrerId && ref.bonus) {
-        await addBalance(ref.referrerId, ref.bonus);
+      if (ref.rewarded && ref.referrerId) {
+        await applyReferralReward(ref.referrerId);
+        await syncAllExpiry(ref.referrerId);
         await notifyTelegram(
           ref.referrerId,
           [
-            `🎁 <b>Реферальный бонус!</b>`,
+            `🎁 <b>Referral reward!</b>`,
             ``,
-            `Ваш друг пополнил баланс.`,
-            `Вам начислено <b>+${ref.bonus} ₽</b> на баланс!`,
-          ].join("\n")
+            `Your friend bought a subscription.`,
+            `You got <b>+14 days</b> for 1 device.`,
+          ].join("\n"),
         );
       }
     } catch (err) {

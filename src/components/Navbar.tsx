@@ -23,7 +23,7 @@ export default function Navbar() {
           className="flex items-center gap-2 text-xl font-heading font-extrabold tracking-tight text-indigo-400 hover:text-indigo-300 transition"
         >
           <Shield className="w-7 h-7" />
-          <span>ПроксисВпнович</span>
+          <span>Kovra</span>
         </Link>
 
         {/* Desktop links */}

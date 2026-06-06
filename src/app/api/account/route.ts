@@ -7,7 +7,14 @@ import {
   getSubUrl,
   ensureProfileSubToken,
 } from "@/lib/accounts";
-import { getBalanceInfo } from "@/lib/balance";
+import {
+  getSubscriptions,
+  summarize,
+  PLAN_PRICES,
+  PLAN_SLOTS,
+  DEVICE_ADDON_PRICE,
+  DEVICE_ADDON_DAYS,
+} from "@/lib/subscriptions";
 import { isHappEncryptedEnabled } from "@/lib/feature-flags";
 import { authenticateRequest } from "@/lib/auth";
 
@@ -24,21 +31,20 @@ export async function POST(req: NextRequest) {
 
     const rawProfiles = await getProfiles(userId);
 
-    // Ensure every profile has a per-profile subToken (lazy-create for legacy profiles).
-    // After this, the client can build subscription URLs as /api/sub/<subToken> per device.
+    // Ensure every profile has a per-profile subToken (lazy-create for legacy).
     const profiles = await Promise.all(
       rawProfiles.map(async (p) => {
         if (p.subToken) return p;
         const token = await ensureProfileSubToken(userId, p.uuid);
         return { ...p, subToken: token };
-      })
+      }),
     );
 
-    const bal = getBalanceInfo(account, profiles.length);
+    const subs = await getSubscriptions(userId);
+    const s = summarize(subs);
 
-    // Legacy user-level sub URL (returns ALL profiles at once).
-    // Kept for backward compatibility with anything still subscribed to it.
-    // The dashboard no longer displays it — it uses per-profile URLs instead.
+    // Legacy user-level sub URL (kept for backward compat; dashboard uses
+    // per-profile URLs).
     const subToken = await getOrCreateSubToken(userId);
     const subUrl = getSubUrl(subToken, userId);
     const happEncrypted = isHappEncryptedEnabled(userId);
@@ -48,12 +54,32 @@ export async function POST(req: NextRequest) {
         plan: account.plan,
         paidUntil: account.paidUntil,
         createdAt: account.createdAt,
-        limit: 100,
-        balance: bal.balance,
-        dailyRate: bal.dailyRate,
-        daysRemaining: bal.daysRemaining,
+        // subscription summary
+        activeSlots: s.activeSlots,
+        hasActive: s.hasActive,
+        maxExpiry: s.maxExpiry,
+        nextExpiry: s.nextExpiry,
+        daysRemaining: s.daysRemaining,
         devices: profiles.length,
+        // active subscription breakdown (for "what's active" list)
+        subs: s.subs.map((x) => ({
+          id: x.id,
+          kind: x.kind,
+          slots: x.slots,
+          createdAt: x.createdAt,
+          expiresAt: x.expiresAt,
+        })),
         features: { happEncrypted },
+      },
+      // pricing catalog so the dashboard renders plans/term selector without
+      // hardcoding (server is source of truth)
+      pricing: {
+        plan1: PLAN_PRICES.plan1,
+        plan3: PLAN_PRICES.plan3,
+        plan1Slots: PLAN_SLOTS.plan1,
+        plan3Slots: PLAN_SLOTS.plan3,
+        deviceAddonPrice: DEVICE_ADDON_PRICE,
+        deviceAddonDays: DEVICE_ADDON_DAYS,
       },
       profiles,
       subUrl,
