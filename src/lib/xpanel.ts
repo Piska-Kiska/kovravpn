@@ -236,8 +236,8 @@ export async function buildVlessForClient(
   tag: string = "Kovra"
 ): Promise<string> {
   const inbound = await getActiveInbound();
-  const stream = JSON.parse(inbound.streamSettings);
-  const proto = JSON.parse(inbound.settings || "{}");
+  const stream: any = typeof (inbound.streamSettings as unknown) === "string" ? JSON.parse(inbound.streamSettings || "{}") : (inbound.streamSettings || {});
+  const proto: any = typeof (inbound.settings as unknown) === "string" ? JSON.parse(inbound.settings || "{}") : (inbound.settings || {});
   const rs = stream.realitySettings || {};
   const rss = rs.settings || {};
 
