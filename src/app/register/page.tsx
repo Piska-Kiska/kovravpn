@@ -165,6 +165,7 @@ const css = `
 .kvr-tg-item:hover{background:var(--accent-soft)}
 .kvr-tg-item.on{background:var(--accent-soft);color:var(--accent)}
 @media (max-width:480px){.kvr-card{padding:30px 22px}.kvr-h1{font-size:24px}}
+.kvr-root .kvr-btn{color:var(--btn-fg)}
 `;
 
 export default function RegisterPage() {
