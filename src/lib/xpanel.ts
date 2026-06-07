@@ -244,8 +244,7 @@ export function buildVlessUrl(
   tag: string,
   flow: string = ""
 ) {
-  const enc =
-    encryption && encryption !== "none" ? `&encryption=${encryption}` : "";
+  const enc = `&encryption=${encryption && encryption.trim() ? encryption : "none"}`;
   const flowParam = flow && flow.trim() ? `&flow=${flow}` : "";
   return `vless://${uuid}@${addr}:${port}/?type=tcp${enc}&security=reality${flowParam}&pbk=${pbk}&fp=${fp}&sni=${sni}&sid=${sid}&spx=${encodeURIComponent(
     spx
