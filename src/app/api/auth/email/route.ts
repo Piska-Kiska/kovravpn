@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: sendData, error: sendError } = await getResend().emails.send({
-      from: "Kovra <onboarding@resend.dev>",
+      from: "Kovra <noreply@kovravpn.com>",
       to: normalized,
       subject: `${code} — код подтверждения`,
       html: `

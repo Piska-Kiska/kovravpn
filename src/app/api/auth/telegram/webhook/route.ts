@@ -180,7 +180,7 @@ function mainMenuKb(): InlineBtn[][] {
 // ─── Screens ─────────────────────────────────────────
 
 async function screenMenu(chatId: number, msgId?: number) {
-  const t = "🛡 <b>ПроксисВпнович</b>\n\nЗащищённый доступ к сети. Быстро, надёжно, незаметно.\n\nВыберите действие:";
+  const t = "🛡 <b>Kovra</b>\n\nЗащищённый доступ к сети. Быстро, надёжно, незаметно.\n\nВыберите действие:";
   if (msgId) await edit(chatId, msgId, t, mainMenuKb());
   else await sendPhoto(chatId, BANNER_URL, t, mainMenuKb());
 }
@@ -520,7 +520,7 @@ async function screenHelp(chatId: number, msgId: number) {
     `• Перезагрузите подключение`,
     ``,
     `Проблема осталась — напишите в поддержку:`,
-    `📧 <code>noreply@proxysvpn.com</code>`,
+    `📧 <code>noreply@kovravpn.com</code>`,
   ].join("\n"), [
     [{ text: "💬 Поддержка", url: "https://t.me/proxysvpn_support_bot" }],
     [{ text: "🌐 Сайт", url: SITE_URL }],
@@ -535,7 +535,7 @@ async function screenPricing(chatId: number, msgId: number) {
   const bal = account ? getBalanceInfo(account, profiles.length) : null;
 
   const lines = [
-    `💳 <b>Цены ПроксисВпнович</b>`,
+    `💳 <b>Цены Kovra</b>`,
     ``,
     `📱 <b>100 ₽/мес за устройство</b>`,
     `├ ~3.33 ₽/день, списывается с баланса`,
@@ -653,10 +653,10 @@ async function handleTopup(chatId: number, msgId: number, amount: number) {
         amount: { value: amount.toFixed(2), currency: "RUB" },
         confirmation: { type: "redirect", return_url: `${SITE_URL}/dashboard?topup=1` },
         capture: true,
-        description: `ПроксисВпнович — пополнение ${amount} ₽`,
+        description: `Kovra — пополнение ${amount} ₽`,
         metadata: { userId, type: "topup", amount: String(amount) },
         receipt: {
-          customer: { email: email || "noreply@proxysvpn.com" },
+          customer: { email: email || "noreply@kovravpn.com" },
           items: [{
             description: `Пополнение баланса — ${amount} ₽`,
             amount: { value: amount.toFixed(2), currency: "RUB" },
@@ -882,8 +882,8 @@ async function handleTopupEnot(
     const bonus = getTopupBonus(amount);
     const comment =
       bonus > 0
-        ? `ПроксисВпнович — пополнение ${amount} ₽ (+${bonus} ₽ бонус)`
-        : `ПроксисВпнович — пополнение баланса ${amount} ₽`;
+        ? `Kovra — пополнение ${amount} ₽ (+${bonus} ₽ бонус)`
+        : `Kovra — пополнение баланса ${amount} ₽`;
 
     const invoice = await createEnotInvoice({
       amountRub: amount,

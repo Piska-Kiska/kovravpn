@@ -65,12 +65,12 @@ export async function POST(req: NextRequest) {
     );
 
     await getResend().emails.send({
-      from: "ПроксисВпнович <noreply@proxysvpn.com>",
+      from: "Kovra <noreply@kovravpn.com>",
       to: normalized,
       subject: `${code} — привязка email`,
       html: `
         <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px">
-          <h2 style="margin:0 0 8px">ПроксисВпнович</h2>
+          <h2 style="margin:0 0 8px">Kovra</h2>
           <p style="color:#666;margin:0 0 24px">Код для привязки email:</p>
           <div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px">${code}</div>
           <p style="color:#999;font-size:12px;margin:24px 0 0">Код действителен 10 минут.</p>

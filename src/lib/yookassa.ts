@@ -50,14 +50,14 @@ export async function createPayment(params: CreatePaymentParams): Promise<{ paym
       return_url: `${SITE_URL}/dashboard?paid=1`,
     },
     capture: true,
-    description: `ПроксисВпнович — тариф «${plan.name}» (${plan.months} мес.)`,
+    description: `Kovra — тариф «${plan.name}» (${plan.months} мес.)`,
     metadata: {
       userId: params.userId,
       planId: params.planId,
       months: plan.months,
     },
     receipt: {
-      customer: { email: params.email || "noreply@proxysvpn.com" },
+      customer: { email: params.email || "noreply@kovravpn.com" },
       items: [{
         description: `Подписка «${plan.name}» — ${plan.months} мес.`,
         amount: { value: plan.price.toFixed(2), currency: "RUB" },

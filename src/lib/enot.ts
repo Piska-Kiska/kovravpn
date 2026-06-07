@@ -75,7 +75,7 @@ export async function createEnotInvoice(
     hook_url: p.hookUrl,
     success_url: p.successUrl,
     fail_url: p.failUrl,
-    comment: p.comment ?? `ПроксисВпнович — пополнение ${p.amountRub} ₽`,
+    comment: p.comment ?? `Kovra — пополнение ${p.amountRub} ₽`,
     custom_fields: JSON.stringify({ userId: p.userId, kind: p.kind }),
     expire: 60,
     include_service:
