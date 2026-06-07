@@ -251,6 +251,7 @@ export async function buildVlessForClient(
     rss.spiderX || "/",
     rss.fingerprint || "chrome",
     proto.encryption || "none",
-    tag
+    tag,
+    "xtls-rprx-vision"
   );
 }
