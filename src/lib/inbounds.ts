@@ -64,8 +64,9 @@ const CACHE_TTL_MS = 30_000;
 
 const DEFAULT_REGISTRY: InboundEntry[] = [
   {
-    key: "main",
-    label: "ProxysVPN",
+    key: "vienna",
+    label: "Austria",
+    flag: "🇦🇹",
     enabled: true,
     priority: 0,
     source: "panel",
