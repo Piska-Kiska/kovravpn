@@ -78,6 +78,28 @@ async function apiPost(fullPath: string, body?: object) {
   return data;
 }
 
+/**
+ * Apply the in-DB inbound/client config to the live xray process.
+ * 3X-UI v3.2.8 persists clients/add|del|update to its DB but does NOT push
+ * the new config to xray until xray is relaunched. Without this, freshly
+ * added clients are rejected at the VLESS handshake (uuid absent from the
+ * running config.json). Best-effort: a relaunch failure must not abort the
+ * surrounding mutation, but it IS logged.
+ */
+async function restartXray(): Promise<void> {
+  try {
+    const res = await fetch(`${PANEL_URL}/panel/api/server/restartXrayService`, {
+      method: "POST",
+      headers: authHeaders(false),
+    });
+    const text = await res.text();
+    const ok = text ? (JSON.parse(text).success ?? false) : false;
+    if (!ok) console.warn(`[xpanel] restartXray non-success: ${text.slice(0, 200)}`);
+  } catch (e) {
+    console.warn("[xpanel] restartXray failed:", e instanceof Error ? e.message : e);
+  }
+}
+
 export async function listInbounds() {
   return apiGet("/xui/api/inbounds/list");
 }
@@ -150,6 +172,7 @@ export async function addClient(
     client: buildClientPayload(uuid, email, expiryTime, subId),
     inboundIds: [inboundId],
   });
+  await restartXray();
   inboundCache = null;
   return { subId };
 }
@@ -176,6 +199,7 @@ export async function deleteClient(_inboundId: number, uuid: string) {
   const result = await apiPost(
     `/panel/api/clients/del/${encodeURIComponent(email)}`
   );
+  await restartXray();
   inboundCache = null;
   return result;
 }
@@ -202,6 +226,7 @@ export async function updateClientExpiry(
       inboundIds: [inboundId],
     }
   );
+  await restartXray();
   inboundCache = null;
   return result;
 }
