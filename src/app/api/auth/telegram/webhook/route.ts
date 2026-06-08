@@ -18,7 +18,10 @@ import {
   DEVICE_NAMES,
   syncTelegramIdentity,
   formatTelegramIdentity,
+  setUserLang,
+  getUserLang,
 } from "@/lib/accounts";
+import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
 import { listInbounds, buildVlessUrl } from "@/lib/xpanel";
 import { addClientSync, deleteClientSync } from "@/lib/xpanel-sync";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
@@ -162,27 +165,44 @@ function extractMediaRef(message: {
 
 // ─── Keyboard helpers ────────────────────────────────
 
-const backBtn = (to = "menu"): InlineBtn[] => [{ text: "← Назад", callback_data: to }];
+const backBtn = (to = "menu", lang: BotLang = "en"): InlineBtn[] => [{ text: t("common.back", lang), callback_data: to }];
 
-function mainMenuKb(): InlineBtn[][] {
+function mainMenuKb(lang: BotLang = "en"): InlineBtn[][] {
   return [
-    [{ text: "➕ Подключить", callback_data: "create" }],
-    [{ text: "📊 Мой аккаунт", callback_data: "account" }],
-    [{ text: "📡 Мои устройства", callback_data: "profiles" }],
-    [{ text: "💳 Цены", callback_data: "pricing" }],
-    [{ text: "💰 Пополнить баланс", callback_data: "topup" }],
-    [{ text: "🎁 Пригласить друга", callback_data: "referral" }],
-    [{ text: "📖 Инструкция", callback_data: "guide" }, { text: "❓ Помощь", callback_data: "help" }],
-    [{ text: "🌐 Открыть сайт", url: SITE_URL }],
+    [{ text: t("menu.connect", lang), callback_data: "create" }],
+    [{ text: t("menu.account", lang), callback_data: "account" }],
+    [{ text: t("menu.devices", lang), callback_data: "profiles" }],
+    [{ text: t("menu.pricing", lang), callback_data: "pricing" }],
+    [{ text: t("menu.topup", lang), callback_data: "topup" }],
+    [{ text: t("menu.referral", lang), callback_data: "referral" }],
+    [{ text: t("menu.guide", lang), callback_data: "guide" }, { text: t("menu.help", lang), callback_data: "help" }],
+    [{ text: t("menu.language", lang), callback_data: "lang" }],
+    [{ text: t("menu.site", lang), url: SITE_URL }],
   ];
 }
 
 // ─── Screens ─────────────────────────────────────────
 
 async function screenMenu(chatId: number, msgId?: number) {
-  const t = "🛡 <b>Kovra</b>\n\nЗащищённый доступ к сети. Быстро, надёжно, незаметно.\n\nВыберите действие:";
-  if (msgId) await edit(chatId, msgId, t, mainMenuKb());
-  else await sendPhoto(chatId, BANNER_URL, t, mainMenuKb());
+  const lang = await resolveLang(await getUserId(chatId));
+  const body = t("menu.title", lang);
+  if (msgId) await edit(chatId, msgId, body, mainMenuKb(lang));
+  else await sendPhoto(chatId, BANNER_URL, body, mainMenuKb(lang));
+}
+
+async function screenLanguage(chatId: number, msgId: number) {
+  const lang = await resolveLang(await getUserId(chatId));
+  const kb: InlineBtn[][] = BOT_LANGS.map((l) => [
+    { text: (l === lang ? "✅ " : "") + LANG_NAMES[l], callback_data: `setlang_${l}` },
+  ]);
+  kb.push(backBtn("menu", lang));
+  await edit(chatId, msgId, t("lang.title", lang), kb);
+}
+
+async function handleSetLang(chatId: number, msgId: number, code: string) {
+  const lang = (normalizeLang(code) ?? "en") as BotLang;
+  await setUserLang(await getUserId(chatId), lang);
+  await screenMenu(chatId, msgId);
 }
 
 async function screenAccount(chatId: number, msgId: number) {
@@ -1035,6 +1055,14 @@ export async function POST(req: NextRequest) {
         first_name: fromUser.first_name,
         last_name: fromUser.last_name,
       }).catch((e) => console.warn("[tg] syncTelegramIdentity failed:", e));
+      // First-contact language: persist Telegram language_code only if the
+      // user has no stored choice yet (never overwrites a manual selection).
+      const tgLang = normalizeLang(fromUser.language_code);
+      if (tgLang) {
+        getUserLang(syncUserId).then((cur) => {
+          if (!cur) setUserLang(syncUserId, tgLang).catch(() => {});
+        }).catch(() => {});
+      }
     }
 
     if (body.callback_query) {
@@ -1052,6 +1080,8 @@ export async function POST(req: NextRequest) {
       }
 
       if (data === "menu") await screenMenu(chatId, msgId);
+      else if (data === "lang") await screenLanguage(chatId, msgId);
+      else if (data.startsWith("setlang_")) await handleSetLang(chatId, msgId, data.slice(8));
       else if (data === "account") await screenAccount(chatId, msgId);
       else if (data === "profiles") await screenProfiles(chatId, msgId);
       else if (data === "create") await handleCreate(chatId, msgId);

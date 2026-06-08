@@ -117,6 +117,7 @@ export interface UserRecord {
   tgFirstName?: string;
   tgLastName?: string;
   tgIdentityUpdatedAt?: number;  // unix ms
+  lang?: string;                 // bot UI language (en|ru|es|de|fr)
 }
 
 /** Get parsed user record */
@@ -307,4 +308,20 @@ function normaliseUsername(s?: string): string | undefined {
 function emptyToUndef(s?: string): string | undefined {
   const v = s?.trim();
   return v && v.length > 0 ? v : undefined;
+}
+
+
+/** Get stored bot UI language for a user (null if unset). */
+export async function getUserLang(userId: string): Promise<string | null> {
+  const rec = await getUserRecord(userId);
+  return rec?.lang ?? null;
+}
+
+/** Persist bot UI language choice. Creates a minimal record if missing. */
+export async function setUserLang(userId: string, lang: string): Promise<void> {
+  const rec =
+    (await getUserRecord(userId)) ??
+    ({ authMethod: "telegram", createdAt: Date.now() } as UserRecord);
+  rec.lang = lang;
+  await saveUserRecord(userId, rec);
 }
