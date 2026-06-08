@@ -79,8 +79,14 @@ async function resolveFromPanel(
   let stream: Record<string, unknown>;
   let proto: Record<string, unknown>;
   try {
-    stream = JSON.parse(inbound.streamSettings);
-    proto = JSON.parse(inbound.settings ?? "{}");
+    stream =
+      typeof (inbound.streamSettings as unknown) === "string"
+        ? JSON.parse(inbound.streamSettings || "{}")
+        : ((inbound.streamSettings as unknown as Record<string, unknown>) ?? {});
+    proto =
+      typeof (inbound.settings as unknown) === "string"
+        ? JSON.parse(inbound.settings ?? "{}")
+        : ((inbound.settings as unknown as Record<string, unknown>) ?? {});
   } catch (err) {
     console.error(
       `[resolver] malformed JSON for inbound ${entry.inboundId}`,
