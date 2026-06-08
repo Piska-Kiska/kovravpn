@@ -39,8 +39,8 @@ import {
 } from "@/lib/admin-bot";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const SITE_URL = "https://proxysvpn.com";
-const BANNER_URL = "https://proxysvpn.com/og-image.png";
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
+const BANNER_URL = `${SITE_URL}/og-image.png`;
 const PLAN_NAMES: Record<string, string> = {
   free: "Пробный",
   base: "Базовый",
@@ -542,7 +542,7 @@ async function screenHelp(chatId: number, msgId: number) {
     `Проблема осталась — напишите в поддержку:`,
     `📧 <code>noreply@kovravpn.com</code>`,
   ].join("\n"), [
-    [{ text: "💬 Поддержка", url: "https://t.me/proxysvpn_support_bot" }],
+    [{ text: "💬 Поддержка", url: "https://t.me/kovravpn_bot" }],
     [{ text: "🌐 Сайт", url: SITE_URL }],
     backBtn(),
   ]);
@@ -989,10 +989,10 @@ async function screenReferral(chatId: number, msgId: number) {
     `└ Оплатили: <b>${stats.rewarded}</b>`,
     ``,
     `🔗 <b>Ваша ссылка:</b>`,
-    `<code>https://proxysvpn.com/register?ref=${stats.code}</code>`,
+    `<code>${SITE_URL}/register?ref=${stats.code}</code>`,
     ``,
     `Или ссылка на бота:`,
-    `<code>https://t.me/proxysvpn_bot?start=ref_${stats.code}</code>`,
+    `<code>https://t.me/kovravpn_bot?start=ref_${stats.code}</code>`,
   ].join("\n"), [
     [{ text: "📋 Копировать ссылку", callback_data: `copy_ref_${stats.code}` }],
     backBtn(),
@@ -1001,7 +1001,7 @@ async function screenReferral(chatId: number, msgId: number) {
 
 async function handleCopyRef(chatId: number, msgId: number, code: string) {
   // Can't actually copy in TG, but we can send the link as a separate message
-  await send(chatId, `https://proxysvpn.com/register?ref=${code}`);
+  await send(chatId, `${SITE_URL}/register?ref=${code}`);
   await answerCb("", "Ссылка отправлена");
 }
 

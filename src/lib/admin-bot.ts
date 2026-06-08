@@ -701,7 +701,7 @@ async function screenPromoList(
 //   Текст | https://example.com
 //   Кнопка 2 | https://example.com/2
 //   ---
-//   Web App | webapp:https://proxysvpn.com/dashboard
+//   Web App | webapp:https://www.kovravpn.com/dashboard
 // where "---" starts a new keyboard row, and "webapp:" prefix marks a
 // web_app button (the rest are URL buttons).
 
@@ -1041,10 +1041,10 @@ async function screenBroadcastKeyboardPrompt(
       "Разрыв строк клавиатуры — отдельная строка <code>---</code>.\n" +
       "Web-app кнопка — префикс <code>webapp:</code> перед URL.\n\n" +
       "Пример:\n<pre>" +
-      "Открыть сайт | https://proxysvpn.com\n" +
-      "Канал | https://t.me/proxysvpn\n" +
+      "Открыть сайт | https://www.kovravpn.com\n" +
+      "Канал | https://t.me/kovravpn_bot\n" +
       "---\n" +
-      "Личный кабинет | webapp:https://proxysvpn.com/dashboard" +
+      "Личный кабинет | webapp:https://www.kovravpn.com/dashboard" +
       "</pre>",
     [
       [{ text: "← Без кнопок", callback_data: "adm:bcast_preview" }],
