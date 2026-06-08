@@ -1,28 +1,26 @@
 import { NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
 import { getProfiles } from "@/lib/accounts";
 import { getEnabledInboundsForUser } from "@/lib/inbounds";
-import { buildVlessForClient } from "@/lib/xpanel";
+import { buildVlessForInbound } from "@/lib/xpanel-multi";
+import { resolveInbound } from "@/lib/inbound-resolver";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const uid = "em_alesatvitter@gmail.com";
   const out: Record<string, unknown> = { uid };
-  const profiles = await getProfiles(uid);
-  out.profiles_count = profiles.length;
-  const profile = profiles[0];
-  out.profile_uuid = profile?.uuid;
-  const inbounds = await getEnabledInboundsForUser(uid);
-  out.userInbounds_count = inbounds.length;
-  out.userInbounds = inbounds;
-  // reproduce buildLinesForProfile inbounds.length===0 branch exactly
-  if (inbounds.length === 0) {
-    try {
-      out.built = await buildVlessForClient(profile.uuid);
-    } catch (err) {
-      out.build_threw = err instanceof Error ? (err.stack || err.message) : String(err);
-    }
+  const profile = (await getProfiles(uid))[0];
+  const entry = (await getEnabledInboundsForUser(uid))[0];
+  out.entry = entry;
+  try {
+    out.resolved = await resolveInbound(profile.uuid, entry);
+  } catch (e) {
+    out.resolve_threw = e instanceof Error ? (e.stack || e.message) : String(e);
+  }
+  try {
+    out.built = await buildVlessForInbound(profile.uuid, entry);
+  } catch (e) {
+    out.build_threw = e instanceof Error ? (e.stack || e.message) : String(e);
   }
   return NextResponse.json(out);
 }
