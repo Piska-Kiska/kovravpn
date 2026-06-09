@@ -40,6 +40,7 @@ import {
 } from "@/lib/admin-bot";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
 const PLAN_NAMES: Record<string, string> = {
@@ -320,8 +321,8 @@ async function handleCreate(chatId: number, msgId: number) {
     `Профиль будет создан для выбранного устройства.`,
   ].join("\n"), [
     [{ text: "🤖 Android", callback_data: "dev_android" }],
-    [{ text: "🍎 iPhone (Global)", callback_data: "dev_iphone" }, { text: "🇷🇺 iPhone (RU)", callback_data: "dev_iphone_ru" }],
-    [{ text: "💻 Mac (Global)", callback_data: "dev_mac" }, { text: "🇷🇺 Mac (RU)", callback_data: "dev_mac_ru" }],
+    [{ text: "🍎 iPhone", callback_data: "dev_iphone" }],
+    [{ text: "💻 Mac", callback_data: "dev_mac" }],
     [{ text: "🪟 Windows", callback_data: "dev_windows" }],
     backBtn(),
   ]);
@@ -385,7 +386,7 @@ async function handleCreateDevice(chatId: number, msgId: number, device: string)
     // Animate while creating
     const createPromise = fetch(`${SITE_URL}/api/vpn/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Internal-Key": BOT_TOKEN },
+      headers: { "Content-Type": "application/json", "X-Internal-Key": INTERNAL_API_KEY },
       body: JSON.stringify({ userId, deviceType: device }),
     });
 
