@@ -43,6 +43,7 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
+const ADMIN_TG_ID = "6944217115";
 const PLAN_NAMES: Record<string, string> = {
   free: "Пробный",
   base: "Базовый",
@@ -83,7 +84,6 @@ async function send(chatId: number, text: string, kb?: InlineBtn[][]) {
 async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[][]) {
   const markup = kb ? { inline_keyboard: kb } : undefined;
 
-  // Try editMessageText first (text messages)
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -94,7 +94,6 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
   });
 
   if (!res.ok) {
-    // Try editMessageCaption (photo/media messages)
     const res2 = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,7 +104,6 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
     });
 
     if (!res2.ok) {
-      // Last resort: delete and send new
       try { await tg("deleteMessage", { chat_id: chatId, message_id: msgId }); } catch {}
       await send(chatId, text, kb);
     }
@@ -130,11 +128,6 @@ async function getUserId(chatId: number): Promise<string> {
   return resolveUserId(`tg_${chatId}`);
 }
 
-/**
- * Extract a Telegram media reference (file_id) from an incoming message.
- * Returns the largest photo size, or the document/animation/video file_id.
- * Returns null if the message has no recognized media.
- */
 function extractMediaRef(message: {
   photo?: { file_id: string }[];
   animation?: { file_id: string };
@@ -153,7 +146,6 @@ function extractMediaRef(message: {
     return { type: "video", file_id: message.video.file_id };
   }
   if (Array.isArray(message.photo) && message.photo.length > 0) {
-    // Telegram sends multiple photo sizes; the last one is the largest.
     const largest = message.photo[message.photo.length - 1];
     if (largest?.file_id) {
       return { type: "photo", file_id: largest.file_id };
@@ -249,42 +241,45 @@ async function screenAccount(chatId: number, msgId: number) {
 
   await edit(chatId, msgId, lines.join("\n"), kb);
 }
+
 async function screenProfiles(chatId: number, msgId: number) {
   const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
   const account = await getAccount(userId);
 
   if (!account) {
-    return edit(chatId, msgId, "❌ Аккаунт не найден.\n\nСоздайте первый профиль:", [
-      [{ text: "➕ Подключить", callback_data: "create" }],
-      backBtn(),
+    return edit(chatId, msgId, t("prof.notfound", lang), [
+      [{ text: t("menu.connect", lang), callback_data: "create" }],
+      backBtn("menu", lang),
     ]);
   }
 
   const profiles = await getProfiles(userId);
 
   if (profiles.length === 0) {
-    return edit(chatId, msgId, "📡 <b>Мои устройства</b>\n\nУ вас пока нет устройств.", [
-      [{ text: "➕ Добавить устройство", callback_data: "create" }],
-      backBtn(),
+    return edit(chatId, msgId, t("prof.empty", lang), [
+      [{ text: t("prof.add", lang), callback_data: "create" }],
+      backBtn("menu", lang),
     ]);
   }
 
   const text =
-    `📡 <b>Мои устройства</b> (${profiles.length})\n\n` +
+    t("prof.title", lang, { n: profiles.length }) + "\n\n" +
     profiles.map((_, i) => `${i + 1}. ${getDeviceLabel(profiles, i)}`).join("\n");
 
   const kb: InlineBtn[][] = profiles.map((p, i) => [
     { text: `🔗 ${getDeviceLabel(profiles, i)}`, callback_data: `link_${p.uuid}` },
-    { text: '🗑 Удалить', callback_data: `del_${p.uuid}` },
+    { text: t("prof.del", lang), callback_data: `del_${p.uuid}` },
   ]);
-  kb.push([{ text: "➕ Добавить устройство", callback_data: "create" }]);
-  kb.push(backBtn());
+  kb.push([{ text: t("prof.add", lang), callback_data: "create" }]);
+  kb.push(backBtn("menu", lang));
 
   await edit(chatId, msgId, text, kb);
 }
 
 async function handleCreate(chatId: number, msgId: number) {
   const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
   let account = await getAccount(userId);
   if (!account) account = await createAccount(userId);
 
@@ -308,23 +303,19 @@ async function handleCreate(chatId: number, msgId: number) {
   const { canCreateProfile } = await import("@/lib/balance");
   const check = canCreateProfile(account, profiles.length);
   if (!check.ok) {
-    return edit(chatId, msgId, `❌ ${check.error}`, [
-      [{ text: "💰 Пополнить баланс", callback_data: "topup" }],
-      backBtn(),
+    return edit(chatId, msgId, t("shop.insufficient", lang, { price: "—", bal: "—", need: "—" }), [
+      [{ text: t("acc.topup", lang), callback_data: "topup" }],
+      backBtn("menu", lang),
     ]);
   }
 
   // Device selection screen
-  await edit(chatId, msgId, [
-    `📱 <b>Выберите устройство</b>`,
-    ``,
-    `Профиль будет создан для выбранного устройства.`,
-  ].join("\n"), [
-    [{ text: "🤖 Android", callback_data: "dev_android" }],
-    [{ text: "🍎 iPhone", callback_data: "dev_iphone" }],
-    [{ text: "💻 Mac", callback_data: "dev_mac" }],
-    [{ text: "🪟 Windows", callback_data: "dev_windows" }],
-    backBtn(),
+  await edit(chatId, msgId, t("create.pick", lang), [
+    [{ text: t("create.android", lang), callback_data: "dev_android" }],
+    [{ text: t("create.iphone", lang), callback_data: "dev_iphone" }],
+    [{ text: t("create.mac", lang), callback_data: "dev_mac" }],
+    [{ text: t("create.windows", lang), callback_data: "dev_windows" }],
+    backBtn("menu", lang),
   ]);
 }
 
@@ -339,19 +330,9 @@ const DEVICE_LINKS: Record<string, { name: string; happ: string; v2ray: string }
     happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
     v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
   },
-  iphone_ru: {
-    name: "iPhone (RU)",
-    happ: "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973",
-    v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
-  },
   mac: {
     name: "Mac",
     happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
-    v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
-  },
-  mac_ru: {
-    name: "Mac (RU)",
-    happ: "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973",
     v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
   },
   windows: {
@@ -368,29 +349,27 @@ const DEVICE_LINKS: Record<string, { name: string; happ: string; v2ray: string }
 
 async function handleCreateDevice(chatId: number, msgId: number, device: string) {
   const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
   let account = await getAccount(userId);
   if (!account) account = await createAccount(userId);
 
   const devInfo = DEVICE_LINKS[device] || DEVICE_LINKS.android;
 
-  // Loading animation
   const frames = [
-    `⏳ <b>Создаём профиль для ${devInfo.name}...</b>\n\n🔧 Генерируем ключи шифрования...`,
-    `⏳ <b>Создаём профиль для ${devInfo.name}...</b>\n\n🔐 Настраиваем VLESS Reality...`,
-    `⏳ <b>Создаём профиль для ${devInfo.name}...</b>\n\n🌐 Подключаем к серверу...`,
+    t("create.f1", lang, { dev: devInfo.name }),
+    t("create.f2", lang, { dev: devInfo.name }),
+    t("create.f3", lang, { dev: devInfo.name }),
   ];
 
   await edit(chatId, msgId, frames[0], []);
 
   try {
-    // Animate while creating
     const createPromise = fetch(`${SITE_URL}/api/vpn/create`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Internal-Key": INTERNAL_API_KEY },
       body: JSON.stringify({ userId, deviceType: device }),
     });
 
-    // Show animation frames
     for (let i = 1; i < frames.length; i++) {
       await new Promise((r) => setTimeout(r, 800));
       await edit(chatId, msgId, frames[i], []);
@@ -400,15 +379,12 @@ async function handleCreateDevice(chatId: number, msgId: number, device: string)
     const data = await res.json();
 
     if (!data.success) {
-      return edit(chatId, msgId, `❌ ${data.error || "Ошибка создания"}`, [
-        [{ text: "💰 Пополнить", callback_data: "topup" }],
-        backBtn(),
+      return edit(chatId, msgId, t("create.failed", lang, { msg: data.error || t("create.err.generic", lang) }), [
+        [{ text: t("acc.topup", lang), callback_data: "topup" }],
+        backBtn("menu", lang),
       ]);
     }
 
-    // data.subUrl is per-profile (returned by /api/vpn/create).
-    // Fallback: fetch latest profile and lazy-create per-profile token.
-    // NEVER fall back to user-level URL (it returns all profiles in one sub).
     let subUrl: string = data.subUrl;
     if (!subUrl) {
       const profs = await getProfiles(userId);
@@ -420,37 +396,35 @@ async function handleCreateDevice(chatId: number, msgId: number, device: string)
     }
 
     await edit(chatId, msgId, [
-      `✅ <b>Профиль для ${devInfo.name} готов!</b>`,
+      t("link.ready", lang, { dev: devInfo.name }),
       ``,
       `━━━━━━━━━━━━━━━`,
-      `🔗 <b>Ваша ссылка подписки</b>`,
-      `<i>нажмите чтобы скопировать</i>`,
+      t("link.sub", lang),
+      t("link.tap", lang),
       ``,
-      `<pre>${subUrl || "(ошибка генерации ссылки — зайдите в «📡 Мои устройства»)"}</pre>`,
+      `<pre>${subUrl || t("link.fallback", lang)}</pre>`,
       `━━━━━━━━━━━━━━━`,
       ``,
-      `⚠️ Ссылка привязана к этому устройству — не делитесь ею.`,
+      t("link.warn", lang),
       ``,
-      `📥 Скачайте приложение и вставьте ссылку:`,
+      t("link.install", lang),
     ].join("\n"), [
-      [{ text: "📥 Happ", url: devInfo.happ }, { text: "📥 V2RayTun", url: devInfo.v2ray }],
-      [{ text: "📡 Мои устройства", callback_data: "profiles" }],
-      [{ text: "📖 Как подключить", callback_data: "guide" }],
-      backBtn(),
+      [{ text: t("btn.happ", lang), url: devInfo.happ }, { text: t("btn.v2ray", lang), url: devInfo.v2ray }],
+      [{ text: t("btn.devices", lang), callback_data: "profiles" }],
+      [{ text: t("link.howto", lang), callback_data: "guide" }],
+      backBtn("menu", lang),
     ]);
   } catch (err) {
-    await edit(chatId, msgId, `❌ Ошибка: ${err instanceof Error ? err.message : err}`, [backBtn()]);
+    await edit(chatId, msgId, t("common.error", lang, { msg: err instanceof Error ? err.message : String(err) }), [backBtn("menu", lang)]);
   }
 }
 
-
-
-
 async function handleLink(chatId: number, msgId: number, uuid: string) {
   const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
   const profiles = await getProfiles(userId);
   const idx = profiles.findIndex((x) => x.uuid === uuid);
-  if (idx === -1) return edit(chatId, msgId, "❌ Профиль не найден.", [backBtn("profiles")]);
+  if (idx === -1) return edit(chatId, msgId, t("link.notfound", lang), [backBtn("profiles", lang)]);
 
   const token = await ensureProfileSubToken(userId, uuid);
   const subUrl = getSubUrl(token, userId);
@@ -460,56 +434,59 @@ async function handleLink(chatId: number, msgId: number, uuid: string) {
 
   await edit(chatId, msgId,
     [
-      `✅ <b>${label} — профиль активен</b>`,
+      t("link.ready", lang, { dev: label }),
       ``,
       `━━━━━━━━━━━━━━━`,
-      `🔗 <b>Ваша ссылка подписки</b>`,
-      `<i>нажмите чтобы скопировать</i>`,
+      t("link.sub", lang),
+      t("link.tap", lang),
       ``,
       `<pre>${subUrl}</pre>`,
       `━━━━━━━━━━━━━━━`,
       ``,
-      `⚠️ Ссылка привязана к этому устройству — не делитесь ею.`,
+      t("link.warn", lang),
       ``,
-      `📥 Скачайте приложение и вставьте ссылку:`,
+      t("link.install", lang),
     ].join("\n"),
     [
-      [{ text: "📥 Happ", url: devInfo.happ }, { text: "📥 V2RayTun", url: devInfo.v2ray }],
-      [{ text: "📖 Как подключить", callback_data: "guide" }],
-      backBtn("profiles"),
+      [{ text: t("btn.happ", lang), url: devInfo.happ }, { text: t("btn.v2ray", lang), url: devInfo.v2ray }],
+      [{ text: t("link.howto", lang), callback_data: "guide" }],
+      backBtn("profiles", lang),
     ],
   );
 }
 
 async function handleDel(chatId: number, msgId: number, uuid: string) {
-  await edit(chatId, msgId, "🗑 <b>Удалить профиль?</b>\n\nСсылка перестанет работать.", [
-    [{ text: "✅ Да, удалить", callback_data: `cdel_${uuid}` }, { text: "❌ Отмена", callback_data: "profiles" }],
+  const lang = await resolveLang(await getUserId(chatId));
+  await edit(chatId, msgId, t("del.confirm", lang), [
+    [{ text: t("del.yes", lang), callback_data: `cdel_${uuid}` }, { text: t("del.no", lang), callback_data: "profiles" }],
   ]);
 }
 
 async function handleConfirmDel(chatId: number, msgId: number, uuid: string) {
   const userId = await getUserId(chatId);
-  await edit(chatId, msgId, "⏳ <b>Удаляем устройство...</b>\n\nЭто займёт несколько секунд.", []);
+  const lang = await resolveLang(userId);
+  await edit(chatId, msgId, t("del.progress", lang), []);
   try { await deleteClientSync(1, uuid); } catch { /* ok */ }
   await removeProfile(userId, uuid);
-  await syncAllExpiry(userId); // Recalculate expiry for remaining profiles
-  await edit(chatId, msgId, "✅ Профиль удалён.", [
-    [{ text: "📡 К профилям", callback_data: "profiles" }],
-    backBtn(),
+  await syncAllExpiry(userId);
+  await edit(chatId, msgId, t("del.done", lang), [
+    [{ text: t("del.toprof", lang), callback_data: "profiles" }],
+    backBtn("menu", lang),
   ]);
 }
 
 async function screenGuide(chatId: number, msgId: number) {
+  const lang = await resolveLang(await getUserId(chatId));
   await edit(chatId, msgId, [
-    `📖 <b>Инструкция</b>`,
+    t("guide.title", lang),
     ``,
-    `1️⃣ Скачайте Happ или V2RayTun`,
-    `2️⃣ Добавьте устройство (➕)`,
-    `3️⃣ Скопируйте ссылку подписки`,
-    `4️⃣ Вставьте в приложение — «Импорт из буфера»`,
-    `5️⃣ Подключайтесь`,
+    t("guide.s1", lang),
+    t("guide.s2", lang),
+    t("guide.s3", lang),
+    t("guide.s4", lang),
+    t("guide.s5", lang),
     ``,
-    `<b>Скачать Happ:</b>`,
+    t("guide.dl", lang),
   ].join("\n"), [
     [
       { text: "🪟 Windows", url: "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe" },
@@ -517,7 +494,6 @@ async function screenGuide(chatId: number, msgId: number) {
     ],
     [
       { text: "🍎 iOS/macOS", url: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" },
-      { text: "🇷🇺 iOS RU", url: "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973" },
     ],
     [{ text: "── V2RayTun ──", callback_data: "guide" }],
     [
@@ -527,26 +503,27 @@ async function screenGuide(chatId: number, msgId: number) {
     [
       { text: "🍎 iOS/macOS", url: "https://apps.apple.com/us/app/v2raytun/id6476628951" },
     ],
-    [{ text: "📖 Полная инструкция", url: `${SITE_URL}/guide` }],
-    backBtn(),
+    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide` }],
+    backBtn("menu", lang),
   ]);
 }
 
 async function screenHelp(chatId: number, msgId: number) {
+  const lang = await resolveLang(await getUserId(chatId));
   await edit(chatId, msgId, [
-    `❓ <b>Помощь</b>`,
+    t("help.title", lang),
     ``,
-    `Если не работает:`,
-    `• Удалите профиль и создайте новый`,
-    `• Обновите приложение`,
-    `• Перезагрузите подключение`,
+    t("help.iftit", lang),
+    t("help.i1", lang),
+    t("help.i2", lang),
+    t("help.i3", lang),
     ``,
-    `Проблема осталась — напишите в поддержку:`,
+    t("help.support", lang),
     `📧 <code>noreply@kovravpn.com</code>`,
   ].join("\n"), [
-    [{ text: "💬 Поддержка", url: "https://t.me/kovravpn_bot" }],
-    [{ text: "🌐 Сайт", url: SITE_URL }],
-    backBtn(),
+    [{ text: t("help.btn.support", lang), url: "https://t.me/kovravpn_bot" }],
+    [{ text: t("help.btn.site", lang), url: SITE_URL }],
+    backBtn("menu", lang),
   ]);
 }
 
@@ -559,9 +536,9 @@ async function screenPricing(chatId: number, msgId: number) {
   const lines = [
     `💳 <b>Kovra</b>`,
     ``,
-    `👤 <b>1 device</b> — $${p1[1].total}/mo · $${p1[6].perMonth}/mo (6mo) · $${p1[12].perMonth}/mo (12mo)`,
-    `👥 <b>3 devices</b> — $${p3[1].total}/mo · $${p3[6].perMonth}/mo (6mo) · $${p3[12].perMonth}/mo (12mo)`,
-    `➕ Extra device — $${DEVICE_ADDON_PRICE}/mo`,
+    `👤 <b>${t("buy.plan1.name", lang)}</b> — $${p1[1].total}/mo · $${p1[6].perMonth}/mo (6mo) · $${p1[12].perMonth}/mo (12mo)`,
+    `👥 <b>${t("buy.plan3.name", lang)}</b> — $${p3[1].total}/mo · $${p3[6].perMonth}/mo (6mo) · $${p3[12].perMonth}/mo (12mo)`,
+    `➕ +1 — $${DEVICE_ADDON_PRICE}/mo`,
   ];
   if (balUsd > 0) {
     lines.push(``);
@@ -575,13 +552,12 @@ async function screenPricing(chatId: number, msgId: number) {
   ]);
 }
 
-
 async function screenBuyPlan(chatId: number, msgId: number) {
   const lang = await resolveLang(await getUserId(chatId));
   await edit(chatId, msgId, t("buy.title", lang), [
     [{ text: t("buy.plan1", lang), callback_data: "buyplan_plan1" }],
     [{ text: t("buy.plan3", lang), callback_data: "buyplan_plan3" }],
-    [{ text: t("common.back", lang), callback_data: "menu" }],
+    backBtn("menu", lang),
   ]);
 }
 
@@ -595,7 +571,7 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
       callback_data: `buyterm_${kind}_${term}`,
     }];
   });
-  rows.push([{ text: t("common.back", lang), callback_data: "topup" }]);
+  rows.push(backBtn("buyplan", lang));
   await edit(chatId, msgId, t("buy.term.title", lang, { plan: planName }), rows);
 }
 
@@ -607,8 +583,7 @@ async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term
   if (!plan) { await edit(chatId, msgId, t("buy.err", lang), [backBtn("menu", lang)]); return; }
   await chargeAndGrant(chatId, msgId, lang, userId, plan.price, async () => {
     await applyPlanPurchase(userId, plan);
-    const label = kind === "plan3" ? t("buy.plan3.name", lang) : t("buy.plan1.name", lang);
-    return `${label} · ${term} ${term === 1 ? "mo" : "mo"}`;
+    return t(`shop.sum.${kind}`, lang, { term });
   }, `buyplan_${kind}`);
 }
 
@@ -619,7 +594,7 @@ async function screenAddDevice(chatId: number, msgId: number) {
     const total = DEVICE_ADDON_PRICE * term;
     return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}` }];
   });
-  rows.push([{ text: t("common.back", lang), callback_data: "account" }]);
+  rows.push(backBtn("account", lang));
   await edit(chatId, msgId, t("dev.title", lang), rows);
 }
 
@@ -630,7 +605,7 @@ async function handleAddDevice(chatId: number, msgId: number, term: Term) {
   const price = DEVICE_ADDON_PRICE * term;
   await chargeAndGrant(chatId, msgId, lang, userId, price, async () => {
     for (let i = 0; i < term; i++) await applyDeviceAddon(userId);
-    return `+1 device · ${term * 30} days`;
+    return t("shop.sum.device", lang, { days: term * 30 });
   }, "adddev");
 }
 
@@ -700,7 +675,6 @@ async function screenTopup(chatId: number, msgId: number) {
 async function screenTopupAmount(chatId: number, msgId: number, method: "crypto" | "cryptobot") {
   const lang = await resolveLang(await getUserId(chatId));
   const min = minForMethod(method);
-  // quick amounts >= method minimum
   const quick = QUICK_TOPUP.filter((a) => a >= min);
   const rows: InlineBtn[][] = [];
   for (let i = 0; i < quick.length; i += 2) {
@@ -743,45 +717,46 @@ async function handleTopupBalance(chatId: number, msgId: number, method: "crypto
     await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }
+
 async function screenReferral(chatId: number, msgId: number) {
   const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
   const account = await getAccount(userId);
 
   if (!account) {
-    return edit(chatId, msgId, "❌ Сначала создайте аккаунт.", [
-      [{ text: "➕ Подключить", callback_data: "create" }],
-      backBtn(),
+    return edit(chatId, msgId, t("prof.notfound", lang), [
+      [{ text: t("menu.connect", lang), callback_data: "create" }],
+      backBtn("menu", lang),
     ]);
   }
 
   const stats = await getReferralStats(userId);
 
   await edit(chatId, msgId, [
-    `🎁 <b>Пригласить друга</b>`,
+    t("ref.title", lang),
     ``,
-    `Приглашайте друзей и зарабатывайте:`,
-    `├ <b>+50 ₽</b> при первом пополнении друга`,
-    `└ <b>Лимит: 30 рефералов</b>`,
+    t("ref.earn", lang),
+    t("ref.reward", lang),
     ``,
-    `📊 <b>Статистика:</b>`,
-    `├ Приглашено: <b>${stats.total}</b>`,
-    `└ Оплатили: <b>${stats.rewarded}</b>`,
+    t("ref.stats", lang),
+    t("ref.invited", lang, { n: stats.total }),
+    t("ref.paid", lang, { n: stats.rewarded }),
     ``,
-    `🔗 <b>Ваша ссылка:</b>`,
+    t("ref.link", lang),
     `<code>${SITE_URL}/register?ref=${stats.code}</code>`,
     ``,
-    `Или ссылка на бота:`,
+    t("ref.orbot", lang),
     `<code>https://t.me/kovravpn_bot?start=ref_${stats.code}</code>`,
   ].join("\n"), [
-    [{ text: "📋 Копировать ссылку", callback_data: `copy_ref_${stats.code}` }],
-    backBtn(),
+    [{ text: t("ref.copy", lang), callback_data: `copy_ref_${stats.code}` }],
+    backBtn("menu", lang),
   ]);
 }
 
 async function handleCopyRef(chatId: number, msgId: number, code: string) {
-  // Can't actually copy in TG, but we can send the link as a separate message
+  const lang = await resolveLang(await getUserId(chatId));
   await send(chatId, `${SITE_URL}/register?ref=${code}`);
-  await answerCb("", "Ссылка отправлена");
+  await answerCb("", t("ref.sent", lang));
 }
 
 // ─── Auth code handlers ──────────────────────────────
@@ -813,7 +788,6 @@ async function handleCode(code: string, chatId: number): Promise<"auth" | "link"
 // ─── Webhook entry ───────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Verify request is from Telegram
   const secret = req.headers.get("x-telegram-bot-api-secret-token");
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
   if (!expectedSecret || secret !== expectedSecret) {
@@ -823,9 +797,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Callback queries (inline keyboard)
     // Sync Telegram identity on every update (fire-and-forget).
-    // Runs for both messages and callbacks. Redis hiccups must not break message flow.
     const fromUser = body.message?.from ?? body.callback_query?.from;
     if (fromUser?.id) {
       const syncUserId = await resolveUserId(`tg_${fromUser.id}`);
@@ -834,8 +806,7 @@ export async function POST(req: NextRequest) {
         first_name: fromUser.first_name,
         last_name: fromUser.last_name,
       }).catch((e) => console.warn("[tg] syncTelegramIdentity failed:", e));
-      // First-contact language: persist Telegram language_code only if the
-      // user has no stored choice yet (never overwrites a manual selection).
+      // First-contact language: persist Telegram language_code only if unset.
       const tgLang = normalizeLang(fromUser.language_code);
       if (tgLang) {
         getUserLang(syncUserId).then((cur) => {
@@ -852,7 +823,6 @@ export async function POST(req: NextRequest) {
 
       await answerCb(cb.id);
 
-      // Admin panel takes priority over the regular dispatch.
       if (data.startsWith("adm:")) {
         const handled = await tryHandleAdminCallback(chatId, msgId, data, send, edit);
         if (handled) return NextResponse.json({ ok: true });
@@ -870,8 +840,9 @@ export async function POST(req: NextRequest) {
       else if (data === "pricing") await screenPricing(chatId, msgId);
       else if (data === "referral") await screenReferral(chatId, msgId);
       else if (data === "promo") {
+        const lang = await resolveLang(await getUserId(chatId));
         await redis.set(`promo_await:${chatId}`, "1", { ex: 300 });
-        await edit(chatId, msgId, "🎟 <b>Введите промокод</b>\n\nОтправьте промокод в чат:", [backBtn()]);
+        await edit(chatId, msgId, t("promo.ask", lang), [backBtn("menu", lang)]);
       }
       else if (data === "topup") await screenTopup(chatId, msgId);
       else if (data.startsWith("buyterm_")) {
@@ -888,7 +859,7 @@ export async function POST(req: NextRequest) {
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");
       else if (data.startsWith("tu_")) {
-        const parts = data.split("_"); // tu_<method>_<amt|manual>
+        const parts = data.split("_");
         const method = parts[1] === "cryptobot" ? "cryptobot" : "crypto";
         const val = parts[2];
         if (val === "manual") {
@@ -915,12 +886,8 @@ export async function POST(req: NextRequest) {
     // Text messages
     const message = body.message;
 
-    // Admin media intake: when admin is composing a broadcast, the message
-    // can be a photo/animation/video/document instead of plain text. We
-    // intercept BEFORE the text-only guard. If state is awaiting_broadcast_content
-    // and there's a recognizable media field, we route directly into the
-    // broadcast composer.
-    if (message && String(message.chat?.id) === "6944217115") {
+    // Admin media intake (broadcast composer)
+    if (message && String(message.chat?.id) === ADMIN_TG_ID) {
       const adminChatId: number = message.chat.id;
       const fsmState = await import("@/lib/admin-fsm").then((m) =>
         m.getAdminState(adminChatId),
@@ -941,31 +908,20 @@ export async function POST(req: NextRequest) {
     const chatId: number = message.chat.id;
     const text: string = message.text.trim();
 
-    // Admin panel: /admin command and FSM input (lookup, link, balance).
-    // MUST run before promo_await / topup_await checks so admin's text input
-    // doesn't get swallowed by user-facing flows.
-    //
-    // BUT: a 6-char auth/link code (e.g. "CF9023") looks like a username and
-    // would be misrouted to admin lookup. Try to redeem it as a code first
-    // — only if it actually exists in Redis. This way we don't block any
-    // genuine admin lookup that just happens to be 6 chars.
+    // 6-char auth/link code first (before admin lookup)
     {
       const maybeCode = text.toUpperCase();
       if (/^[A-Z0-9]{6}$/.test(maybeCode)) {
         const result = await handleCode(maybeCode, chatId);
         if (result === "auth") {
-          await send(chatId, "✅ <b>Авторизация успешна!</b>\n\nВернитесь на сайт — вход выполнен автоматически.", [
-            [{ text: "📊 Меню", callback_data: "menu" }],
-          ]);
+          const lang = await resolveLang(await getUserId(chatId));
+          await send(chatId, t("auth.ok", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
           return NextResponse.json({ ok: true });
         } else if (result === "link") {
-          await send(chatId, "🔗 <b>Telegram привязан!</b>\n\nТеперь можно входить через Telegram.", [
-            [{ text: "📊 Меню", callback_data: "menu" }],
-          ]);
+          const lang = await resolveLang(await getUserId(chatId));
+          await send(chatId, t("auth.linked", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
           return NextResponse.json({ ok: true });
         }
-        // result === false → code not found in Redis. Fall through to normal
-        // flow (might be a username lookup in admin panel etc.).
       }
     }
 
@@ -977,13 +933,13 @@ export async function POST(req: NextRequest) {
     // /start with code
     if (text.startsWith("/start ")) {
       const param = text.replace("/start ", "").trim();
+      const lang = await resolveLang(await getUserId(chatId));
 
-      // Handle referral link: /start ref_CODE
+      // Referral link: /start ref_CODE
       if (param.toLowerCase().startsWith("ref_")) {
         const refCode = param.slice(4);
-        await redis.set(`pending_ref:${chatId}`, refCode, { ex: 86400 }); // 24h
+        await redis.set(`pending_ref:${chatId}`, refCode, { ex: 86400 });
 
-        // Try to record immediately if account exists
         const uid = await getUserId(chatId);
         const acc = await getAccount(uid);
         if (acc) {
@@ -998,41 +954,29 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        await send(chatId, [
-          `🎁 <b>Вас пригласил друг!</b>`,
-          ``,
-          `Пополните баланс — ваш друг получит +50 ₽ бонус!`,
-          ``,
-          `Нажмите кнопку ниже чтобы начать:`,
-        ].join("\n"), mainMenuKb());
+        await send(chatId, t("ref.start", lang), mainMenuKb(lang));
         return NextResponse.json({ ok: true });
       }
 
-      // Payment return links - just show menu, payment already credited via webhook
-      if (param === "paidcryptobot" || param === "paidcrypto" || param === "paidenot") {
-        await send(chatId, "✅ <b>Оплата принята!</b>\n\nБаланс будет зачислен автоматически в течение минуты.", [
-          [{ text: "📊 Меню", callback_data: "menu" }],
-        ]);
+      // Payment return links
+      if (param === "paidcryptobot" || param === "paidcrypto" || param === "paidenot" || param === "paid") {
+        await send(chatId, t("pay.accepted", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
         return NextResponse.json({ ok: true });
       }
 
       const code = param.toUpperCase();
       const result = await handleCode(code, chatId);
       if (result === "auth") {
-        await send(chatId, "✅ <b>Авторизация успешна!</b>\n\nВернитесь на сайт — вход выполнен автоматически.", [
-          [{ text: "📊 Меню", callback_data: "menu" }],
-        ]);
+        await send(chatId, t("auth.ok", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
       } else if (result === "link") {
-        await send(chatId, "🔗 <b>Telegram привязан!</b>\n\nТеперь можно входить через Telegram.", [
-          [{ text: "📊 Меню", callback_data: "menu" }],
-        ]);
+        await send(chatId, t("auth.linked", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
       } else {
-        await send(chatId, "❌ Код не найден или уже использован.");
+        await send(chatId, t("auth.notfound", lang));
       }
       return NextResponse.json({ ok: true });
     }
 
-    // /whoami | /me | /id — support identity card
+    // /whoami | /me | /id — admin/support identity card (RU, admin-only utility)
     if (text === "/whoami" || text === "/me" || text === "/id") {
       const uid = await resolveUserId(`tg_${chatId}`);
       const [user, account, profiles] = await Promise.all([
@@ -1078,26 +1022,26 @@ export async function POST(req: NextRequest) {
     const promoAwaiting = await redis.get(`promo_await:${chatId}`);
     if (promoAwaiting) {
       await redis.del(`promo_await:${chatId}`);
+      const lang = await resolveLang(await getUserId(chatId));
       const promoCode = text.trim().toUpperCase();
       if (promoCode.length < 3 || promoCode.length > 32) {
-        await send(chatId, "❌ Неверный формат промокода.", [backBtn()]);
+        await send(chatId, t("promo.bad", lang), [backBtn("menu", lang)]);
         return NextResponse.json({ ok: true });
       }
       try {
         const userId = await getUserId(chatId);
-        const lang = await resolveLang(userId);
         let account = await getAccount(userId);
         if (!account) account = await createAccount(userId);
         const result = await redeemPromo(promoCode, userId);
         const newBal = await addBalanceUsd(userId, result.amount);
         await send(chatId, [
-          `✅ <b>OK!</b>`,
+          t("promo.ok", lang),
           ``,
-          `💵 +$${result.amount.toFixed(2)}`,
+          t("promo.credit", lang, { amount: result.amount.toFixed(2) }),
           t("acc.balance", lang, { bal: newBal.toFixed(2) }),
         ].join("\n"), mainMenuKb(lang));
       } catch (err) {
-        await send(chatId, `❌ ${err instanceof Error ? err.message : "Error"}`, [backBtn()]);
+        await send(chatId, t("common.error", lang, { msg: err instanceof Error ? err.message : "Error" }), [backBtn("menu", lang)]);
       }
       return NextResponse.json({ ok: true });
     }
@@ -1105,12 +1049,13 @@ export async function POST(req: NextRequest) {
     // Custom top-up amount in USD (crypto / cryptobot)
     const topupMethod = await redis.get(`topup_usd_await:${chatId}`);
     if (topupMethod) {
+      const lang = await resolveLang(await getUserId(chatId));
       const method = String(topupMethod) === "cryptobot" ? "cryptobot" : "crypto";
       const amt = parseFloat(String(text).replace(",", "."));
       await redis.del(`topup_usd_await:${chatId}`);
       const msg = await tgWithResponse("sendMessage", {
         chat_id: chatId,
-        text: "⏳...",
+        text: t("topup.wait", lang),
         parse_mode: "HTML",
       });
       const newMsgId = msg?.result?.message_id;
@@ -1120,24 +1065,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 6-digit code
+    // 6-digit code (fallback path)
     const code = text.toUpperCase();
     if (/^[A-Z0-9]{6}$/.test(code)) {
+      const lang = await resolveLang(await getUserId(chatId));
       const result = await handleCode(code, chatId);
       if (result === "auth") {
-        await send(chatId, "✅ <b>Авторизация успешна!</b>", [[{ text: "📊 Меню", callback_data: "menu" }]]);
+        await send(chatId, t("auth.ok", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
       } else if (result === "link") {
-        await send(chatId, "🔗 <b>Telegram привязан!</b>", [[{ text: "📊 Меню", callback_data: "menu" }]]);
+        await send(chatId, t("auth.linked", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
       } else {
-        await send(chatId, "❌ Код не найден или уже использован.");
+        await send(chatId, t("auth.notfound", lang));
       }
       return NextResponse.json({ ok: true });
     }
 
-    // Admin promo commands
-    const ADMIN_TG_ID = "6944217115";
+    // Admin promo commands (RU, admin-only)
     if (String(chatId) === ADMIN_TG_ID) {
-      // /promo_create CODE AMOUNT MAX_USES
       if (text.startsWith("/promo_create ")) {
         const parts = text.split(" ");
         const pCode = parts[1];
@@ -1149,14 +1093,13 @@ export async function POST(req: NextRequest) {
         }
         try {
           const promo = await createPromo({ code: pCode, amount: pAmount, maxUses: pMax, createdBy: `tg_${chatId}` });
-          await send(chatId, `✅ Промокод создан:\n\n<code>${promo.code}</code>\n💰 ${promo.amount} ₽\n👥 Макс: ${promo.maxUses || "∞"}\n📅 Использовано: ${promo.usedCount}`);
+          await send(chatId, `✅ Промокод создан:\n\n<code>${promo.code}</code>\n💵 $${promo.amount}\n👥 Макс: ${promo.maxUses || "∞"}\n📅 Использовано: ${promo.usedCount}`);
         } catch (err) {
           await send(chatId, `❌ ${err instanceof Error ? err.message : "Ошибка"}`);
         }
         return NextResponse.json({ ok: true });
       }
 
-      // /promo_list
       if (text === "/promo_list") {
         const promos = await listPromos();
         if (promos.length === 0) {
@@ -1165,13 +1108,12 @@ export async function POST(req: NextRequest) {
         }
         const lines = promos.map(p => {
           const exp = p.expiresAt > 0 ? new Date(p.expiresAt).toLocaleDateString() : "∞";
-          return `<code>${p.code}</code> — ${p.amount}₽, ${p.usedCount}/${p.maxUses || "∞"}, до ${exp}`;
+          return `<code>${p.code}</code> — $${p.amount}, ${p.usedCount}/${p.maxUses || "∞"}, до ${exp}`;
         });
         await send(chatId, `🎟 <b>Промокоды:</b>\n\n${lines.join("\n")}`);
         return NextResponse.json({ ok: true });
       }
 
-      // /promo_delete CODE
       if (text.startsWith("/promo_delete ")) {
         const dCode = text.split(" ")[1];
         if (dCode) {
@@ -1182,11 +1124,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fallback
-    // Admin (you) gets a different fallback to avoid confusion with the main
-    // menu — your text input is more likely to be a stale admin reply than
-    // an auth code.
-    if (String(chatId) === "6944217115") {
+    // Admin fallback
+    if (String(chatId) === ADMIN_TG_ID) {
       console.warn(
         `[admin-fallback] chatId=${chatId} text="${text.slice(0, 100)}" — admin handler did not consume this`,
       );
@@ -1197,7 +1136,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    await send(chatId, "🤔 Отправьте код авторизации или используйте меню:", mainMenuKb());
+    // User fallback
+    const lang = await resolveLang(await getUserId(chatId));
+    await send(chatId, t("fallback.user", lang), mainMenuKb(lang));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Webhook error:", error);
