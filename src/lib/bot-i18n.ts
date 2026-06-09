@@ -38,6 +38,18 @@ const en: Dict = {
   "common.error": "❌ Error: {msg}",
   "lang.title": "🌐 <b>Language</b>\n\nSelect your language:",
   "lang.saved": "✅ Language set to English.",
+  "buy.title": "💳 <b>Choose a plan</b>\n\nPay once with crypto — no recurring charges.",
+  "buy.plan1": "👤 1 device",
+  "buy.plan3": "👥 3 devices",
+  "buy.term.title": "💳 <b>{plan}</b>\n\nChoose a term:",
+  "buy.term.1": "1 month — ${total}",
+  "buy.term.6": "6 months — ${total} (${perMonth}/mo)",
+  "buy.term.12": "12 months — ${total} (${perMonth}/mo)",
+  "buy.invoice": "💳 <b>{plan}, {months} mo — ${total}</b>\n\nTap below — a crypto checkout opens (USDT, TON, BTC...).\n\n<i>Your subscription activates automatically after payment.</i>",
+  "buy.pay": "💳 Pay with crypto",
+  "buy.err": "❌ Could not create the invoice. Try again later.",
+  "buy.plan1.name": "1 device",
+  "buy.plan3.name": "3 devices",
 };
 
 const ru: Dict = {
@@ -56,6 +68,18 @@ const ru: Dict = {
   "common.error": "❌ Ошибка: {msg}",
   "lang.title": "🌐 <b>Язык</b>\n\nВыберите язык:",
   "lang.saved": "✅ Язык переключён на русский.",
+  "buy.title": "💳 <b>Выберите тариф</b>\n\nРазовая оплата криптой — без автосписаний.",
+  "buy.plan1": "👤 1 устройство",
+  "buy.plan3": "👥 3 устройства",
+  "buy.term.title": "💳 <b>{plan}</b>\n\nВыберите срок:",
+  "buy.term.1": "1 месяц — ${total}",
+  "buy.term.6": "6 месяцев — ${total} (${perMonth}/мес)",
+  "buy.term.12": "12 месяцев — ${total} (${perMonth}/мес)",
+  "buy.invoice": "💳 <b>{plan}, {months} мес — ${total}</b>\n\nНажмите кнопку — откроется крипто-оплата (USDT, TON, BTC...).\n\n<i>Подписка активируется автоматически после оплаты.</i>",
+  "buy.pay": "💳 Оплатить криптой",
+  "buy.err": "❌ Не удалось создать счёт. Попробуйте позже.",
+  "buy.plan1.name": "1 устройство",
+  "buy.plan3.name": "3 устройства",
 };
 
 const es: Dict = {
@@ -74,6 +98,18 @@ const es: Dict = {
   "common.error": "❌ Error: {msg}",
   "lang.title": "🌐 <b>Idioma</b>\n\nSelecciona tu idioma:",
   "lang.saved": "✅ Idioma cambiado a español.",
+  "buy.title": "💳 <b>Elige un plan</b>\n\nPago único con cripto — sin cargos recurrentes.",
+  "buy.plan1": "👤 1 dispositivo",
+  "buy.plan3": "👥 3 dispositivos",
+  "buy.term.title": "💳 <b>{plan}</b>\n\nElige una duración:",
+  "buy.term.1": "1 mes — ${total}",
+  "buy.term.6": "6 meses — ${total} (${perMonth}/mes)",
+  "buy.term.12": "12 meses — ${total} (${perMonth}/mes)",
+  "buy.invoice": "💳 <b>{plan}, {months} meses — ${total}</b>\n\nToca abajo — se abre el pago en cripto (USDT, TON, BTC...).\n\n<i>Tu suscripción se activa automáticamente tras el pago.</i>",
+  "buy.pay": "💳 Pagar con cripto",
+  "buy.err": "❌ No se pudo crear la factura. Inténtalo más tarde.",
+  "buy.plan1.name": "1 dispositivo",
+  "buy.plan3.name": "3 dispositivos",
 };
 
 const de: Dict = {
@@ -92,6 +128,18 @@ const de: Dict = {
   "common.error": "❌ Fehler: {msg}",
   "lang.title": "🌐 <b>Sprache</b>\n\nWähle deine Sprache:",
   "lang.saved": "✅ Sprache auf Deutsch umgestellt.",
+  "buy.title": "💳 <b>Tarif wählen</b>\n\nEinmalzahlung mit Krypto — keine wiederkehrenden Gebühren.",
+  "buy.plan1": "👤 1 Gerät",
+  "buy.plan3": "👥 3 Geräte",
+  "buy.term.title": "💳 <b>{plan}</b>\n\nLaufzeit wählen:",
+  "buy.term.1": "1 Monat — ${total}",
+  "buy.term.6": "6 Monate — ${total} (${perMonth}/Mon.)",
+  "buy.term.12": "12 Monate — ${total} (${perMonth}/Mon.)",
+  "buy.invoice": "💳 <b>{plan}, {months} Mon. — ${total}</b>\n\nUnten tippen — Krypto-Zahlung öffnet sich (USDT, TON, BTC...).\n\n<i>Dein Abo wird nach der Zahlung automatisch aktiviert.</i>",
+  "buy.pay": "💳 Mit Krypto zahlen",
+  "buy.err": "❌ Rechnung konnte nicht erstellt werden. Später erneut versuchen.",
+  "buy.plan1.name": "1 Gerät",
+  "buy.plan3.name": "3 Geräte",
 };
 
 const fr: Dict = {
@@ -110,6 +158,18 @@ const fr: Dict = {
   "common.error": "❌ Erreur : {msg}",
   "lang.title": "🌐 <b>Langue</b>\n\nChoisissez votre langue :",
   "lang.saved": "✅ Langue définie sur le français.",
+  "buy.title": "💳 <b>Choisissez une offre</b>\n\nPaiement unique en crypto — sans prélèvement récurrent.",
+  "buy.plan1": "👤 1 appareil",
+  "buy.plan3": "👥 3 appareils",
+  "buy.term.title": "💳 <b>{plan}</b>\n\nChoisissez une durée :",
+  "buy.term.1": "1 mois — {total} $",
+  "buy.term.6": "6 mois — {total} $ ({perMonth} $/mois)",
+  "buy.term.12": "12 mois — {total} $ ({perMonth} $/mois)",
+  "buy.invoice": "💳 <b>{plan}, {months} mois — {total} $</b>\n\nAppuyez ci-dessous — le paiement crypto s'ouvre (USDT, TON, BTC...).\n\n<i>Votre abonnement s'active automatiquement après le paiement.</i>",
+  "buy.pay": "💳 Payer en crypto",
+  "buy.err": "❌ Impossible de créer la facture. Réessayez plus tard.",
+  "buy.plan1.name": "1 appareil",
+  "buy.plan3.name": "3 appareils",
 };
 
 const DICTS: Record<BotLang, Dict> = { en, ru, es, de, fr };

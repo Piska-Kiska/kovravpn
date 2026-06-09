@@ -28,7 +28,8 @@ import { getReferralStats, resolveReferralCode, recordReferral, grantReferralRew
 import { getBalanceInfo, syncAllExpiry, DEVICE_MONTHLY_COST, MIN_TOPUP, MIN_TOPUP_FIRST, MIN_TOPUP_CRYPTO, MIN_TOPUP_ENOT_RUB, MIN_TOPUP_ENOT_CRYPTO,
   MIN_TOPUP_CRYPTOBOT, MAX_TOPUP, addBalance, getTopupBonus } from "@/lib/balance";
 import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
-import { createCryptoInvoice } from "@/lib/nowpayments";
+import { createCryptoInvoice, createInvoice } from "@/lib/nowpayments";
+import { PLAN_PRICES, PLAN_SLOTS, buildPlanOrderId, type PlanKind, type Term } from "@/lib/subscriptions";
 import { createCryptoBotInvoice } from "@/lib/cryptobot";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
@@ -578,6 +579,58 @@ async function screenPricing(chatId: number, msgId: number) {
   ]);
 }
 
+async function screenBuyPlan(chatId: number, msgId: number) {
+  const lang = await resolveLang(await getUserId(chatId));
+  await edit(chatId, msgId, t("buy.title", lang), [
+    [{ text: t("buy.plan1", lang), callback_data: "buyplan_plan1" }],
+    [{ text: t("buy.plan3", lang), callback_data: "buyplan_plan3" }],
+    [{ text: t("common.back", lang), callback_data: "menu" }],
+  ]);
+}
+
+async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
+  const lang = await resolveLang(await getUserId(chatId));
+  const planName = t(`buy.${kind}.name`, lang);
+  const rows = ([1, 6, 12] as Term[]).map((term) => {
+    const pr = PLAN_PRICES[kind][term];
+    return [{
+      text: t(`buy.term.${term}`, lang, { total: pr.total.toFixed(2), perMonth: pr.perMonth.toFixed(2) }),
+      callback_data: `buyterm_${kind}_${term}`,
+    }];
+  });
+  rows.push([{ text: t("common.back", lang), callback_data: "topup" }]);
+  await edit(chatId, msgId, t("buy.term.title", lang, { plan: planName }), rows);
+}
+
+async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term) {
+  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]); return; }
+  const pr = PLAN_PRICES[kind]?.[term];
+  if (!pr) { await edit(chatId, msgId, t("buy.err", lang), [backBtn("topup", lang)]); return; }
+  try {
+    const orderId = buildPlanOrderId(userId, kind, term);
+    const planName = t(`buy.${kind}.name`, lang);
+    const invoice = await createInvoice({
+      orderId,
+      amountUsd: pr.total,
+      description: `Kovra ${kind} ${term}mo`,
+      source: "bot",
+    });
+    await edit(chatId, msgId,
+      t("buy.invoice", lang, { plan: planName, months: term, total: pr.total.toFixed(2) }),
+      [
+        [{ text: t("buy.pay", lang), url: invoice.invoiceUrl }],
+        [{ text: t("common.back", lang), callback_data: `buyplan_${kind}` }],
+        backBtn("menu", lang),
+      ]
+    );
+  } catch (err) {
+    console.error("[bot] buyplan invoice error:", err);
+    await edit(chatId, msgId, t("buy.err", lang), [backBtn("topup", lang)]);
+  }
+}
+
 async function screenTopup(chatId: number, msgId: number) {
   await redis.del(`topup_await:${chatId}`);
   await redis.del(`topup_crypto_await:${chatId}`);
@@ -1094,11 +1147,20 @@ export async function POST(req: NextRequest) {
         await redis.set(`promo_await:${chatId}`, "1", { ex: 300 });
         await edit(chatId, msgId, "🎟 <b>Введите промокод</b>\n\nОтправьте промокод в чат:", [backBtn()]);
       }
-      else if (data === "topup") await screenTopup(chatId, msgId);
-      else if (data === "topup_card") await screenTopupCard(chatId, msgId);
-      else if (data === "topup_crypto") await screenTopupCrypto(chatId, msgId);
-      else if (data === "topup_cryptobot") await screenTopupCryptoBot(chatId, msgId);
-      else if (data === "topup_enot_rub") await screenTopupEnotRub(chatId, msgId);
+      else if (data === "topup") await screenBuyPlan(chatId, msgId);
+      else if (data.startsWith("buyterm_")) {
+        const [, k, tm] = data.split("_");
+        if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12"))
+          await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term);
+      }
+      else if (data.startsWith("buyplan_")) {
+        const k = data.slice("buyplan_".length);
+        if (k === "plan1" || k === "plan3") await screenBuyTerm(chatId, msgId, k as PlanKind);
+      }
+      else if (data === "topup_card") await screenBuyPlan(chatId, msgId);
+      else if (data === "topup_crypto") await screenBuyPlan(chatId, msgId);
+      else if (data === "topup_cryptobot") await screenBuyPlan(chatId, msgId);
+      else if (data === "topup_enot_rub") await screenBuyPlan(chatId, msgId);
       else if (data === "topup_enot_crypto") {
         if (!features.enotCryptoEnabled) await screenTopup(chatId, msgId);
         else await screenTopupEnotCrypto(chatId, msgId);
