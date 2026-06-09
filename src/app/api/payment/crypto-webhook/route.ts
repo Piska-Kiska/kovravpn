@@ -29,6 +29,7 @@ import { markTopup } from "@/lib/accounts";
 import { grantReferralReward } from "@/lib/referrals";
 import { verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
 import { reserveDedupKey } from "@/lib/dedup";
+import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -93,6 +94,27 @@ export async function POST(req: NextRequest) {
 
     if (payload.payment_status !== "finished") {
       return NextResponse.json({ ok: true, ignored: "not finished" });
+    }
+
+    // ─── Bot prepaid balance top-up (topup_<userId>_<ts>) ───
+    // Site never emits topup_ (it charges per-purchase via sub_/dev_), so this
+    // branch is bot-only and leaves the subscription flow below untouched.
+    if (payload.order_id?.startsWith("topup_")) {
+      const tu = parseTopupOrderId(payload.order_id);
+      if (!tu) return NextResponse.json({ ok: true, ignored: "bad topup order_id" });
+      const pidT = String(payload.payment_id);
+      if (!/^[a-zA-Z0-9_\-]{1,128}$/.test(pidT)) {
+        return NextResponse.json({ ok: true, ignored: "bad payment_id" });
+      }
+      const reservedT = await reserveDedupKey(`crypto_payment_done:${pidT}`, DEDUP_TTL_SEC);
+      if (!reservedT) return NextResponse.json({ ok: true, ignored: "duplicate" });
+      const usd = Number(payload.price_amount) || 0;
+      const newBal = await addBalanceUsd(tu.userId, usd);
+      await notifyTelegram(
+        tu.userId,
+        [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
+      );
+      return NextResponse.json({ ok: true, credited: usd });
     }
 
     const parsed = parseSubOrderId(payload.order_id);

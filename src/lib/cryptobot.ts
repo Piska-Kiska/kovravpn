@@ -21,7 +21,7 @@ export const CRYPTOBOT_ACCEPTED_ASSETS = ["USDT", "TON", "BTC"] as const;
 
 export interface CreateCryptoBotInvoiceParams {
   userId: string;
-  amountRub: number;
+  amountUsd: number;
   /** "web" -> dashboard return; "bot" -> open bot deep-link */
   source?: "web" | "bot";
 }
@@ -31,7 +31,7 @@ export interface CryptoBotInvoice {
   payUrl: string;
   miniAppUrl?: string;
   amount: number;
-  fiat: "RUB";
+  fiat: "USD";
   orderId: string;
 }
 
@@ -62,7 +62,7 @@ export async function createCryptoBotInvoice(
 ): Promise<CryptoBotInvoice> {
   if (!API_TOKEN) throw new Error("CRYPTOBOT_API_TOKEN is not configured");
 
-  const orderId = `pb_${p.userId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const orderId = `topup_${p.userId}_${Date.now()}`;
 
   const paidBtnUrl =
     p.source === "web"
@@ -71,16 +71,16 @@ export async function createCryptoBotInvoice(
 
   const body = {
     currency_type: "fiat",
-    fiat: "RUB",
-    amount: String(p.amountRub),
+    fiat: "USD",
+    amount: p.amountUsd.toFixed(2),
     accepted_assets: CRYPTOBOT_ACCEPTED_ASSETS.join(","),
-    description: `Пополнение баланса ProxysVPN на ${p.amountRub} RUB`,
-    payload: JSON.stringify({ userId: p.userId, orderId, amountRub: p.amountRub }),
+    description: `Kovra balance top-up $${p.amountUsd.toFixed(2)}`,
+    payload: JSON.stringify({ userId: p.userId, orderId, amountUsd: p.amountUsd }),
     paid_btn_name: "callback",
     paid_btn_url: paidBtnUrl,
     allow_comments: false,
     allow_anonymous: true,
-    expires_in: 3600, // 1h is plenty for fiat invoice
+    expires_in: 3600,
   };
 
   const res = await fetchWithTimeout(`${API_BASE}/createInvoice`, {
@@ -115,8 +115,8 @@ export async function createCryptoBotInvoice(
     invoiceId: String(r.invoice_id),
     payUrl,
     miniAppUrl: r.mini_app_invoice_url,
-    amount: p.amountRub,
-    fiat: "RUB",
+    amount: p.amountUsd,
+    fiat: "USD",
     orderId,
   };
 }
