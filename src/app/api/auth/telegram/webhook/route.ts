@@ -564,7 +564,7 @@ async function screenBuyPlan(chatId: number, msgId: number) {
 async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
   const lang = await resolveLang(await getUserId(chatId));
   const planName = t(`buy.${kind}.name`, lang);
-  const rows = ([1, 6, 12] as Term[]).map((term) => {
+  const rows: InlineBtn[][] = ([1, 6, 12] as Term[]).map((term) => {
     const pr = PLAN_PRICES[kind][term];
     return [{
       text: t(`buy.term.${term}`, lang, { total: pr.total.toFixed(2), perMonth: pr.perMonth.toFixed(2) }),
@@ -590,7 +590,7 @@ async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term
 // ─── Add-device (1/6/12 mo × $5) ─────────────────────
 async function screenAddDevice(chatId: number, msgId: number) {
   const lang = await resolveLang(await getUserId(chatId));
-  const rows = ([1, 6, 12] as Term[]).map((term) => {
+  const rows: InlineBtn[][] = ([1, 6, 12] as Term[]).map((term) => {
     const total = DEVICE_ADDON_PRICE * term;
     return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}` }];
   });
