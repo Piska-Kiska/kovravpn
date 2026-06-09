@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { Rubik, Figtree, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
 import Localizer from "@/i18n/Localizer";
 
@@ -200,6 +201,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AttributionCapture />
         <Localizer />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
