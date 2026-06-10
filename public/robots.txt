@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://proxysvpn.com/sitemap.xml
+Sitemap: https://kovravpn.com/sitemap.xml
