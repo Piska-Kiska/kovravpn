@@ -6,31 +6,11 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import { Eye, EyeOff, ArrowLeft, Mail, Send, MailCheck, Globe, ChevronDown, Sun, Moon } from "lucide-react";
-import { detectLang, setLang as setI18nLang } from "@/i18n/runtime";
-import type { Lang as I18nLang } from "@/i18n/dict";
+import { Eye, EyeOff, ArrowLeft, Mail, Send, MailCheck, Sun, Moon } from "lucide-react";
+import LangSwitcher from "@/components/LangSwitcher";
 import { trackEvent } from "@/lib/attribution";
 
-const KV_LANGS: { code: I18nLang; native: string }[] = [
-  { code: "en", native: "English" },
-  { code: "ru", native: "Русский" },
-  { code: "es", native: "Español" },
-  { code: "de", native: "Deutsch" },
-  { code: "fr", native: "Français" },
-];
-
 function KvrToggles({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
-  const [lang, setLangState] = useState<I18nLang>("en");
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { setLangState(detectLang()); }, []);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-  const pick = (c: I18nLang) => { setLangState(c); setI18nLang(c); setOpen(false); };
   const toggleTheme = () => {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -38,23 +18,7 @@ function KvrToggles({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) =>
   };
   return (
     <div className="kvr-tg">
-      <div className="kvr-tg-lang" ref={ref}>
-        <button className="kvr-tg-btn" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}>
-          <Globe size={14} style={{ color: "var(--accent)" }} />
-          <span>{lang.toUpperCase()}</span>
-          <ChevronDown size={13} style={{ opacity: .7 }} />
-        </button>
-        {open && (
-          <div className="kvr-tg-menu" role="listbox">
-            {KV_LANGS.map(l => (
-              <button key={l.code} role="option" aria-selected={l.code === lang}
-                className={"kvr-tg-item" + (l.code === lang ? " on" : "")} onClick={() => pick(l.code)}>
-                {l.native}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <LangSwitcher />
       <button className="kvr-tg-btn kvr-tg-icon" onClick={toggleTheme} aria-label="Theme">
         {theme === "dark" ? <Sun size={15} style={{ color: "var(--accent)" }} /> : <Moon size={15} style={{ color: "var(--accent)" }} />}
       </button>

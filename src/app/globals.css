@@ -304,3 +304,24 @@ textarea.nm-pressed-sm:focus {
   background: var(--nm-accent);
   color: #15100a;
 }
+
+
+/* === unified language switcher (klang) === */
+.klang{position:relative}
+.klang-btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 13px;border-radius:12px;cursor:pointer;font-family:'DM Mono',ui-monospace,Menlo,monospace;font-weight:500;font-size:12px;letter-spacing:.05em;color:#f1f2f4;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.13);transition:background .2s,border-color .2s,transform .16s}
+.klang-btn:hover{border-color:#d9a55e;transform:translateY(-1px)}
+.klang-btn .klang-glb{color:#d9a55e}
+.klang-btn .klang-car{opacity:.7;transition:transform .2s}
+.klang-btn.is-open .klang-car{transform:rotate(180deg)}
+.klang-menu{position:absolute;top:48px;right:0;min-width:172px;padding:7px;border-radius:14px;background:#15161b;border:1px solid rgba(255,255,255,.17);box-shadow:0 22px 54px -16px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.13);z-index:90;display:flex;flex-direction:column;gap:3px}
+.klang-item{text-align:left;padding:10px 13px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500;color:rgba(241,242,244,.6);background:transparent;border:none;transition:background .15s,color .15s}
+.klang-item:hover{background:rgba(217,165,94,.14);color:#f1f2f4}
+.klang-item.is-active{background:rgba(217,165,94,.14);color:#d9a55e}
+[data-theme="light"] .klang-btn{color:#16181c;background:rgba(255,255,255,.82);border-color:rgba(20,22,40,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
+[data-theme="light"] .klang-btn:hover{border-color:#a9701f}
+[data-theme="light"] .klang-btn .klang-glb{color:#a9701f}
+[data-theme="light"] .klang-menu{background:#fff;border-color:rgba(20,22,40,.16);box-shadow:0 22px 54px -16px rgba(20,22,40,.22),inset 0 1px 0 rgba(255,255,255,.75)}
+[data-theme="light"] .klang-item{color:rgba(22,24,28,.62)}
+[data-theme="light"] .klang-item:hover{background:rgba(169,112,31,.13);color:#16181c}
+[data-theme="light"] .klang-item.is-active{background:rgba(169,112,31,.13);color:#a9701f}
+@media(max-width:640px){.klang-btn{height:38px;padding:0 11px;font-size:11px}.klang-menu{min-width:160px}}
