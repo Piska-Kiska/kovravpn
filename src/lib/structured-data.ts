@@ -51,20 +51,14 @@ export function buildOrganizationSchema() {
     "@id": `${SITE_URL}/#organization`,
     name: ORG_NAME,
     legalName: ORG_LEGAL_NAME,
-    alternateName: [
-      ORG_NAME_LATIN,
-      "Kovra",
-      "Proxys VPN",
-      "Kovra",
-      "Прокси ВПН",
-    ],
+    alternateName: [ORG_NAME_LATIN, "Kovra VPN"],
     url: SITE_URL,
     logo: `${SITE_URL}/icon-192.png`,
     image: `${SITE_URL}/og-image.png`,
-    slogan: "VPN на VLESS Reality для России",
+    slogan: "Fast, private VPN on VLESS Reality",
     foundingDate: "2026-04",
     description:
-      "Kovra (Kovra) — VPN-сервис на протоколе VLESS Reality. Низкий пинг, обход блокировок, серверы в Европе. 100 ₽/мес за устройство.",
+      "Kovra is a fast, private VPN on VLESS Reality. Low ping, unblocking, servers across Europe.",
     knowsAbout: [
       "VPN",
       "VLESS Reality",
@@ -113,7 +107,7 @@ export function buildWebSiteSchema() {
 /**
  * Product / Offer schema — gives Google explicit price + availability
  * signals so the homepage may render a product rich result with the
- * "100 ₽/мес" badge. Keep all human-readable strings consistent with
+ * a product rich result. Keep all human-readable strings consistent with
  * what's visible in <PlanSelector />; mismatches trigger a deranking
  * penalty.
  */
@@ -123,25 +117,25 @@ export function buildProductSchema() {
     "@type": "SoftwareApplication",
     name: `${ORG_NAME} (${ORG_NAME_LATIN})`,
     description:
-      "VPN-приложение Kovra (Kovra). VLESS Reality, пост-квантовое шифрование ML-KEM, серверы в Европе, низкий пинг. Поддержка Windows, macOS, iOS, Android.",
+      "Kovra VPN. VLESS Reality, post-quantum ML-KEM encryption, servers across Europe, low ping. Supports Windows, macOS, iOS, Android.",
     applicationCategory: "SecurityApplication",
     applicationSubCategory: "VPN",
     operatingSystem: "Windows, macOS, iOS, Android, Linux",
     url: SITE_URL,
     image: `${SITE_URL}/og-image.png`,
     softwareVersion: "1.0",
-    inLanguage: ["ru", "en"],
+    inLanguage: ["en"],
     author: { "@id": `${SITE_URL}/#organization` },
     publisher: { "@id": `${SITE_URL}/#organization` },
     offers: {
       "@type": "Offer",
       url: `${SITE_URL}/register`,
-      priceCurrency: "RUB",
-      price: "100",
+      priceCurrency: "USD",
+      price: "5.00",
       priceSpecification: {
         "@type": "UnitPriceSpecification",
-        price: "100",
-        priceCurrency: "RUB",
+        price: "5.00",
+        priceCurrency: "USD",
         unitText: "MONTH",
         referenceQuantity: {
           "@type": "QuantitativeValue",

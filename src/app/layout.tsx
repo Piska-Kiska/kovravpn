@@ -29,9 +29,9 @@ const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
 const DEFAULT_TITLE =
-  "Kovra (Kovra) — приватный VPN с низким пингом · 100 ₽/мес";
+  "Kovra — Fast, Private VPN · VLESS Reality";
 const DEFAULT_DESC =
-  "Kovra (Kovra) — VPN на VLESS Reality. Низкий пинг, надёжное шифрование, серверы в Европе. Подключение за 2 минуты, оплата от 10 ₽.";
+  "Kovra is a crypto-friendly VPN built on VLESS Reality. Low ping, strong encryption, servers across Europe. Connect in 2 minutes.";
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but
@@ -42,26 +42,16 @@ const DEFAULT_DESC =
  * auto-correct is the single biggest reason brand searches fail.
  */
 const BRAND_KEYWORDS = [
-  // Latin spellings (the critical signal — without these Google
-  // collapses the brand into the generic "proxy vpn" mass-market term)
   "Kovra",
-  "kovra",
-  "kovra",
-  "Proxys VPN",
-  "Kovra",
-  // Cyrillic
-  "Kovra",
-  "Kovra",
-  "Прокси ВПН",
-  // Technical / topical
+  "Kovra VPN",
   "VPN VLESS Reality",
   "ML-KEM VPN",
-  "VPN с пост-квантовым шифрованием",
-  // Product USP
-  "приватный VPN",
-  "быстрый VPN на VLESS",
-  "VPN для игр с низким пингом",
-  "VPN с низким пингом",
+  "post-quantum VPN",
+  "private VPN",
+  "fast VPN",
+  "low ping VPN",
+  "crypto VPN",
+  "no-logs VPN",
 ];
 
 /**
