@@ -212,7 +212,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <aside className="nm-sidebar w-[60px] md:w-[72px] flex flex-col items-center py-5 gap-1 shrink-0">
+      <aside className="nm-sidebar w-[60px] md:w-[72px] flex flex-col items-center py-5 gap-1 shrink-0 sticky top-0 h-screen">
         <div className="w-10 h-10 rounded-2xl overflow-hidden mb-6 flex items-center justify-center bg-nm-accent/10">
           <img src="/icon-192.png" alt="Kovra" className="w-9 h-9 object-contain" />
         </div>
@@ -236,7 +236,7 @@ export default function DashboardPage() {
             {langOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
-                <div className="absolute right-0 mt-1 z-50 nm-raised rounded-xl overflow-hidden min-w-[140px]">
+                <div className="absolute right-0 mt-1 z-50 bg-nm-surface border border-nm-border rounded-xl overflow-hidden min-w-[140px] shadow-xl">
                   {DASH_LANGS.map((l) => (
                     <button key={l.code} onClick={() => { setLang(l.code as DashLang); setLangOpen(false); }}
                       className={`w-full text-left px-3 py-2 text-xs cursor-pointer transition-colors ${lang === l.code ? "text-nm-accent bg-white/5" : "text-nm-text hover:bg-white/5"}`}>
