@@ -121,7 +121,7 @@ function respondBase64(urls: string[], expireSec: number): NextResponse {
     status: 200,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "profile-title": "proxysvpn.com",
+      "profile-title": "base64:8J+boe+4jyBLb3ZyYSDwn4yN",
       "profile-update-interval": "12",
       "subscription-userinfo": `upload=0; download=0; total=0; expire=${expireSec}`,
       "Cache-Control": "no-cache, no-store",

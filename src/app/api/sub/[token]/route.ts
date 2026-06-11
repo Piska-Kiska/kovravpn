@@ -89,6 +89,7 @@ const HAPP_UI: Record<string, string> = {
   "subscription-pin": "1",
   "color-profile": HAPP_THEME,
   "routing-enable": "false",
+  "hide-settings": "1",
   
 };
 
