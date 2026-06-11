@@ -8,19 +8,19 @@
 // Spec: https://www.indexnow.org/documentation
 //
 // Ownership verification: we host a text file at
-//   https://proxysvpn.com/<KEY>.txt
+//   https://kovravpn.com/<KEY>.txt
 // whose body is exactly the key. IndexNow search engines fetch this file
 // before accepting any submissions. The file lives in /public so Next.js
 // serves it at the site root.
 //
 // Usage — inside any server code after content changes:
-//   await pingIndexNow(["https://proxysvpn.com/guide"]);
+//   await pingIndexNow(["https://kovravpn.com/guide"]);
 //
 // Failures are logged but never thrown: SEO notifications must not break
 // user-facing requests.
 
 const KEY = process.env.INDEXNOW_KEY || "304bed382c0140e9b8e8359700e3db34";
-const HOST = "proxysvpn.com";
+const HOST = "kovravpn.com";
 // Any of the IndexNow endpoints accept submissions and forward to the rest
 // of the network. We pick Bing's endpoint — it's the most active consumer
 // for our target market.

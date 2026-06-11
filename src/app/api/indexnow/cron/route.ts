@@ -21,10 +21,10 @@ import { pingIndexNow } from "@/lib/indexnow";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 const URLS = [
-  "https://proxysvpn.com/",
-  "https://proxysvpn.com/guide",
-  "https://proxysvpn.com/terms",
-  "https://proxysvpn.com/privacy",
+  "https://kovravpn.com/",
+  "https://kovravpn.com/guide",
+  "https://kovravpn.com/terms",
+  "https://kovravpn.com/privacy",
 ];
 
 export async function GET(req: NextRequest) {

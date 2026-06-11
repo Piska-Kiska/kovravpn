@@ -7,13 +7,13 @@
 //
 // Usage:
 //   # Ping a custom list:
-//   curl -X POST https://proxysvpn.com/api/indexnow/ping \
+//   curl -X POST https://kovravpn.com/api/indexnow/ping \
 //     -H "x-internal-key: $INTERNAL_API_KEY" \
 //     -H "Content-Type: application/json" \
-//     -d '{"urls":["https://proxysvpn.com/","https://proxysvpn.com/guide"]}'
+//     -d '{"urls":["https://kovravpn.com/","https://kovravpn.com/guide"]}'
 //
 //   # Ping the default public page set (no body):
-//   curl -X POST https://proxysvpn.com/api/indexnow/ping \
+//   curl -X POST https://kovravpn.com/api/indexnow/ping \
 //     -H "x-internal-key: $INTERNAL_API_KEY"
 
 import { NextRequest, NextResponse } from "next/server";
@@ -24,10 +24,10 @@ const INTERNAL_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TO
 // Public pages worth notifying search engines about. Keep in sync with
 // src/app/sitemap.ts — all indexable URLs live here.
 const DEFAULT_URLS = [
-  "https://proxysvpn.com/",
-  "https://proxysvpn.com/guide",
-  "https://proxysvpn.com/terms",
-  "https://proxysvpn.com/privacy",
+  "https://kovravpn.com/",
+  "https://kovravpn.com/guide",
+  "https://kovravpn.com/terms",
+  "https://kovravpn.com/privacy",
 ];
 
 type Body = { urls?: unknown };
