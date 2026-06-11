@@ -325,3 +325,7 @@ textarea.nm-pressed-sm:focus {
 [data-theme="light"] .klang-item:hover{background:rgba(169,112,31,.13);color:#16181c}
 [data-theme="light"] .klang-item.is-active{background:rgba(169,112,31,.13);color:#a9701f}
 @media(max-width:640px){.klang-btn{height:38px;padding:0 11px;font-size:11px}.klang-menu{min-width:160px}}
+
+/* override kvr-root reset on login/register */
+.klang .klang-btn{padding:0 13px}
+.klang .klang-menu .klang-item{padding:10px 13px}
