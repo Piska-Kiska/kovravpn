@@ -80,6 +80,7 @@ async function buildLinesForProfile(
 const HAPP_THEME = '{"backgroundGradientRotationAngle":45,"backgroundColors":["#07100BFF","#08140EFF","#0B1F16FF"],"elipseColors":["#10B981FF","#047857E0","#064E3BFF"],"backgroundGradientColorIntensity":1,"backgroundImageType":"system","buttonImageType":"light","buttonColor":"#10B981FF","buttonTextColor":"#FFFFFFFF","buttonTimerColor":"#FFFFFFFF","subHeaderButtonColor":"#FFFFFFFF","additionalOptionsButtonColor":"#FFFFFFFF","topBarButtonsColor":"#FFFFFFFF","supportIconColor":"#34D399FF","serverRowBackgroundColor":"#0F1A14CC","selectedServerRowColor":"#065F46FF","serverRowTitleTextColor":"#FFFFFFFF","serverRowSubTitleTextColor":"#6EE7B7FF","serverRowChevronColor":"#FFFFFFFF","subsHeaderColor":"#07100BFF","disclosureHeaderTextColor":"#FFFFFFFF","disclosureSubHeaderTextColor":"#6EE7B7FF","subscriptionTrafficBackgroundColor":"#047857FF","subscriptionInfoBackgroundColor":"#07100BFF","subscriptionInfoTextColor":"#FFFFFFFF","powerIconColor":"#06231AFF","profileWebPageIconColor":"#10B981FF"}';
 
 const HAPP_UI: Record<string, string> = {
+  "providerid": "oPZtVoIH",
   "profile-title": "base64:8J+boe+4jyBLb3ZyYSDwn4yN",
   "profile-update-interval": "1",
   "ping-result": "icon",
