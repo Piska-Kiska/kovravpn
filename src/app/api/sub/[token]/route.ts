@@ -83,12 +83,10 @@ const HAPP_UI: Record<string, string> = {
   "providerid": "oPZtVoIH",
   "profile-title": "base64:8J+boe+4jyBLb3ZyYSDwn4yN",
   "profile-update-interval": "1",
-  "ping-result": "icon",
   "support-url": "https://t.me/KovraVPN_bot",
   "subscription-ping-onopen-enabled": "1",
   "profile-web-page-url": "https://kovravpn.com",
   "subscription-pin": "1",
-  "color-profile": HAPP_THEME,
   "routing-enable": "false",
   "hide-settings": "1",
   
