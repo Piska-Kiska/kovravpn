@@ -155,7 +155,7 @@ export const metadata: Metadata = {
   //   GSC -> Add property -> URL prefix -> HTML tag method.
   //   Leave empty to skip emitting the meta tag.
   verification: {
-    yandex: "9e5cb19e70155ec9",
+    yandex: "e87b60b208738ec4",
     // google: "PASTE_GOOGLE_SITE_VERIFICATION_CONTENT_HERE",
     other: {
       "msvalidate.01": "4050D59C4A347F875971D050C105F703",
