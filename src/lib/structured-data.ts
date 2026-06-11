@@ -66,7 +66,6 @@ export function buildOrganizationSchema() {
       "post-quantum cryptography",
       "DPI bypass",
       "обход блокировок Roskomnadzor",
-      "VPN для России",
       "VPN для игр",
     ],
     sameAs: [
@@ -98,7 +97,7 @@ export function buildWebSiteSchema() {
     name: ORG_NAME,
     alternateName: ORG_NAME_LATIN,
     description:
-      "Kovra (Kovra) — VPN-сервис на VLESS Reality для России.",
+      "Kovra — a fast, private VPN on VLESS Reality.",
     inLanguage: "ru-RU",
     publisher: { "@id": `${SITE_URL}/#organization` },
   };
