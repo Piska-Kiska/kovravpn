@@ -552,8 +552,23 @@ async function screenPricing(chatId: number, msgId: number) {
   ]);
 }
 
+// Currently active main-plan tier, or null. Re-buying the same tier only
+// extends time (applyPlanPurchase stacks expiry), so when a plan is active we
+// switch the buy flow into renewal mode and lock it to that tier; extra device
+// capacity comes from the Add-device add-on, not from re-buying the plan.
+async function activePlanKind(userId: string): Promise<PlanKind | null> {
+  const now = Date.now();
+  const subs = await getSubscriptions(userId);
+  if (subs.some((s) => s.kind === "plan3" && s.expiresAt > now)) return "plan3";
+  if (subs.some((s) => s.kind === "plan1" && s.expiresAt > now)) return "plan1";
+  return null;
+}
+
 async function screenBuyPlan(chatId: number, msgId: number) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  const ak = await activePlanKind(userId);
+  if (ak) { await screenBuyTerm(chatId, msgId, ak); return; }
   await edit(chatId, msgId, t("buy.title", lang), [
     [{ text: t("buy.plan1", lang), callback_data: "buyplan_plan1" }],
     [{ text: t("buy.plan3", lang), callback_data: "buyplan_plan3" }],
@@ -562,7 +577,14 @@ async function screenBuyPlan(chatId: number, msgId: number) {
 }
 
 async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  const now = Date.now();
+  const subs = await getSubscriptions(userId);
+  const planSub = subs
+    .filter((s) => s.kind === kind && s.expiresAt > now)
+    .sort((a, b) => b.expiresAt - a.expiresAt)[0];
+  const isRenewal = !!planSub;
   const planName = t(`buy.${kind}.name`, lang);
   const rows: InlineBtn[][] = ([1, 6, 12] as Term[]).map((term) => {
     const pr = PLAN_PRICES[kind][term];
@@ -571,8 +593,13 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
       callback_data: `buyterm_${kind}_${term}`,
     }];
   });
-  rows.push(backBtn("buyplan", lang));
-  await edit(chatId, msgId, t("buy.term.title", lang, { plan: planName }), rows);
+  rows.push(backBtn(isRenewal ? "menu" : "buyplan", lang));
+  if (isRenewal) {
+    const until = new Date(planSub.expiresAt).toISOString().slice(0, 10);
+    await edit(chatId, msgId, t("buy.renew.title", lang, { plan: planName, until }), rows);
+  } else {
+    await edit(chatId, msgId, t("buy.term.title", lang, { plan: planName }), rows);
+  }
 }
 
 async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term) {
