@@ -45,6 +45,24 @@ const DEVICE_DEFS: Record<string, { name: string; emoji: string; happ: string; v
 };
 const DEVICE_ORDER = ["android", "iphone", "mac", "windows", "tv"] as const;
 
+// Renewal-mode labels (localized to the same languages as dash-i18n).
+const RENEW_TITLE: Record<string, string> = {
+  en: "Renew your plan", ru: "Продление подписки", es: "Renovar tu plan", de: "Plan verlängern", fr: "Renouveler le forfait",
+};
+const RENEW_BTN: Record<string, string> = {
+  en: "Renew with crypto", ru: "Продлить криптой", es: "Renovar con cripto", de: "Mit Krypto verlängern", fr: "Renouveler en crypto",
+};
+const RENEW_CURRENT: Record<string, string> = {
+  en: "Current plan · active until", ru: "Текущий план · активен до", es: "Plan actual · activo hasta", de: "Aktueller Plan · aktiv bis", fr: "Forfait actuel · actif jusqu'au",
+};
+const RENEW_NOTE: Record<string, string> = {
+  en: "Extends your current plan (adds time, not devices). To add a device, use Add device below.",
+  ru: "Продлевает текущий план (добавляет время, не устройства). Чтобы добавить устройство — кнопка «Добавить устройство» ниже.",
+  es: "Extiende tu plan actual (añade tiempo, no dispositivos). Para añadir un dispositivo, usa Añadir dispositivo abajo.",
+  de: "Verlängert deinen aktuellen Plan (mehr Zeit, keine Geräte). Für ein weiteres Gerät nutze unten Gerät hinzufügen.",
+  fr: "Prolonge votre forfait actuel (ajoute du temps, pas d'appareils). Pour ajouter un appareil, utilisez Ajouter un appareil ci-dessous.",
+};
+
 function fmtDate(ms: number, lang: string): string {
   if (!ms) return "—";
   try {
@@ -143,6 +161,15 @@ export default function DashboardPage() {
     fetch("/api/referral").then((r) => r.json()).then((d) => { if (d.code) setReferral(d); }).catch(() => {});
   }, [userId]);
 
+  // Renewal mode: lock the plan tier to the user's currently active plan.
+  useEffect(() => {
+    const n = Date.now();
+    const subs = account?.subs || [];
+    const ak = subs.some((x) => x.kind === "plan3" && x.expiresAt > n) ? "plan3"
+      : subs.some((x) => x.kind === "plan1" && x.expiresAt > n) ? "plan1" : null;
+    if (ak) setPlanKind(ak as "plan1" | "plan3");
+  }, [account]);
+
   const handleBuyPlan = async () => {
     setBuying(true); setError(null);
     try {
@@ -198,9 +225,16 @@ export default function DashboardPage() {
   const canCreate = profiles.length < 100 && profiles.length < slots;
   const subLabel = (k: SubItem["kind"]) => k === "plan3" ? t.sub_plan3 : k === "plan1" ? t.sub_plan1 : k === "device" ? t.sub_device : t.sub_referral;
 
+  const nowTs = Date.now();
+  const activePlanKind: "plan1" | "plan3" | null =
+    (account?.subs || []).some((x) => x.kind === "plan3" && x.expiresAt > nowTs) ? "plan3"
+    : (account?.subs || []).some((x) => x.kind === "plan1" && x.expiresAt > nowTs) ? "plan1"
+    : null;
+  const isRenewal = activePlanKind !== null;
+  const effectiveKind: "plan1" | "plan3" = isRenewal && activePlanKind ? activePlanKind : planKind;
   const price1 = pricing?.plan1?.[String(term)];
   const price3 = pricing?.plan3?.[String(term)];
-  const selPrice = planKind === "plan3" ? price3 : price1;
+  const selPrice = effectiveKind === "plan3" ? price3 : price1;
 
   const devLabel = (i: number) => {
     const ty = profiles[i]?.deviceType || "";
@@ -268,9 +302,18 @@ export default function DashboardPage() {
             {/* Plan purchase (always available — buy or extend) */}
             {pricing && (
               <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-3">{t.choose_plan}</h3>
+                <h3 className="font-bold text-nm-text text-sm mb-3">{isRenewal ? (RENEW_TITLE[lang] ?? RENEW_TITLE.en) : t.choose_plan}</h3>
 
-                {/* plan kind toggle */}
+                {/* Renewal: locked tier card (cannot re-buy a different/new plan) */}
+                {isRenewal && (
+                  <div className="p-3 rounded-xl nm-pressed-sm mb-3">
+                    <div className="text-base font-bold text-nm-text">{effectiveKind === "plan3" ? t.plan_3dev : t.plan_1dev}</div>
+                    <div className="text-sm mt-0.5 text-nm-text-secondary">{(RENEW_CURRENT[lang] ?? RENEW_CURRENT.en)} {fmtDate(account!.maxExpiry, lang)}</div>
+                  </div>
+                )}
+
+                {/* plan kind toggle — new buyers only */}
+                {!isRenewal && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {(["plan3", "plan1"] as const).map((k) => {
                     const active = planKind === k;
@@ -285,13 +328,14 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* term selector */}
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {([1, 6, 12] as const).map((tm) => {
                     const active = term === tm;
                     const label = tm === 1 ? t.term_1 : tm === 6 ? t.term_6 : t.term_12;
-                    const pr = (planKind === "plan3" ? pricing.plan3 : pricing.plan1)[String(tm)];
+                    const pr = (effectiveKind === "plan3" ? pricing.plan3 : pricing.plan1)[String(tm)];
                     const disc = pr ? Math.round((1 - pr.perMonth / pr.refMonthly) * 100) : 0;
                     return (
                       <button key={tm} onClick={() => setTerm(tm)}
@@ -311,9 +355,9 @@ export default function DashboardPage() {
                 </div>
                 <button disabled={buying} onClick={handleBuyPlan}
                   className="nm-btn-accent w-full py-3.5 font-semibold text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {t.pay_crypto}</>}
+                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {isRenewal ? (RENEW_BTN[lang] ?? RENEW_BTN.en) : t.pay_crypto}</>}
                 </button>
-                <p className="text-xs text-nm-text-secondary text-center mt-2">{t.renews_note}</p>
+                <p className="text-xs text-nm-text-secondary text-center mt-2">{isRenewal ? (RENEW_NOTE[lang] ?? RENEW_NOTE.en) : t.renews_note}</p>
               </div>
             )}
 
