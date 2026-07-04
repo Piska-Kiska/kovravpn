@@ -523,7 +523,21 @@ async function screenHelp(chatId: number, msgId: number) {
   ].join("\n"), [
     [{ text: t("help.btn.support", lang), url: "https://t.me/kovravpn_bot" }],
     [{ text: t("help.btn.site", lang), url: SITE_URL }],
+    [{ text: t("help.btn.docs", lang), callback_data: "docs" }],
     backBtn("menu", lang),
+  ]);
+}
+
+async function screenDocs(chatId: number, msgId: number) {
+  const lang = await resolveLang(await getUserId(chatId));
+  await edit(chatId, msgId, [
+    t("docs.title", lang),
+    ``,
+    t("docs.text", lang),
+  ].join("\n"), [
+    [{ text: t("docs.btn.terms", lang), url: `${SITE_URL}/terms` }],
+    [{ text: t("docs.btn.privacy", lang), url: `${SITE_URL}/privacy` }],
+    backBtn("help", lang),
   ]);
 }
 
@@ -864,6 +878,7 @@ export async function POST(req: NextRequest) {
       else if (data.startsWith("dev_")) await handleCreateDevice(chatId, msgId, data.slice(4));
       else if (data === "guide") await screenGuide(chatId, msgId);
       else if (data === "help") await screenHelp(chatId, msgId);
+      else if (data === "docs") await screenDocs(chatId, msgId);
       else if (data === "pricing") await screenPricing(chatId, msgId);
       else if (data === "referral") await screenReferral(chatId, msgId);
       else if (data === "promo") {
