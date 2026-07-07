@@ -63,6 +63,18 @@ const RENEW_NOTE: Record<string, string> = {
   fr: "Prolonge votre forfait actuel (ajoute du temps, pas d'appareils). Pour ajouter un appareil, utilisez Ajouter un appareil ci-dessous.",
 };
 
+// Card payment labels (Cashera), same pattern as RENEW_* above.
+const CARD_BTN: Record<string, string> = {
+  en: "Pay with card", ru: "Оплатить картой", es: "Pagar con tarjeta", de: "Mit Karte zahlen", fr: "Payer par carte",
+};
+const CARD_NOTE: Record<string, string> = {
+  en: "Card payments are processed by our payment partner (statement shows “skillstep”); the amount is converted to EUR.",
+  ru: "Оплата картой идёт через платёжного партнёра (в списании будет «skillstep»); сумма конвертируется в EUR.",
+  es: "Los pagos con tarjeta se procesan a través de nuestro socio de pagos (en el extracto aparece «skillstep»); el importe se convierte a EUR.",
+  de: "Kartenzahlungen laufen über unseren Zahlungspartner (Abrechnung zeigt „skillstep“); der Betrag wird in EUR umgerechnet.",
+  fr: "Les paiements par carte passent par notre partenaire de paiement (le relevé indique «skillstep»); le montant est converti en EUR.",
+};
+
 function fmtDate(ms: number, lang: string): string {
   if (!ms) return "—";
   try {
@@ -88,6 +100,8 @@ export default function DashboardPage() {
   const [term, setTerm] = useState<1 | 6 | 12>(12);
   const [buying, setBuying] = useState(false);
   const [buyingDevice, setBuyingDevice] = useState(false);
+  const [buyingCard, setBuyingCard] = useState(false);
+  const [buyingCardDevice, setBuyingCardDevice] = useState(false);
 
   // device create
   const [creating, setCreating] = useState(false);
@@ -192,6 +206,30 @@ export default function DashboardPage() {
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingDevice(false); }
+  };
+
+  const handleBuyPlanCard = async () => {
+    setBuyingCard(true); setError(null);
+    try {
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const d = await r.json();
+      if (d.paymentUrl) {
+        trackEvent("payment_initiated", { type: "plan", method: "card", kind: planKind, term });
+        window.location.href = d.paymentUrl;
+      } else setError(d.error || t.err_pay);
+    } catch { setError(t.err_conn); } finally { setBuyingCard(false); }
+  };
+
+  const handleBuyDeviceCard = async () => {
+    setBuyingCardDevice(true); setError(null);
+    try {
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device" }) });
+      const d = await r.json();
+      if (d.paymentUrl) {
+        trackEvent("payment_initiated", { type: "device", method: "card" });
+        window.location.href = d.paymentUrl;
+      } else setError(d.error || t.err_pay);
+    } catch { setError(t.err_conn); } finally { setBuyingCardDevice(false); }
   };
 
   const handleCreate = async (device?: string) => {
@@ -357,7 +395,12 @@ export default function DashboardPage() {
                   className="nm-btn-accent w-full py-3.5 font-semibold text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {isRenewal ? (RENEW_BTN[lang] ?? RENEW_BTN.en) : t.pay_crypto}</>}
                 </button>
+                <button disabled={buyingCard} onClick={handleBuyPlanCard}
+                  className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                  {buyingCard ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD_BTN[lang] ?? CARD_BTN.en}</>}
+                </button>
                 <p className="text-xs text-nm-text-secondary text-center mt-2">{isRenewal ? (RENEW_NOTE[lang] ?? RENEW_NOTE.en) : t.renews_note}</p>
+                <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
             )}
 
@@ -388,6 +431,11 @@ export default function DashboardPage() {
                   className="nm-btn w-full py-2.5 text-sm font-medium text-nm-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buyingDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4" />{t.buy_device}</>}
                 </button>
+                <button disabled={buyingCardDevice} onClick={handleBuyDeviceCard}
+                  className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                  {buyingCardDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD_BTN[lang] ?? CARD_BTN.en}</>}
+                </button>
+                <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
             )}
 
