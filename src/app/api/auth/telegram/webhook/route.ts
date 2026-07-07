@@ -28,6 +28,7 @@ import { getReferralStats, resolveReferralCode, recordReferral, grantReferralRew
 import { syncAllExpiry } from "@/lib/balance";
 import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { createInvoice } from "@/lib/nowpayments";
+import { createCardPayment } from "@/lib/cashera-order";
 import { getBalanceUsd, addBalanceUsd, chargeBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
 import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddon, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
 import { createCryptoBotInvoice } from "@/lib/cryptobot";
@@ -696,10 +697,14 @@ async function chargeAndGrant(
 // ─── Top-up balance (USD) ────────────────────────────
 const MIN_TOPUP_CRYPTOBOT_USD = 5;
 const MIN_TOPUP_NOWPAY_USD = 8;
+const MIN_TOPUP_CARD_USD = 5;
 const MAX_TOPUP_USD = 1000;
 const QUICK_TOPUP = [10, 20, 50, 100];
 
-function minForMethod(method: "crypto" | "cryptobot"): number {
+type TopupMethod = "crypto" | "cryptobot" | "card";
+
+function minForMethod(method: TopupMethod): number {
+  if (method === "card") return MIN_TOPUP_CARD_USD;
   return method === "cryptobot" ? MIN_TOPUP_CRYPTOBOT_USD : MIN_TOPUP_NOWPAY_USD;
 }
 
@@ -707,13 +712,14 @@ async function screenTopup(chatId: number, msgId: number) {
   const lang = await resolveLang(await getUserId(chatId));
   await redis.del(`topup_usd_await:${chatId}`);
   await edit(chatId, msgId, t("topup.title", lang), [
+    [{ text: t("topup.m.card", lang) + ` · $${MIN_TOPUP_CARD_USD}+`, callback_data: "topup_m_card" }],
     [{ text: t("topup.m.cryptobot", lang) + ` · $${MIN_TOPUP_CRYPTOBOT_USD}+`, callback_data: "topup_m_cryptobot" }],
     [{ text: t("topup.m.crypto", lang) + ` · $${MIN_TOPUP_NOWPAY_USD}+`, callback_data: "topup_m_crypto" }],
     backBtn("account", lang),
   ]);
 }
 
-async function screenTopupAmount(chatId: number, msgId: number, method: "crypto" | "cryptobot") {
+async function screenTopupAmount(chatId: number, msgId: number, method: TopupMethod) {
   const lang = await resolveLang(await getUserId(chatId));
   const min = minForMethod(method);
   const quick = QUICK_TOPUP.filter((a) => a >= min);
@@ -728,7 +734,7 @@ async function screenTopupAmount(chatId: number, msgId: number, method: "crypto"
   await edit(chatId, msgId, t("topup.pick", lang, { min, max: MAX_TOPUP_USD }), rows);
 }
 
-async function handleTopupBalance(chatId: number, msgId: number, method: "crypto" | "cryptobot", amountUsd: number) {
+async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
   const lang = await resolveLang(await getUserId(chatId));
   const userId = await getUserId(chatId);
   if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]); return; }
@@ -739,16 +745,21 @@ async function handleTopupBalance(chatId: number, msgId: number, method: "crypto
   }
   try {
     let payUrl: string;
+    let invoiceKey = "topup.invoice";
     if (method === "cryptobot") {
       const inv = await createCryptoBotInvoice({ userId, amountUsd, source: "bot" });
       payUrl = inv.payUrl;
+    } else if (method === "card") {
+      const res = await createCardPayment(userId, { type: "topup", amountUsd }, "bot");
+      payUrl = res.paymentUrl;
+      invoiceKey = "topup.invoice.card";
     } else {
       const orderId = buildTopupOrderId(userId);
       const inv = await createInvoice({ orderId, amountUsd, description: `Kovra top-up $${amountUsd.toFixed(2)}`, source: "bot" });
       payUrl = inv.invoiceUrl;
     }
     await edit(chatId, msgId,
-      t("topup.invoice", lang, { amount: amountUsd.toFixed(2) }),
+      t(invoiceKey, lang, { amount: amountUsd.toFixed(2) }),
       [
         [{ text: t("topup.pay", lang), url: payUrl }],
         backBtn("topup", lang),
@@ -900,9 +911,10 @@ export async function POST(req: NextRequest) {
       }
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");
+      else if (data === "topup_m_card") await screenTopupAmount(chatId, msgId, "card");
       else if (data.startsWith("tu_")) {
         const parts = data.split("_");
-        const method = parts[1] === "cryptobot" ? "cryptobot" : "crypto";
+        const method: TopupMethod = parts[1] === "cryptobot" ? "cryptobot" : parts[1] === "card" ? "card" : "crypto";
         const val = parts[2];
         if (val === "manual") {
           await redis.set(`topup_usd_await:${chatId}`, method, { ex: 300 });
@@ -1092,7 +1104,7 @@ export async function POST(req: NextRequest) {
     const topupMethod = await redis.get(`topup_usd_await:${chatId}`);
     if (topupMethod) {
       const lang = await resolveLang(await getUserId(chatId));
-      const method = String(topupMethod) === "cryptobot" ? "cryptobot" : "crypto";
+      const method: TopupMethod = String(topupMethod) === "cryptobot" ? "cryptobot" : String(topupMethod) === "card" ? "card" : "crypto";
       const amt = parseFloat(String(text).replace(",", "."));
       await redis.del(`topup_usd_await:${chatId}`);
       const msg = await tgWithResponse("sendMessage", {

@@ -33,6 +33,8 @@ import {
 } from "@/lib/subscriptions";
 import { syncAllExpiry } from "@/lib/balance";
 import { grantReferralReward } from "@/lib/referrals";
+import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
+import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import { reserveDedupKey, releaseDedupKey } from "@/lib/dedup";
 import {
   verifyWebhookHeaders,
@@ -179,6 +181,116 @@ export async function POST(req: NextRequest) {
           `Subscription NOT auto-revoked — handle manually.`,
         ].join("\n"),
       );
+      return NextResponse.json({ ok: true });
+    }
+
+    // ─── Bot prepaid balance top-up (topup_<userId>_<ts>) ───
+    // Mirrors the crypto-webhook topup_ branch. Balance is credited with the
+    // USD value fixed at creation time (order.amountUsd), never recomputed
+    // from the RUB charge.
+    if (extId.startsWith("topup_")) {
+      const tu = parseTopupOrderId(extId);
+      const order = await getOrderRecord(extId);
+      if (!tu || !order || order.kind !== "topup") {
+        console.error("[cashera-webhook] paid topup with bad/missing order", {
+          uuid,
+          external_id: extId,
+        });
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>Cashera: topup paid but order record missing</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>, ${(Number(tx.amount) / 100).toFixed(2)} ${tx.currency}. NOT credited — verify and credit manually.`,
+        );
+        return NextResponse.json({ ok: true, ignored: "bad topup order" });
+      }
+      if (Number(tx.amount) !== order.amountMinor || tx.currency !== order.currency) {
+        console.error("[cashera-webhook] topup amount/currency mismatch", {
+          expected: { amount: order.amountMinor, currency: order.currency },
+          got: { amount: tx.amount, currency: tx.currency },
+          uuid,
+        });
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>Cashera topup amount mismatch</b>\ntx <code>${uuid}</code>: got ${tx.amount} ${tx.currency}, expected ${order.amountMinor} ${order.currency}. NOT credited.`,
+        );
+        return NextResponse.json({ ok: true, ignored: "amount mismatch" });
+      }
+      let newBal: number;
+      try {
+        newBal = await addBalanceUsd(tu.userId, order.amountUsd);
+      } catch (err) {
+        console.error("[cashera-webhook] topup credit failed, requesting retry:", err);
+        await releaseDedupKey(dedupKey);
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
+      await notifyUser(
+        tu.userId,
+        [
+          `✅ <b>Balance topped up</b>`,
+          ``,
+          `💵 +$${order.amountUsd.toFixed(2)}`,
+          `💰 Balance: <b>$${newBal.toFixed(2)}</b>`,
+        ].join("\n"),
+      );
+      console.log("[cashera-webhook] topup processed", {
+        uuid,
+        userId: tu.userId,
+        usd: order.amountUsd,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // ─── Bot prepaid balance top-up (topup_<userId>_<ts>) ───
+    // Mirrors the crypto-webhook topup_ branch. Balance is credited with the
+    // USD value fixed at creation time (order.amountUsd), never recomputed
+    // from the RUB charge.
+    if (extId.startsWith("topup_")) {
+      const tu = parseTopupOrderId(extId);
+      const order = await getOrderRecord(extId);
+      if (!tu || !order || order.kind !== "topup") {
+        console.error("[cashera-webhook] paid topup with bad/missing order", {
+          uuid,
+          external_id: extId,
+        });
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>Cashera: topup paid but order record missing</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>, ${(Number(tx.amount) / 100).toFixed(2)} ${tx.currency}. NOT credited — verify and credit manually.`,
+        );
+        return NextResponse.json({ ok: true, ignored: "bad topup order" });
+      }
+      if (Number(tx.amount) !== order.amountMinor || tx.currency !== order.currency) {
+        console.error("[cashera-webhook] topup amount/currency mismatch", {
+          expected: { amount: order.amountMinor, currency: order.currency },
+          got: { amount: tx.amount, currency: tx.currency },
+          uuid,
+        });
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>Cashera topup amount mismatch</b>\ntx <code>${uuid}</code>: got ${tx.amount} ${tx.currency}, expected ${order.amountMinor} ${order.currency}. NOT credited.`,
+        );
+        return NextResponse.json({ ok: true, ignored: "amount mismatch" });
+      }
+      let newBal: number;
+      try {
+        newBal = await addBalanceUsd(tu.userId, order.amountUsd);
+      } catch (err) {
+        console.error("[cashera-webhook] topup credit failed, requesting retry:", err);
+        await releaseDedupKey(dedupKey);
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
+      await notifyUser(
+        tu.userId,
+        [
+          `✅ <b>Balance topped up</b>`,
+          ``,
+          `💵 +$${order.amountUsd.toFixed(2)}`,
+          `💰 Balance: <b>$${newBal.toFixed(2)}</b>`,
+        ].join("\n"),
+      );
+      console.log("[cashera-webhook] topup processed", {
+        uuid,
+        userId: tu.userId,
+        usd: order.amountUsd,
+      });
       return NextResponse.json({ ok: true });
     }
 

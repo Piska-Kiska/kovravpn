@@ -1,46 +1,28 @@
 // src/app/api/cashera/create/route.ts
 //
-// Create a Cashera CARD payment for a PLAN or DEVICE ADD-ON purchase.
+// Create a Cashera CARD payment (web dashboard).
 // Body: { kind: "plan1" | "plan3", term: 1 | 6 | 12 }   — main plan
 //       { kind: "device" }                              — +1 device, 30 days
 // Returns: { paymentUrl, uuid, expiresAt, amountRub, currency }
 //
-// Prices are USD (server-side PLAN_PRICES); the `mastercard` method accepts
-// RUB only, so the charge is converted via Cashera's own rates endpoint
-// (see lib/cashera-fx). The exact charged amount is persisted at
-// `cashera_order:{externalId}` BEFORE the payment is created — the webhook
-// verifies tx.amount/currency against it before granting.
-//
-// external_id reuses the NOWPayments order_id scheme (sub_/dev_), so
-// /api/cashera/webhook decodes WHAT to grant statelessly via parseSubOrderId.
+// Creation logic (FX, order record, tx pointer) lives in lib/cashera-order
+// and is shared with the Telegram bot.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { getAccount } from "@/lib/accounts";
+import { resolvePlan } from "@/lib/subscriptions";
+import { CasheraError } from "@/lib/cashera";
 import {
-  resolvePlan,
-  buildPlanOrderId,
-  buildDeviceOrderId,
-  DEVICE_ADDON_PRICE,
-  DEVICE_ADDON_DAYS,
-} from "@/lib/subscriptions";
-import {
-  createPayment,
-  CasheraError,
-  type CasheraOrderRecord,
-} from "@/lib/cashera";
-import { usdToRubMinor } from "@/lib/cashera-fx";
-import { redis } from "@/lib/redis";
+  createCardPayment,
+  cardPaymentsEnabled,
+  type CardPurchase,
+} from "@/lib/cashera-order";
 import { checkRateLimit } from "@/lib/ratelimit";
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
-const PAYMENT_METHOD = process.env.CASHERA_PAYMENT_METHOD || "";
-const ORDER_TTL_SEC = 7 * 86400; // webhook verification window
-const TX_PTR_TTL_SEC = 72 * 60 * 60; // uuid→externalId ops pointer
 
 export async function POST(req: NextRequest) {
   try {
-    if (!PAYMENT_METHOD) {
+    if (!cardPaymentsEnabled()) {
       return NextResponse.json(
         { error: "Card payments are not configured" },
         { status: 503 },
@@ -66,15 +48,9 @@ export async function POST(req: NextRequest) {
       term?: number;
     };
 
-    let externalId: string;
-    let amountUsd: number;
-    let label: string;
-    let term: number | undefined;
-
+    let purchase: CardPurchase;
     if (body.kind === "device") {
-      externalId = buildDeviceOrderId(userId);
-      amountUsd = DEVICE_ADDON_PRICE;
-      label = `+1 device · ${DEVICE_ADDON_DAYS} days`;
+      purchase = { type: "device" };
     } else {
       const plan = resolvePlan(String(body.kind), Number(body.term));
       if (!plan) {
@@ -83,10 +59,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      externalId = buildPlanOrderId(userId, plan.kind, plan.term);
-      amountUsd = plan.price;
-      term = plan.term;
-      label = `${plan.kind === "plan3" ? "3 devices" : "1 device"} · ${plan.term} mo`;
+      purchase = { type: "plan", kind: plan.kind, term: plan.term };
     }
 
     const account = await getAccount(userId);
@@ -94,51 +67,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // USD → RUB by Cashera's own merchant rate (settlement-consistent).
-    const fx = await usdToRubMinor(amountUsd, PAYMENT_METHOD);
-    if (fx.stale) {
-      console.warn("[cashera-create] using stale fx rate", {
-        rubPerUsd: fx.rubPerUsd,
-      });
-    }
-
-    // Persist the exact expected charge BEFORE creating the payment —
-    // the webhook refuses to grant without this record.
-    const order: CasheraOrderRecord = {
-      userId,
-      kind: String(body.kind),
-      term,
-      amountUsd,
-      amountMinor: fx.amountMinor,
-      currency: "RUB",
-      rubPerUsd: fx.rubPerUsd,
-      createdAt: Date.now(),
-    };
-    await redis.set(`cashera_order:${externalId}`, JSON.stringify(order), {
-      ex: ORDER_TTL_SEC,
-    });
-
-    const tx = await createPayment({
-      amountMinor: fx.amountMinor,
-      currency: "RUB",
-      paymentMethod: PAYMENT_METHOD,
-      externalId,
-      description: `Kovra ${label}`,
-      callbackUrl: `${SITE_URL}/api/cashera/webhook`,
-      successUrl: `${SITE_URL}/dashboard?paid=1`,
-      failUrl: `${SITE_URL}/dashboard`,
-    });
-
-    // uuid → externalId pointer for manual reconciliation.
-    await redis.set(`cashera_tx:${tx.uuid}`, externalId, {
-      ex: TX_PTR_TTL_SEC,
-    });
-
+    const res = await createCardPayment(userId, purchase, "web");
     return NextResponse.json({
-      paymentUrl: tx.payment_url,
-      uuid: tx.uuid,
-      expiresAt: tx.expires_at ?? null,
-      amountRub: fx.amountRub,
+      paymentUrl: res.paymentUrl,
+      uuid: res.uuid,
+      expiresAt: res.expiresAt,
+      amountRub: res.amountRub,
       currency: "RUB",
     });
   } catch (error) {
