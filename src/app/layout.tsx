@@ -1,6 +1,14 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Rubik, Figtree, Schibsted_Grotesk } from "next/font/google";
+import {
+  Rubik,
+  Figtree,
+  Schibsted_Grotesk,
+  Inter_Tight,
+  Instrument_Serif,
+  Playfair_Display,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -22,6 +30,40 @@ const figtree = Figtree({
 const schibsted = Schibsted_Grotesk({
   subsets: ["latin"],
   variable: "--font-schibsted",
+  display: "swap",
+});
+
+/* ── Kovra v2 brand faces ─────────────────────────────
+   Inter Tight  – base + headings (500–600, tight tracking)
+   Instrument Serif Italic – single emotional display phrase (latin only)
+   Playfair Display Italic – cyrillic fallback for the serif accent
+   JetBrains Mono – labels, prices, digits, badges */
+const interTight = Inter_Tight({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
+const instrument = Instrument_Serif({
+  weight: "400",
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  variable: "--font-instrument",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-playfair",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "500"],
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-jbmono",
   display: "swap",
 });
 
@@ -167,7 +209,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="ru"
-      className={`${rubik.variable} ${figtree.variable} ${schibsted.variable} antialiased scroll-smooth`}
+      className={`${rubik.variable} ${figtree.variable} ${schibsted.variable} ${interTight.variable} ${instrument.variable} ${playfair.variable} ${jetbrainsMono.variable} antialiased scroll-smooth`}
       suppressHydrationWarning
     >
       <head>

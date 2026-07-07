@@ -329,3 +329,384 @@ textarea.nm-pressed-sm:focus {
 /* override kvr-root reset on login/register */
 .klang .klang-btn{padding:0 13px}
 .klang .klang-menu .klang-item{padding:10px 13px}
+
+/* ═══════════════════════════════════════════════════════
+   Kovra v2 — "Сотканная приватность" brand layer
+   stealth luxury × swiss editorial. Dark-first.
+   The legacy nm-* layer above stays intact for /login,
+   /guide, /terms, /privacy. New pages use k-* only.
+   ═══════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="dark"] {
+  --k-bg: #0b0b0c;
+  --k-bg-alt: #101012;
+  --k-surface: #151518;
+  --k-border: rgba(255, 255, 255, 0.07);
+  --k-border-hover: rgba(255, 255, 255, 0.14);
+  --k-text: #f5f2ea;
+  --k-text-2: #98938a;
+  --k-text-3: #5c5952;
+  --k-gold: #d9a441;
+  --k-gold-2: #ebc26b;
+  /* gold that is safe as body-size text on the current bg */
+  --k-gold-ink: #d9a441;
+  --k-gold-soft: rgba(217, 164, 65, 0.11);
+  --k-gold-line: rgba(217, 164, 65, 0.32);
+  --k-success: #4ade80;
+  --k-danger: #f87171;
+  --k-grain: 0.03;
+  --k-thread: 217, 164, 65;      /* rgb triplet for canvas threads */
+  --k-thread-alpha: 1;
+  --k-btn-fg: #151007;           /* text on gold */
+  --k-header-bg: rgba(11, 11, 12, 0.72);
+  --k-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] {
+  --k-bg: #f3f0e8;
+  --k-bg-alt: #ebe7dc;
+  --k-surface: #faf8f2;
+  --k-border: rgba(28, 24, 14, 0.09);
+  --k-border-hover: rgba(28, 24, 14, 0.2);
+  --k-text: #191610;
+  --k-text-2: #6e6759;
+  --k-text-3: #a39c8b;
+  --k-gold: #a9761c;
+  --k-gold-2: #8f6212;
+  --k-gold-ink: #8f6212;
+  --k-gold-soft: rgba(169, 118, 28, 0.1);
+  --k-gold-line: rgba(169, 118, 28, 0.34);
+  --k-success: #15803d;
+  --k-danger: #b91c1c;
+  --k-grain: 0.02;
+  --k-thread: 154, 108, 26;
+  --k-thread-alpha: 0.75;
+  --k-btn-fg: #fdfbf5;
+  --k-header-bg: rgba(243, 240, 232, 0.78);
+  --k-shadow: 0 24px 60px -36px rgba(40, 32, 12, 0.35);
+}
+
+:root {
+  --k-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --k-font: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --k-serif: var(--font-instrument), var(--font-playfair), Georgia, "Times New Roman", serif;
+  --k-mono: var(--font-jbmono), ui-monospace, "SF Mono", Menlo, monospace;
+  --k-maxw: 1280px;
+}
+
+/* ── Page shell ──────────────────────────────────────── */
+.k-page {
+  min-height: 100dvh;
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: var(--k-font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+.k-page ::selection { background: var(--k-gold); color: var(--k-btn-fg); }
+
+/* film grain, 2–3% */
+.k-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: var(--k-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* mono label — the system voice */
+.k-mono {
+  font-family: var(--k-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.k-hairline { border: 0; border-top: 1px solid var(--k-border); }
+
+/* ── Buttons (pill) ──────────────────────────────────── */
+.k-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--k-font);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  padding: 13px 26px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.5s var(--k-ease), background 0.25s ease,
+    border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+.k-btn:focus-visible,
+.k-page a:focus-visible,
+.k-page button:focus-visible,
+.k-page input:focus-visible,
+.k-page [role="button"]:focus-visible {
+  outline: 2px solid var(--k-gold);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.k-btn:focus-visible { border-radius: 999px; }
+
+.k-btn-gold {
+  background: var(--k-gold);
+  color: var(--k-btn-fg);
+}
+.k-btn-gold:hover { background: var(--k-gold-2); box-shadow: 0 12px 32px -14px rgba(217, 164, 65, 0.55); }
+[data-theme="light"] .k-btn-gold:hover { background: #8f6212; box-shadow: 0 12px 32px -18px rgba(143, 98, 18, 0.6); }
+
+.k-btn-ghost {
+  background: transparent;
+  border-color: var(--k-border-hover);
+  color: var(--k-text);
+}
+.k-btn-ghost:hover { border-color: var(--k-gold-line); color: var(--k-gold-ink); }
+
+.k-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+
+/* ── Scroll reveal: fade + translateY(24px) ──────────── */
+.k-rv {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--k-ease), transform 0.7s var(--k-ease);
+  transition-delay: var(--rv-delay, 0ms);
+}
+.k-rv.is-in { opacity: 1; transform: none; }
+
+/* stagger children 60ms */
+.k-stagger > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--k-ease), transform 0.7s var(--k-ease);
+}
+.k-stagger.is-in > * { opacity: 1; transform: none; }
+.k-stagger.is-in > *:nth-child(2) { transition-delay: 60ms; }
+.k-stagger.is-in > *:nth-child(3) { transition-delay: 120ms; }
+.k-stagger.is-in > *:nth-child(4) { transition-delay: 180ms; }
+.k-stagger.is-in > *:nth-child(5) { transition-delay: 240ms; }
+.k-stagger.is-in > *:nth-child(6) { transition-delay: 300ms; }
+.k-stagger.is-in > *:nth-child(7) { transition-delay: 360ms; }
+.k-stagger.is-in > *:nth-child(8) { transition-delay: 420ms; }
+
+/* word mask-reveal (hero) */
+.k-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+.k-word > span {
+  display: inline-block;
+  transform: translateY(112%);
+  transition: transform 0.9s var(--k-ease);
+  transition-delay: var(--wd, 0ms);
+}
+.is-in .k-word > span, .k-words.is-in .k-word > span { transform: none; }
+
+/* ── Digit roll ──────────────────────────────────────── */
+.k-dr { display: inline-flex; line-height: 1; font-variant-numeric: tabular-nums; }
+.k-dr-col { display: inline-block; height: 1em; overflow: hidden; }
+.k-dr-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.65s var(--k-ease);
+}
+.k-dr-d { height: 1em; line-height: 1; }
+.k-dr-ch { display: inline-block; height: 1em; line-height: 1; }
+
+/* ── Card hover: lift + light sweep along the border ─── */
+.k-sweep { position: relative; }
+.k-sweep::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(var(--k-thread), 0.55) 50%,
+    transparent 80%
+  );
+  background-size: 250% 100%;
+  background-position: 110% 0;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease, background-position 0.9s var(--k-ease);
+  pointer-events: none;
+}
+.k-sweep:hover::after { opacity: 1; background-position: -10% 0; }
+
+/* ── FAQ accordion ───────────────────────────────────── */
+.k-acc { border-top: 1px solid var(--k-border); }
+.k-acc-item { border-bottom: 1px solid var(--k-border); position: relative; }
+.k-acc-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12%;
+  bottom: 12%;
+  width: 1px;
+  background: var(--k-gold);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.6s var(--k-ease);
+}
+.k-acc-item.open::before { transform: scaleY(1); }
+.k-acc-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 8px 26px 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--k-text);
+  font-family: var(--k-font);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  transition: color 0.25s ease;
+}
+.k-acc-q:hover { color: var(--k-gold-ink); }
+.k-acc-plus {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  position: relative;
+  transition: transform 0.5s var(--k-ease);
+}
+.k-acc-plus::before,
+.k-acc-plus::after {
+  content: "";
+  position: absolute;
+  background: var(--k-gold);
+  transition: background 0.25s ease;
+}
+.k-acc-plus::before { left: 0; right: 0; top: 8px; height: 1.5px; }
+.k-acc-plus::after { top: 0; bottom: 0; left: 8px; width: 1.5px; }
+.k-acc-item.open .k-acc-plus { transform: rotate(45deg); } /* "+" → "×" */
+.k-acc-a {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.55s var(--k-ease);
+}
+.k-acc-item.open .k-acc-a { grid-template-rows: 1fr; }
+.k-acc-a-in { overflow: hidden; }
+.k-acc-a p {
+  margin: 0;
+  padding: 0 48px 26px 24px;
+  color: var(--k-text-2);
+  font-size: 16px;
+  max-width: 68ch;
+}
+
+/* ── Inputs ──────────────────────────────────────────── */
+.k-field {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 10px;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border);
+  color: var(--k-text);
+  font-family: var(--k-font);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.k-field::placeholder { color: var(--k-text-3); }
+.k-field:focus {
+  border-color: var(--k-gold);
+  box-shadow: 0 0 0 3px var(--k-gold-soft), 0 0 24px -6px rgba(var(--k-thread), 0.35);
+}
+
+/* ── Status pulse dot ────────────────────────────────── */
+.k-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--k-success);
+  position: relative;
+}
+.k-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--k-success);
+  animation: k-pulse-ring 2.2s var(--k-ease) infinite;
+}
+@keyframes k-pulse-ring {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  70%, 100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ── Marquee ticker ──────────────────────────────────── */
+.k-marquee {
+  overflow: hidden;
+  border-top: 1px solid var(--k-border);
+  border-bottom: 1px solid var(--k-border);
+  user-select: none;
+}
+.k-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+}
+.k-marquee:hover .k-marquee-track { animation-play-state: paused; }
+
+/* ── Spinner (gold ring) ─────────────────────────────── */
+.k-spin {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--k-gold-soft);
+  border-top-color: currentColor;
+  animation: k-rot 0.7s linear infinite;
+}
+@keyframes k-rot { to { transform: rotate(360deg); } }
+
+/* ── Reduced motion: kill it all ─────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .k-rv,
+  .k-stagger > *,
+  .k-word > span {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .k-dr-strip { transition: none !important; }
+  .k-marquee-track { animation: none !important; }
+  .k-pulse::after { animation: none !important; opacity: 0; }
+  .k-acc-a { transition: none !important; }
+}
+
+/* visually hidden (screen-reader text for odometers etc.) */
+.k-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
