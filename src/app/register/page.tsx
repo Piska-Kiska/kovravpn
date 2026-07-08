@@ -20,7 +20,7 @@ function KvrToggles({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) =>
     <div className="kvr-tg">
       <LangSwitcher />
       <button className="kvr-tg-btn kvr-tg-icon" onClick={toggleTheme} aria-label="Theme">
-        {theme === "dark" ? <Sun size={15} style={{ color: "var(--accent)" }} /> : <Moon size={15} style={{ color: "var(--accent)" }} />}
+        {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
       </button>
     </div>
   );
@@ -32,28 +32,28 @@ type Theme = "dark" | "light";
 
 const css = `
 .kvr-root{
-  --accent:#d9a55e;--accent-soft:rgba(217,165,94,.14);--accent-line:rgba(217,165,94,.2);
-  --base:#0a0a0c;--text:#f1f2f4;--muted:rgba(241,242,244,.6);--faint:rgba(241,242,244,.4);
-  --glass:rgba(255,255,255,.045);--glass-strong:rgba(255,255,255,.08);--gborder:rgba(255,255,255,.1);
-  --menu-bg:#15161b;--ctrl-bg:rgba(255,255,255,.09);--ctrl-border:rgba(255,255,255,.17);
-  --ghi:inset 0 1px 0 rgba(255,255,255,.13);--gshadow:0 18px 44px -26px rgba(0,0,0,.75);
-  --btn-bg:#f0f1f3;--btn-fg:#0a0a0c;--btn-bg-hover:#ffffff;
-  --glow1:rgba(255,255,255,.07);--glow2:rgba(217,165,94,.05);--grain-op:.04;--vig:rgba(0,0,0,.45);--sel-fg:#15100a;
-  --field:rgba(255,255,255,.05);--field-border:rgba(255,255,255,.12);
+  --accent:#f5f5f7;--accent-soft:rgba(255,255,255,.10);--accent-line:rgba(255,255,255,.35);
+  --base:#050506;--text:#f5f5f7;--muted:#86868b;--faint:#6e6e73;
+  --glass:#0a0a0b;--glass-strong:#141417;--gborder:rgba(255,255,255,.08);
+  --menu-bg:#101013;--ctrl-bg:rgba(255,255,255,.04);--ctrl-border:rgba(255,255,255,.12);
+  --ghi:inset 0 1px 0 rgba(255,255,255,.04);--gshadow:0 18px 44px -26px rgba(0,0,0,.75);
+  --btn-bg:#f5f5f7;--btn-fg:#0a0a0b;--btn-bg-hover:#ffffff;
+  --glow1:rgba(255,255,255,.05);--glow2:rgba(217,165,94,.05);--grain-op:.015;--vig:rgba(0,0,0,.45);--sel-fg:#050506;
+  --field:rgba(255,255,255,.04);--field-border:rgba(255,255,255,.10);
   --blur:blur(20px) saturate(120%);
-  --fd:'Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;--fb:'Figtree',ui-sans-serif,system-ui,sans-serif;--fm:'DM Mono',ui-monospace,Menlo,monospace;
+  --fd:var(--k-font);--fb:var(--k-font);--fm:var(--k-mono);
   position:relative;min-height:100dvh;background:var(--base);color:var(--text);
   font-family:var(--fb);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .3s,color .3s;
 }
 .kvr-root[data-theme="light"]{
-  --accent:#a9701f;--accent-soft:rgba(169,112,31,.13);--accent-line:rgba(169,112,31,.28);
-  --base:#ecedf0;--text:#16181c;--muted:rgba(22,24,28,.62);--faint:rgba(22,24,28,.42);
-  --glass:rgba(255,255,255,.55);--glass-strong:rgba(255,255,255,.74);--gborder:rgba(20,22,40,.09);
-  --menu-bg:#fff;--ctrl-bg:rgba(255,255,255,.82);--ctrl-border:rgba(20,22,40,.16);
-  --ghi:inset 0 1px 0 rgba(255,255,255,.75);--gshadow:0 18px 44px -26px rgba(20,22,40,.2);
-  --btn-bg:#16181c;--btn-fg:#f4f5f7;--btn-bg-hover:#000;
-  --glow1:rgba(255,255,255,.7);--glow2:rgba(169,112,31,.06);--grain-op:.025;--vig:rgba(20,22,40,.05);--sel-fg:#fff;
-  --field:rgba(255,255,255,.6);--field-border:rgba(20,22,40,.12);
+  --accent:#1d1d1f;--accent-soft:rgba(0,0,0,.07);--accent-line:rgba(0,0,0,.35);
+  --base:#ffffff;--text:#1d1d1f;--muted:#6e6e73;--faint:#a1a1a6;
+  --glass:#f5f5f7;--glass-strong:#ededf0;--gborder:rgba(0,0,0,.08);
+  --menu-bg:#fff;--ctrl-bg:rgba(0,0,0,.04);--ctrl-border:rgba(0,0,0,.14);
+  --ghi:inset 0 1px 0 rgba(255,255,255,.6);--gshadow:0 18px 44px -26px rgba(20,22,40,.2);
+  --btn-bg:#1d1d1f;--btn-fg:#f5f5f7;--btn-bg-hover:#000;
+  --glow1:rgba(255,255,255,.7);--glow2:rgba(169,112,31,.06);--grain-op:.01;--vig:rgba(20,22,40,.05);--sel-fg:#fff;
+  --field:rgba(0,0,0,.03);--field-border:rgba(0,0,0,.12);
 }
 .kvr-root *{box-sizing:border-box;margin:0;padding:0}
 .kvr-root ::selection{background:var(--accent);color:var(--sel-fg)}
@@ -130,6 +130,56 @@ const css = `
 .kvr-tg-item.on{background:var(--accent-soft);color:var(--accent)}
 @media (max-width:480px){.kvr-card{padding:30px 22px}.kvr-h1{font-size:24px}}
 .kvr-root .kvr-btn{color:var(--btn-fg)}
+
+/* ── v3 Apple-minimal overrides ────────────────────── */
+.kvr-card{border-radius:24px;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;background:var(--glass)}
+.kvr-nav-in{border-radius:999px}
+.kvr-h1{font-weight:600;letter-spacing:-.03em;font-size:30px}
+.kvr-brand,.kvr-logo span{font-weight:600}
+.kvr-btn{border-radius:999px;font-weight:500;box-shadow:none}
+.kvr-btn-glass{border-radius:999px;font-weight:500}
+.kvr-back,.kvr-tg-btn{border-radius:999px;box-shadow:none}
+.kvr-seg{border-radius:999px}
+.kvr-seg button{border-radius:999px;font-weight:500}
+.kvr-seg button.on{background:var(--btn-bg);color:var(--btn-fg);box-shadow:none}
+.kvr-field{border-radius:14px}
+.kvr-field:focus{box-shadow:0 0 0 3px rgba(128,128,128,.14)}
+.kvr-codes input{border-radius:14px}
+.kvr-link-accent{color:var(--text)}
+.kvr-legal a,.kvr-foot a{color:var(--text);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint)}
+.kvr-icon-circle{color:var(--text)}
+.kvr-tg-item.on{color:var(--text)}
+@media (min-width:1800px){.kvr-card{max-width:470px}}
+
+/* ── v3.1 — borderless auth layout (landing-matched) ── */
+.kvr-nav{max-width:1280px;margin-top:0}
+.kvr-nav-in{height:72px;background:transparent;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0 4px}
+.kvr-shell{padding:0 36px 88px}
+.kvr-card{margin-top:min(13vh,116px);max-width:400px;padding:0;background:transparent;border:none;border-radius:0;box-shadow:none}
+.kvr-logo{display:none}
+.kvr-h1{font-size:clamp(34px,4.5vw,46px);letter-spacing:-.035em;line-height:1.05;margin-bottom:10px;
+  background:linear-gradient(180deg,var(--text) 18%,var(--muted) 96%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.kvr-sub{font-size:16px;margin-bottom:32px}
+.kvr-stack{gap:20px}
+.kvr-btn{padding:15px}
+.kvr-btn-glass{background:transparent;border:1px solid var(--ctrl-border)}
+.kvr-btn-glass:hover{background:var(--glass)}
+.kvr-legal{margin-top:26px}
+.kvr-codebox{background:var(--glass);border-color:var(--gborder)}
+@media (max-width:480px){.kvr-shell{padding:0 20px 64px}.kvr-card{margin-top:56px}.kvr-h1{font-size:32px}}
+@supports (padding:max(0px)){.kvr-shell{padding-left:max(36px,env(safe-area-inset-left));padding-right:max(36px,env(safe-area-inset-right))}}
+@media (min-width:1800px){.kvr-card{max-width:440px}}
+
+/* ── v3.2 — header controls unified with landing ───── */
+.kvr-tg-btn{height:36px;padding:0 12px;background:transparent;border:1px solid var(--gborder);box-shadow:none;color:var(--muted);font-family:var(--fm);font-size:11.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.kvr-tg-btn:hover{border-color:var(--ctrl-border);background:transparent;color:var(--text)}
+.kvr-tg-icon{width:36px;padding:0}
+.kvr-back{height:36px;padding:0 16px;border-radius:999px;background:transparent;border:1px solid var(--ctrl-border);color:var(--text);font-size:14px}
+.kvr-back:hover{background:var(--glass);border-color:var(--muted)}
+.kvr-tg-menu{border-radius:14px}
+.kvr-tg-item{font-weight:500}
+.kvr-tg-item:hover{background:var(--glass-strong);color:var(--text)}
+.kvr-tg-item.on{background:var(--glass-strong);color:var(--text)}
 `;
 
 export default function RegisterPage() {
@@ -288,7 +338,7 @@ export default function RegisterPage() {
             <span data-i18n="common.brand">Kovra</span>
           </div>
           <h1 className="kvr-h1" data-i18n="register.title">Create an account</h1>
-          <p className="kvr-sub" data-i18n="register.subtitle">Crypto-only. Ready in a minute.</p>
+          <p className="kvr-sub" data-i18n="register.subtitle">Crypto or card. Ready in a minute.</p>
 
           {/* Method toggle */}
           <div className="kvr-seg">

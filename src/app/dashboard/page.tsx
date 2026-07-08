@@ -84,6 +84,28 @@ function fmtDate(ms: number, lang: string): string {
   }
 }
 
+
+// ── Dev-only mock (design preview without Redis): NEXT_PUBLIC_DASH_MOCK=1 ──
+const MOCK = process.env.NEXT_PUBLIC_DASH_MOCK === "1" && process.env.NODE_ENV !== "production";
+const MOCK_NOW = 1783000000000;
+const MOCK_ACCOUNT: AccountData = {
+  plan: "plan3", activeSlots: 3, hasActive: true,
+  maxExpiry: MOCK_NOW + 186 * 864e5, nextExpiry: MOCK_NOW + 186 * 864e5,
+  daysRemaining: 186, devices: 2,
+  subs: [{ id: "sub_demo1", kind: "plan3", slots: 3, createdAt: MOCK_NOW - 30 * 864e5, expiresAt: MOCK_NOW + 186 * 864e5 }],
+  features: { happEncrypted: true },
+};
+const MOCK_PRICING: Pricing = {
+  plan1: { "1": { term: 1, total: 5, perMonth: 5, refMonthly: 5 }, "6": { term: 6, total: 22.5, perMonth: 3.75, refMonthly: 5 }, "12": { term: 12, total: 33, perMonth: 2.75, refMonthly: 5 } },
+  plan3: { "1": { term: 1, total: 11.99, perMonth: 11.99, refMonthly: 11.99 }, "6": { term: 6, total: 53.94, perMonth: 8.99, refMonthly: 11.99 }, "12": { term: 12, total: 79.08, perMonth: 6.59, refMonthly: 11.99 } },
+  plan1Slots: 1, plan3Slots: 3, deviceAddonPrice: 5, deviceAddonDays: 30,
+};
+const MOCK_PROFILES: Profile[] = [
+  { uuid: "6f9c2d54-demo-4a1b-9c1e-aaaaaaaaaaaa", clientEmail: "vpn_web_demo_1", vlessUrl: "vless://demo@nl.kovravpn.com:443?security=reality&sni=example.com#Kovra-NL", createdAt: MOCK_NOW - 20 * 864e5, deviceType: "iphone", subToken: "demoToken1" },
+  { uuid: "1b2e7c10-demo-4f00-8d2a-bbbbbbbbbbbb", clientEmail: "vpn_web_demo_2", vlessUrl: "vless://demo@de.kovravpn.com:443?security=reality&sni=example.com#Kovra-DE", createdAt: MOCK_NOW - 5 * 864e5, deviceType: "android", subToken: "demoToken2" },
+];
+const MOCK_REFERRAL: ReferralData = { code: "45288149", link: "https://kovravpn.com/register?ref=45288149", botLink: "https://t.me/kovravpn_bot?start=45288149", total: 3, rewarded: 1, pending: 2 };
+
 export default function DashboardPage() {
   const { lang, setLang, t } = useDashLang();
   const [tab, setTab] = useState<Tab>("home");
@@ -132,6 +154,11 @@ export default function DashboardPage() {
 
   // current user
   useEffect(() => {
+    if (MOCK) {
+      setUserId("mock-user");
+      setUserInfo({ authMethod: "email", email: "demo@kovravpn.com" });
+      return;
+    }
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
@@ -145,6 +172,13 @@ export default function DashboardPage() {
 
   const fetchAccount = useCallback(async () => {
     if (!userId) return;
+    if (MOCK) {
+      setAccount(MOCK_ACCOUNT);
+      setPricing(MOCK_PRICING);
+      setProfiles(MOCK_PROFILES);
+      setLoading(false);
+      return;
+    }
     try {
       const r = await fetch("/api/account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
       const d = await r.json();
@@ -172,6 +206,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!userId) return;
+    if (MOCK) { setReferral(MOCK_REFERRAL); return; }
     fetch("/api/referral").then((r) => r.json()).then((d) => { if (d.code) setReferral(d); }).catch(() => {});
   }, [userId]);
 

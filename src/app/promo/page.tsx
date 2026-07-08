@@ -2,7 +2,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { Oswald } from "next/font/google";
 
 /**
  * Promo page is admin/marketing-only — never meant to appear in search
@@ -13,12 +12,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const oswald = Oswald({
-  subsets: ["cyrillic", "latin"],
-  variable: "--font-oswald",
-  weight: ["700"],
-  display: "swap",
-});
 
 /* ── Marquee ticker ─────────────────────────────────── */
 const TICKER_ITEMS = [
@@ -37,7 +30,7 @@ const TICKER_ITEMS = [
 function Marquee({ reverse = false }: { reverse?: boolean }) {
   const text = TICKER_ITEMS.join(" » ") + " » ";
   return (
-    <div className="bg-indigo-600 overflow-hidden whitespace-nowrap py-2.5 select-none">
+    <div className="bg-[#d9a441] text-[#0a0a0b] overflow-hidden whitespace-nowrap py-2.5 select-none">
       <div
         className={`inline-flex ${reverse ? "animate-marquee-reverse" : "animate-marquee"}`}
       >
@@ -58,7 +51,7 @@ function Marquee({ reverse = false }: { reverse?: boolean }) {
 
 export default function PromoPage() {
   return (
-    <div className={`${oswald.variable} min-h-screen bg-black text-white overflow-hidden`}>
+    <div className="min-h-screen bg-black text-white overflow-hidden">
       {/* ── Top Marquee ──────────────────────────────── */}
       <Marquee />
 
@@ -81,12 +74,12 @@ export default function PromoPage() {
                 priority
               />
               {/* Glow underneath */}
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-indigo-500/20 blur-3xl rounded-full" />
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-[#d9a441]/20 blur-3xl rounded-full" />
             </div>
 
             {/* ТВОЁ */}
             <h1
-              className="font-oswald uppercase leading-[0.85] tracking-[-0.02em] text-[18vw] md:text-[16vw] lg:text-[14vw] text-slate-700"
+              className="font-heading font-semibold uppercase leading-[0.85] tracking-[-0.02em] text-[18vw] md:text-[16vw] lg:text-[14vw] text-slate-700"
               aria-hidden="true"
             >
               ТВОЁ
@@ -95,14 +88,14 @@ export default function PromoPage() {
 
           {/* Row 2: ОКНО */}
           <div className="-mt-[1vw]">
-            <h1 className="font-oswald uppercase leading-[0.85] tracking-[-0.02em] text-[22vw] md:text-[20vw] lg:text-[18vw] text-slate-500">
+            <h1 className="font-heading font-semibold uppercase leading-[0.85] tracking-[-0.02em] text-[22vw] md:text-[20vw] lg:text-[18vw] text-slate-500">
               ОКНО
             </h1>
           </div>
 
           {/* Row 3: В ЕВРОПУ */}
           <div className="-mt-[1vw]">
-            <h1 className="font-oswald uppercase leading-[0.85] tracking-[-0.02em] text-[19vw] md:text-[17vw] lg:text-[15vw] text-slate-300">
+            <h1 className="font-heading font-semibold uppercase leading-[0.85] tracking-[-0.02em] text-[19vw] md:text-[17vw] lg:text-[15vw] text-slate-300">
               В&nbsp;ЕВРОПУ
             </h1>
           </div>
@@ -123,7 +116,7 @@ export default function PromoPage() {
             </p>
             <Link
               href="/register"
-              className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-10 py-4 rounded-none text-sm uppercase tracking-[0.15em] transition shadow-[0_0_40px_rgba(99,102,241,0.3)] hover:shadow-[0_0_60px_rgba(99,102,241,0.5)]"
+              className="inline-block bg-[#f5f5f7] hover:bg-white text-[#0a0a0b] font-semibold px-10 py-4 rounded-full text-sm uppercase tracking-[0.15em] transition shadow-[0_0_40px_rgba(217,164,65,0.25)] hover:shadow-[0_0_60px_rgba(217,164,65,0.4)]"
             >
               Подключиться
             </Link>
@@ -132,15 +125,15 @@ export default function PromoPage() {
           {/* Stats */}
           <div className="flex gap-8 md:gap-12 text-right">
             <div>
-              <div className="font-oswald text-3xl md:text-4xl text-white">848</div>
+              <div className="font-heading font-semibold text-3xl md:text-4xl text-white">848</div>
               <div className="text-xs text-slate-500 uppercase tracking-widest">Мбит/с</div>
             </div>
             <div>
-              <div className="font-oswald text-3xl md:text-4xl text-white">88</div>
+              <div className="font-heading font-semibold text-3xl md:text-4xl text-white">88</div>
               <div className="text-xs text-slate-500 uppercase tracking-widest">мс пинг</div>
             </div>
             <div>
-              <div className="font-oswald text-3xl md:text-4xl text-white">3</div>
+              <div className="font-heading font-semibold text-3xl md:text-4xl text-white">3</div>
               <div className="text-xs text-slate-500 uppercase tracking-widest">Локации</div>
             </div>
           </div>

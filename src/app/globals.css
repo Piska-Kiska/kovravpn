@@ -6,76 +6,82 @@
    [data-theme="light"] is the light variant. Class NAMES are kept
    identical to the old neumorphic system so page JSX stays untouched. */
 :root {
-  --nm-bg: #0a0a0c;
-  --nm-surface: #14151a;
-  --nm-light: #1c1d24;
-  --nm-dark: #050506;
-  --nm-accent: #d9a55e;
-  --nm-accent-hover: #e6b974;
-  --nm-text: #f1f2f4;
-  --nm-text-secondary: rgba(241, 242, 244, 0.6);
+  --nm-bg: #050506;
+  --nm-surface: #0a0a0b;
+  --nm-light: #141417;
+  --nm-dark: #000000;
+  --nm-accent: #f5f5f7;
+  --nm-accent-hover: #ffffff;
+  --nm-text: #f5f5f7;
+  --nm-text-secondary: #86868b;
 
-  --nm-glass: rgba(255, 255, 255, 0.05);
-  --nm-glass-strong: rgba(255, 255, 255, 0.085);
+  --nm-glass: #0a0a0b;
+  --nm-glass-strong: #141417;
   --nm-field: rgba(255, 255, 255, 0.04);
-  --nm-border: rgba(255, 255, 255, 0.1);
-  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.13);
-  --nm-shadow: 0 18px 44px -26px rgba(0, 0, 0, 0.75);
-  --nm-blur: blur(20px) saturate(120%);
-  --nm-menu: #15161b;
-  --nm-glow1: rgba(255, 255, 255, 0.06);
+  --nm-border: rgba(255, 255, 255, 0.08);
+  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --nm-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.8);
+  --nm-blur: blur(0px);
+  --nm-menu: #101013;
+  --nm-glow1: rgba(255, 255, 255, 0.04);
   --nm-glow2: rgba(217, 165, 94, 0.05);
-  --nm-field-inset: rgba(0, 0, 0, 0.22);
+  --nm-field-inset: rgba(0, 0, 0, 0);
+  --nm-btn-fg: #0a0a0b;
+  --nm-border-hover: rgba(255, 255, 255, 0.16);
 }
 
 [data-theme="dark"] {
-  --nm-bg: #0a0a0c;
-  --nm-surface: #14151a;
-  --nm-light: #1c1d24;
-  --nm-dark: #050506;
-  --nm-accent: #d9a55e;
-  --nm-accent-hover: #e6b974;
-  --nm-text: #f1f2f4;
-  --nm-text-secondary: rgba(241, 242, 244, 0.6);
+  --nm-bg: #050506;
+  --nm-surface: #0a0a0b;
+  --nm-light: #141417;
+  --nm-dark: #000000;
+  --nm-accent: #f5f5f7;
+  --nm-accent-hover: #ffffff;
+  --nm-text: #f5f5f7;
+  --nm-text-secondary: #86868b;
 
-  --nm-glass: rgba(255, 255, 255, 0.05);
-  --nm-glass-strong: rgba(255, 255, 255, 0.085);
+  --nm-glass: #0a0a0b;
+  --nm-glass-strong: #141417;
   --nm-field: rgba(255, 255, 255, 0.04);
-  --nm-border: rgba(255, 255, 255, 0.1);
-  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.13);
-  --nm-shadow: 0 18px 44px -26px rgba(0, 0, 0, 0.75);
-  --nm-menu: #15161b;
-  --nm-glow1: rgba(255, 255, 255, 0.06);
+  --nm-border: rgba(255, 255, 255, 0.08);
+  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --nm-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.8);
+  --nm-menu: #101013;
+  --nm-glow1: rgba(255, 255, 255, 0.04);
   --nm-glow2: rgba(217, 165, 94, 0.05);
-  --nm-field-inset: rgba(0, 0, 0, 0.22);
+  --nm-field-inset: rgba(0, 0, 0, 0);
+  --nm-btn-fg: #0a0a0b;
+  --nm-border-hover: rgba(255, 255, 255, 0.16);
 }
 
 [data-theme="light"] {
-  --nm-bg: #ecedf0;
-  --nm-surface: #ffffff;
+  --nm-bg: #ffffff;
+  --nm-surface: #f5f5f7;
   --nm-light: #ffffff;
-  --nm-dark: #cfd2da;
-  --nm-accent: #a9701f;
-  --nm-accent-hover: #b87f2e;
-  --nm-text: #16181c;
-  --nm-text-secondary: rgba(22, 24, 28, 0.62);
+  --nm-dark: #e5e5ea;
+  --nm-accent: #1d1d1f;
+  --nm-accent-hover: #000000;
+  --nm-text: #1d1d1f;
+  --nm-text-secondary: #6e6e73;
 
-  --nm-glass: rgba(255, 255, 255, 0.55);
-  --nm-glass-strong: rgba(255, 255, 255, 0.74);
-  --nm-field: rgba(255, 255, 255, 0.7);
-  --nm-border: rgba(20, 22, 40, 0.09);
-  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  --nm-shadow: 0 18px 44px -26px rgba(20, 22, 40, 0.2);
+  --nm-glass: #f5f5f7;
+  --nm-glass-strong: #ededf0;
+  --nm-field: rgba(0, 0, 0, 0.03);
+  --nm-border: rgba(0, 0, 0, 0.08);
+  --nm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --nm-shadow: 0 24px 60px -36px rgba(0, 0, 0, 0.12);
   --nm-menu: #ffffff;
-  --nm-glow1: rgba(255, 255, 255, 0.7);
+  --nm-glow1: rgba(255, 255, 255, 0.5);
   --nm-glow2: rgba(169, 112, 31, 0.06);
-  --nm-field-inset: rgba(20, 22, 40, 0.08);
+  --nm-field-inset: rgba(0, 0, 0, 0);
+  --nm-btn-fg: #f5f5f7;
+  --nm-border-hover: rgba(0, 0, 0, 0.18);
 }
 
 /* ── Tailwind theme ──────────────────────────────────── */
 @theme {
-  --font-sans: var(--font-figtree), var(--font-rubik), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-schibsted), var(--font-rubik), ui-sans-serif, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", var(--font-inter-tight), "Helvetica Neue", ui-sans-serif, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-inter-tight), "Helvetica Neue", ui-sans-serif, sans-serif;
 
   --color-nm-bg: var(--nm-bg);
   --color-nm-light: var(--nm-light);
@@ -136,12 +142,12 @@ a,
 
 /* ── Glass surfaces (was neumorphic raised/flat) ─────── */
 .nm-raised {
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--nm-glass);
   backdrop-filter: var(--nm-blur);
   -webkit-backdrop-filter: var(--nm-blur);
   border: 1px solid var(--nm-border);
-  box-shadow: var(--nm-hi), var(--nm-shadow);
+  box-shadow: var(--nm-hi);
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 
@@ -189,12 +195,13 @@ textarea.nm-pressed-sm {
 .nm-pressed-sm:focus-within,
 input.nm-pressed-sm:focus,
 textarea.nm-pressed-sm:focus {
-  border-color: var(--nm-accent);
+  border-color: var(--nm-text-secondary);
+  box-shadow: 0 0 0 3px rgba(128, 128, 128, 0.14);
 }
 
 /* ── Ghost / secondary button (glass) ────────────────── */
 .nm-btn {
-  border-radius: 14px;
+  border-radius: 999px;
   background: var(--nm-glass);
   backdrop-filter: var(--nm-blur);
   -webkit-backdrop-filter: var(--nm-blur);
@@ -205,8 +212,7 @@ textarea.nm-pressed-sm:focus {
 }
 .nm-btn:hover {
   background: var(--nm-glass-strong);
-  border-color: var(--nm-accent);
-  transform: translateY(-1px);
+  border-color: var(--nm-border-hover);
 }
 .nm-btn:active {
   transform: translateY(0);
@@ -214,18 +220,18 @@ textarea.nm-pressed-sm:focus {
 
 /* ── Primary CTA (accent) ────────────────────────────── */
 .nm-btn-accent {
-  border-radius: 14px;
-  background: linear-gradient(180deg, #e3b06b, #d09a4d);
-  color: #1a1305;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, var(--nm-shadow);
-  transition: background 0.2s ease, transform 0.16s ease, box-shadow 0.2s ease;
+  border-radius: 999px;
+  background: var(--nm-accent);
+  color: var(--nm-btn-fg);
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
 }
 .nm-btn-accent:hover {
-  background: linear-gradient(180deg, #ecbb78, #dba85a);
-  transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 14px 34px -16px rgba(217, 165, 94, 0.5);
+  background: var(--nm-accent-hover);
+  transform: scale(1.015);
+  box-shadow: 0 10px 34px -14px rgba(0, 0, 0, 0.55);
 }
 
 /* ── Circles ─────────────────────────────────────────── */
@@ -266,14 +272,14 @@ textarea.nm-pressed-sm:focus {
 
 /* ── Dashboard sidebar (dark glass) ──────────────────── */
 .nm-sidebar {
-  background: rgba(18, 19, 24, 0.72);
-  backdrop-filter: var(--nm-blur);
-  -webkit-backdrop-filter: var(--nm-blur);
+  background: rgba(8, 8, 9, 0.8);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
   border-right: 1px solid var(--nm-border);
   transition: background 0.3s ease;
 }
 [data-theme="light"] .nm-sidebar {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.82);
 }
 
 /* ── Accordion ───────────────────────────────────────── */
@@ -301,96 +307,87 @@ textarea.nm-pressed-sm:focus {
 
 /* ── Selection ───────────────────────────────────────── */
 ::selection {
-  background: var(--nm-accent);
-  color: #15100a;
+  background: var(--nm-text);
+  color: var(--nm-bg);
 }
 
 
-/* === unified language switcher (klang) === */
+/* === unified language switcher (klang) — v3, matches landing kv-ctrl === */
 .klang{position:relative}
-.klang-btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 13px;border-radius:12px;cursor:pointer;font-family:'DM Mono',ui-monospace,Menlo,monospace;font-weight:500;font-size:12px;letter-spacing:.05em;color:#f1f2f4;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.13);transition:background .2s,border-color .2s,transform .16s}
-.klang-btn:hover{border-color:#d9a55e;transform:translateY(-1px)}
-.klang-btn .klang-glb{color:#d9a55e}
+.klang-btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:999px;cursor:pointer;font-family:var(--k-mono);font-weight:500;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--k-text-2);background:transparent;border:1px solid var(--k-border);box-shadow:none;transition:border-color .25s,color .25s}
+.klang-btn:hover{border-color:var(--k-border-hover);color:var(--k-text)}
+.klang-btn .klang-glb{color:currentColor}
 .klang-btn .klang-car{opacity:.7;transition:transform .2s}
 .klang-btn.is-open .klang-car{transform:rotate(180deg)}
-.klang-menu{position:absolute;top:48px;right:0;min-width:172px;padding:7px;border-radius:14px;background:#15161b;border:1px solid rgba(255,255,255,.17);box-shadow:0 22px 54px -16px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.13);z-index:90;display:flex;flex-direction:column;gap:3px}
-.klang-item{text-align:left;padding:10px 13px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500;color:rgba(241,242,244,.6);background:transparent;border:none;transition:background .15s,color .15s}
-.klang-item:hover{background:rgba(217,165,94,.14);color:#f1f2f4}
-.klang-item.is-active{background:rgba(217,165,94,.14);color:#d9a55e}
-[data-theme="light"] .klang-btn{color:#16181c;background:rgba(255,255,255,.82);border-color:rgba(20,22,40,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.75)}
-[data-theme="light"] .klang-btn:hover{border-color:#a9701f}
-[data-theme="light"] .klang-btn .klang-glb{color:#a9701f}
-[data-theme="light"] .klang-menu{background:#fff;border-color:rgba(20,22,40,.16);box-shadow:0 22px 54px -16px rgba(20,22,40,.22),inset 0 1px 0 rgba(255,255,255,.75)}
-[data-theme="light"] .klang-item{color:rgba(22,24,28,.62)}
-[data-theme="light"] .klang-item:hover{background:rgba(169,112,31,.13);color:#16181c}
-[data-theme="light"] .klang-item.is-active{background:rgba(169,112,31,.13);color:#a9701f}
-@media(max-width:640px){.klang-btn{height:38px;padding:0 11px;font-size:11px}.klang-menu{min-width:160px}}
+.klang-menu{position:absolute;top:44px;right:0;min-width:168px;padding:6px;border-radius:14px;background:var(--k-surface);border:1px solid var(--k-border);box-shadow:var(--k-shadow);z-index:90;display:flex;flex-direction:column;gap:2px}
+.klang-item{text-align:left;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500;font-family:var(--k-font);color:var(--k-text-2);background:transparent;border:none;transition:background .15s,color .15s}
+.klang-item:hover{background:var(--k-surface-2);color:var(--k-text)}
+.klang-item.is-active{color:var(--k-text)}
+@media(max-width:640px){.klang-btn{padding:0 11px}.klang-menu{min-width:160px}}
 
 /* override kvr-root reset on login/register */
-.klang .klang-btn{padding:0 13px}
-.klang .klang-menu .klang-item{padding:10px 13px}
+.klang .klang-btn{padding:0 12px}
+.klang .klang-menu .klang-item{padding:9px 12px}
 
 /* ═══════════════════════════════════════════════════════
-   Kovra v2 — "Сотканная приватность" brand layer
-   stealth luxury × swiss editorial. Dark-first.
+   Kovra v3 — "Privacy. Perfected." brand layer
+   Apple-keynote minimal: total black, giant metallic type,
+   bento grid, one warm gold glow. Dark-first.
    The legacy nm-* layer above stays intact for /login,
-   /guide, /terms, /privacy. New pages use k-* only.
+   /register, /dashboard, /guide, legal. Landing uses k-*.
    ═══════════════════════════════════════════════════════ */
 
 :root,
 [data-theme="dark"] {
-  --k-bg: #0b0b0c;
-  --k-bg-alt: #101012;
-  --k-surface: #151518;
-  --k-border: rgba(255, 255, 255, 0.07);
-  --k-border-hover: rgba(255, 255, 255, 0.14);
-  --k-text: #f5f2ea;
-  --k-text-2: #98938a;
-  --k-text-3: #5c5952;
-  --k-gold: #d9a441;
-  --k-gold-2: #ebc26b;
-  /* gold that is safe as body-size text on the current bg */
-  --k-gold-ink: #d9a441;
-  --k-gold-soft: rgba(217, 164, 65, 0.11);
-  --k-gold-line: rgba(217, 164, 65, 0.32);
-  --k-success: #4ade80;
-  --k-danger: #f87171;
-  --k-grain: 0.03;
-  --k-thread: 217, 164, 65;      /* rgb triplet for canvas threads */
-  --k-thread-alpha: 1;
-  --k-btn-fg: #151007;           /* text on gold */
-  --k-header-bg: rgba(11, 11, 12, 0.72);
+  --k-bg: #050506;
+  --k-bg-alt: #0a0a0b;
+  --k-surface: #101013;
+  --k-surface-2: #141417;
+  --k-border: rgba(255, 255, 255, 0.06);
+  --k-border-hover: rgba(255, 255, 255, 0.13);
+  --k-text: #f5f5f7;
+  --k-text-2: #86868b;
+  --k-text-3: #48484c;
+  --k-gold: #d9a441;          /* glow only — never text, never buttons */
+  --k-gold-2: #e8c87a;
+  --k-metal-a: #ffffff;
+  --k-metal-b: #8e8e93;
+  --k-grain: 0.015;
+  --k-btn-bg: #f5f5f7;        /* primary pill */
+  --k-btn-fg: #0a0a0b;
+  --k-btn-bg-hover: #ffffff;
+  --k-header-bg: rgba(5, 5, 6, 0.72);
   --k-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.8);
+  --k-focus-ring: color-mix(in srgb, #f5f5f7 14%, transparent);
 }
 
 [data-theme="light"] {
-  --k-bg: #f3f0e8;
-  --k-bg-alt: #ebe7dc;
-  --k-surface: #faf8f2;
-  --k-border: rgba(28, 24, 14, 0.09);
-  --k-border-hover: rgba(28, 24, 14, 0.2);
-  --k-text: #191610;
-  --k-text-2: #6e6759;
-  --k-text-3: #a39c8b;
-  --k-gold: #a9761c;
-  --k-gold-2: #8f6212;
-  --k-gold-ink: #8f6212;
-  --k-gold-soft: rgba(169, 118, 28, 0.1);
-  --k-gold-line: rgba(169, 118, 28, 0.34);
-  --k-success: #15803d;
-  --k-danger: #b91c1c;
-  --k-grain: 0.02;
-  --k-thread: 154, 108, 26;
-  --k-thread-alpha: 0.75;
-  --k-btn-fg: #fdfbf5;
-  --k-header-bg: rgba(243, 240, 232, 0.78);
-  --k-shadow: 0 24px 60px -36px rgba(40, 32, 12, 0.35);
+  --k-bg: #ffffff;
+  --k-bg-alt: #f5f5f7;
+  --k-surface: #f5f5f7;
+  --k-surface-2: #ededf0;
+  --k-border: rgba(0, 0, 0, 0.08);
+  --k-border-hover: rgba(0, 0, 0, 0.18);
+  --k-text: #1d1d1f;
+  --k-text-2: #6e6e73;
+  --k-text-3: #a1a1a6;
+  --k-gold: #b98a2e;
+  --k-gold-2: #a9761c;
+  --k-metal-a: #1d1d1f;
+  --k-metal-b: #86868b;
+  --k-grain: 0.01;
+  --k-btn-bg: #1d1d1f;
+  --k-btn-fg: #f5f5f7;
+  --k-btn-bg-hover: #000000;
+  --k-header-bg: rgba(255, 255, 255, 0.72);
+  --k-shadow: 0 24px 60px -36px rgba(0, 0, 0, 0.18);
+  --k-focus-ring: color-mix(in srgb, #1d1d1f 14%, transparent);
 }
 
 :root {
   --k-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --k-font: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
-  --k-serif: var(--font-instrument), var(--font-playfair), Georgia, "Times New Roman", serif;
+  --k-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    var(--font-inter-tight), "Helvetica Neue", ui-sans-serif, sans-serif;
   --k-mono: var(--font-jbmono), ui-monospace, "SF Mono", Menlo, monospace;
   --k-maxw: 1280px;
 }
@@ -406,9 +403,9 @@ textarea.nm-pressed-sm:focus {
   -webkit-font-smoothing: antialiased;
   transition: background 0.4s ease, color 0.4s ease;
 }
-.k-page ::selection { background: var(--k-gold); color: var(--k-btn-fg); }
+.k-page ::selection { background: var(--k-text); color: var(--k-bg); }
 
-/* film grain, 2–3% */
+/* film grain — barely there */
 .k-grain {
   position: fixed;
   inset: 0;
@@ -423,11 +420,19 @@ textarea.nm-pressed-sm:focus {
   font-family: var(--k-mono);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .k-hairline { border: 0; border-top: 1px solid var(--k-border); }
+
+/* metallic display text */
+.k-metal {
+  background: linear-gradient(180deg, var(--k-metal-a) 16%, var(--k-metal-b) 94%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 /* ── Buttons (pill) ──────────────────────────────────── */
 .k-btn {
@@ -438,7 +443,7 @@ textarea.nm-pressed-sm:focus {
   border-radius: 999px;
   border: 1px solid transparent;
   font-family: var(--k-font);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 15px;
   letter-spacing: -0.01em;
   padding: 13px 26px;
@@ -452,64 +457,72 @@ textarea.nm-pressed-sm:focus {
 .k-page button:focus-visible,
 .k-page input:focus-visible,
 .k-page [role="button"]:focus-visible {
-  outline: 2px solid var(--k-gold);
+  outline: 2px solid var(--k-text);
   outline-offset: 3px;
   border-radius: 6px;
 }
 .k-btn:focus-visible { border-radius: 999px; }
 
+/* primary — white pill (class name kept for compatibility) */
 .k-btn-gold {
-  background: var(--k-gold);
+  background: var(--k-btn-bg);
   color: var(--k-btn-fg);
 }
-.k-btn-gold:hover { background: var(--k-gold-2); box-shadow: 0 12px 32px -14px rgba(217, 164, 65, 0.55); }
-[data-theme="light"] .k-btn-gold:hover { background: #8f6212; box-shadow: 0 12px 32px -18px rgba(143, 98, 18, 0.6); }
+.k-btn-gold:hover {
+  background: var(--k-btn-bg-hover);
+  transform: scale(1.015);
+  box-shadow: 0 10px 34px -14px rgba(0, 0, 0, 0.55);
+}
 
 .k-btn-ghost {
   background: transparent;
   border-color: var(--k-border-hover);
   color: var(--k-text);
 }
-.k-btn-ghost:hover { border-color: var(--k-gold-line); color: var(--k-gold-ink); }
+.k-btn-ghost:hover { border-color: var(--k-text-2); background: var(--k-surface); }
+
+/* anchors: beat the page-level `.kv a { color: inherit }` reset */
+.k-page a.k-btn-gold { color: var(--k-btn-fg); }
+.k-page a.k-btn-ghost { color: var(--k-text); }
 
 .k-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
 
-/* ── Scroll reveal: fade + translateY(24px) ──────────── */
+/* ── Scroll reveal: fade + translateY(20px) ──────────── */
 .k-rv {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s var(--k-ease), transform 0.7s var(--k-ease);
+  transform: translateY(20px);
+  transition: opacity 0.8s var(--k-ease), transform 0.8s var(--k-ease);
   transition-delay: var(--rv-delay, 0ms);
 }
 .k-rv.is-in { opacity: 1; transform: none; }
+/* reveal also when a parent (e.g. hero wrapper) gets .is-in */
+.is-in .k-rv { opacity: 1; transform: none; }
 
-/* stagger children 60ms */
+/* stagger children 80ms */
 .k-stagger > * {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s var(--k-ease), transform 0.7s var(--k-ease);
+  transform: translateY(20px);
+  transition: opacity 0.8s var(--k-ease), transform 0.8s var(--k-ease);
 }
 .k-stagger.is-in > * { opacity: 1; transform: none; }
-.k-stagger.is-in > *:nth-child(2) { transition-delay: 60ms; }
-.k-stagger.is-in > *:nth-child(3) { transition-delay: 120ms; }
-.k-stagger.is-in > *:nth-child(4) { transition-delay: 180ms; }
-.k-stagger.is-in > *:nth-child(5) { transition-delay: 240ms; }
-.k-stagger.is-in > *:nth-child(6) { transition-delay: 300ms; }
-.k-stagger.is-in > *:nth-child(7) { transition-delay: 360ms; }
-.k-stagger.is-in > *:nth-child(8) { transition-delay: 420ms; }
+.k-stagger.is-in > *:nth-child(2) { transition-delay: 80ms; }
+.k-stagger.is-in > *:nth-child(3) { transition-delay: 160ms; }
+.k-stagger.is-in > *:nth-child(4) { transition-delay: 240ms; }
+.k-stagger.is-in > *:nth-child(5) { transition-delay: 320ms; }
+.k-stagger.is-in > *:nth-child(6) { transition-delay: 400ms; }
 
 /* word mask-reveal (hero) */
 .k-word {
   display: inline-block;
   overflow: hidden;
   vertical-align: bottom;
-  padding-bottom: 0.08em;
-  margin-bottom: -0.08em;
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
 }
 .k-word > span {
   display: inline-block;
   transform: translateY(112%);
-  transition: transform 0.9s var(--k-ease);
+  transition: transform 1s var(--k-ease);
   transition-delay: var(--wd, 0ms);
 }
 .is-in .k-word > span, .k-words.is-in .k-word > span { transform: none; }
@@ -525,31 +538,6 @@ textarea.nm-pressed-sm:focus {
 .k-dr-d { height: 1em; line-height: 1; }
 .k-dr-ch { display: inline-block; height: 1em; line-height: 1; }
 
-/* ── Card hover: lift + light sweep along the border ─── */
-.k-sweep { position: relative; }
-.k-sweep::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    115deg,
-    transparent 20%,
-    rgba(var(--k-thread), 0.55) 50%,
-    transparent 80%
-  );
-  background-size: 250% 100%;
-  background-position: 110% 0;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.4s ease, background-position 0.9s var(--k-ease);
-  pointer-events: none;
-}
-.k-sweep:hover::after { opacity: 1; background-position: -10% 0; }
-
 /* ── FAQ accordion ───────────────────────────────────── */
 .k-acc { border-top: 1px solid var(--k-border); }
 .k-acc-item { border-bottom: 1px solid var(--k-border); position: relative; }
@@ -560,7 +548,7 @@ textarea.nm-pressed-sm:focus {
   top: 12%;
   bottom: 12%;
   width: 1px;
-  background: var(--k-gold);
+  background: var(--k-text);
   transform: scaleY(0);
   transform-origin: top;
   transition: transform 0.6s var(--k-ease);
@@ -584,7 +572,7 @@ textarea.nm-pressed-sm:focus {
   letter-spacing: -0.02em;
   transition: color 0.25s ease;
 }
-.k-acc-q:hover { color: var(--k-gold-ink); }
+.k-acc-q:hover { color: var(--k-text-2); }
 .k-acc-plus {
   flex: 0 0 auto;
   width: 18px;
@@ -596,12 +584,14 @@ textarea.nm-pressed-sm:focus {
 .k-acc-plus::after {
   content: "";
   position: absolute;
-  background: var(--k-gold);
+  background: var(--k-text-2);
   transition: background 0.25s ease;
 }
 .k-acc-plus::before { left: 0; right: 0; top: 8px; height: 1.5px; }
 .k-acc-plus::after { top: 0; bottom: 0; left: 8px; width: 1.5px; }
-.k-acc-item.open .k-acc-plus { transform: rotate(45deg); } /* "+" → "×" */
+.k-acc-item.open .k-acc-plus { transform: rotate(45deg); }
+.k-acc-item.open .k-acc-plus::before,
+.k-acc-item.open .k-acc-plus::after { background: var(--k-text); }
 .k-acc-a {
   display: grid;
   grid-template-rows: 0fr;
@@ -621,7 +611,7 @@ textarea.nm-pressed-sm:focus {
 .k-field {
   width: 100%;
   padding: 13px 16px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--k-surface);
   border: 1px solid var(--k-border);
   color: var(--k-text);
@@ -632,8 +622,8 @@ textarea.nm-pressed-sm:focus {
 }
 .k-field::placeholder { color: var(--k-text-3); }
 .k-field:focus {
-  border-color: var(--k-gold);
-  box-shadow: 0 0 0 3px var(--k-gold-soft), 0 0 24px -6px rgba(var(--k-thread), 0.35);
+  border-color: var(--k-text-2);
+  box-shadow: 0 0 0 3px var(--k-focus-ring);
 }
 
 /* ── Status pulse dot ────────────────────────────────── */
@@ -641,7 +631,7 @@ textarea.nm-pressed-sm:focus {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--k-success);
+  background: #4ade80;
   position: relative;
 }
 .k-pulse::after {
@@ -649,7 +639,7 @@ textarea.nm-pressed-sm:focus {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1px solid var(--k-success);
+  border: 1px solid #4ade80;
   animation: k-pulse-ring 2.2s var(--k-ease) infinite;
 }
 @keyframes k-pulse-ring {
@@ -657,27 +647,13 @@ textarea.nm-pressed-sm:focus {
   70%, 100% { transform: scale(1.5); opacity: 0; }
 }
 
-/* ── Marquee ticker ──────────────────────────────────── */
-.k-marquee {
-  overflow: hidden;
-  border-top: 1px solid var(--k-border);
-  border-bottom: 1px solid var(--k-border);
-  user-select: none;
-}
-.k-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: marquee 40s linear infinite;
-}
-.k-marquee:hover .k-marquee-track { animation-play-state: paused; }
-
-/* ── Spinner (gold ring) ─────────────────────────────── */
+/* ── Spinner ─────────────────────────────────────────── */
 .k-spin {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
   border-radius: 50%;
-  border: 2px solid var(--k-gold-soft);
+  border: 2px solid var(--k-border);
   border-top-color: currentColor;
   animation: k-rot 0.7s linear infinite;
 }
@@ -693,12 +669,12 @@ textarea.nm-pressed-sm:focus {
     transition: none !important;
   }
   .k-dr-strip { transition: none !important; }
-  .k-marquee-track { animation: none !important; }
   .k-pulse::after { animation: none !important; opacity: 0; }
   .k-acc-a { transition: none !important; }
+  .kv-orb, .kv-orb::after { animation: none !important; }
 }
 
-/* visually hidden (screen-reader text for odometers etc.) */
+/* visually hidden */
 .k-sr {
   position: absolute;
   width: 1px;

@@ -28,6 +28,10 @@ async function redisFetch(url: string, init: RequestInit, timeoutMs: number) {
 }
 
 export async function middleware(req: NextRequest) {
+  // Dev-only design preview: NEXT_PUBLIC_DASH_MOCK=1 npm run dev
+  if (process.env.NEXT_PUBLIC_DASH_MOCK === "1" && process.env.NODE_ENV !== "production") {
+    return NextResponse.next();
+  }
   const sid = req.cookies.get(COOKIE_NAME)?.value;
   if (!sid) return redirectLogin(req);
 
