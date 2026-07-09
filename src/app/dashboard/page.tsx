@@ -67,6 +67,9 @@ const RENEW_NOTE: Record<string, string> = {
 const CARD_BTN: Record<string, string> = {
   en: "Pay with card", ru: "Оплатить картой", es: "Pagar con tarjeta", de: "Mit Karte zahlen", fr: "Payer par carte",
 };
+const ALT_BTN: Record<string, string> = {
+  en: "Pay with crypto · NOWPayments", ru: "Оплатить криптой · NOWPayments", es: "Pagar con cripto · NOWPayments", de: "Mit Krypto zahlen · NOWPayments", fr: "Payer en crypto · NOWPayments",
+};
 const CARD_NOTE: Record<string, string> = {
   en: "Card payments are processed by our payment partner (statement shows “skillstep”); the amount is converted to EUR.",
   ru: "Оплата картой идёт через платёжного партнёра (в списании будет «skillstep»); сумма конвертируется в EUR.",
@@ -123,6 +126,8 @@ export default function DashboardPage() {
   const [buying, setBuying] = useState(false);
   const [buyingDevice, setBuyingDevice] = useState(false);
   const [buyingCard, setBuyingCard] = useState(false);
+  const [buyingAlt, setBuyingAlt] = useState(false);
+  const [buyingAltDevice, setBuyingAltDevice] = useState(false);
   const [buyingCardDevice, setBuyingCardDevice] = useState(false);
 
   // device create
@@ -246,10 +251,10 @@ export default function DashboardPage() {
   const handleBuyPlanCard = async () => {
     setBuyingCard(true); setError(null);
     try {
-      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "card" }) });
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "plan", method: "card", provider: "platega", kind: planKind, term });
+        trackEvent("payment_initiated", { type: "plan", method: "card", provider: "cashera", kind: planKind, term });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingCard(false); }
@@ -258,13 +263,38 @@ export default function DashboardPage() {
   const handleBuyDeviceCard = async () => {
     setBuyingCardDevice(true); setError(null);
     try {
-      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "card" }) });
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device" }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "device", method: "card", provider: "platega" });
+        trackEvent("payment_initiated", { type: "device", method: "card", provider: "cashera" });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingCardDevice(false); }
+  };
+
+  // Alternative crypto rail (NOWPayments) — kept as the third option.
+  const handleBuyPlanAlt = async () => {
+    setBuyingAlt(true); setError(null);
+    try {
+      const r = await fetch("/api/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const d = await r.json();
+      if (d.paymentUrl) {
+        trackEvent("payment_initiated", { type: "plan", method: "crypto", provider: "nowpayments", kind: planKind, term });
+        window.location.href = d.paymentUrl;
+      } else setError(d.error || t.err_pay);
+    } catch { setError(t.err_conn); } finally { setBuyingAlt(false); }
+  };
+
+  const handleBuyDeviceAlt = async () => {
+    setBuyingAltDevice(true); setError(null);
+    try {
+      const r = await fetch("/api/subscribe/device", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const d = await r.json();
+      if (d.paymentUrl) {
+        trackEvent("payment_initiated", { type: "device", method: "crypto", provider: "nowpayments" });
+        window.location.href = d.paymentUrl;
+      } else setError(d.error || t.err_pay);
+    } catch { setError(t.err_conn); } finally { setBuyingAltDevice(false); }
   };
 
   const handleCreate = async (device?: string) => {
@@ -434,6 +464,10 @@ export default function DashboardPage() {
                   className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buyingCard ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD_BTN[lang] ?? CARD_BTN.en}</>}
                 </button>
+                <button disabled={buyingAlt} onClick={handleBuyPlanAlt}
+                  className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                  {buyingAlt ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {ALT_BTN[lang] ?? ALT_BTN.en}</>}
+                </button>
                 <p className="text-xs text-nm-text-secondary text-center mt-2">{isRenewal ? (RENEW_NOTE[lang] ?? RENEW_NOTE.en) : t.renews_note}</p>
                 <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
@@ -469,6 +503,10 @@ export default function DashboardPage() {
                 <button disabled={buyingCardDevice} onClick={handleBuyDeviceCard}
                   className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buyingCardDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD_BTN[lang] ?? CARD_BTN.en}</>}
+                </button>
+                <button disabled={buyingAltDevice} onClick={handleBuyDeviceAlt}
+                  className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+                  {buyingAltDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {ALT_BTN[lang] ?? ALT_BTN.en}</>}
                 </button>
                 <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
