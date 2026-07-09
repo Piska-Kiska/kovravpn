@@ -222,10 +222,10 @@ export default function DashboardPage() {
   const handleBuyPlan = async () => {
     setBuying(true); setError(null);
     try {
-      const r = await fetch("/api/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "crypto" }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "plan", method: "crypto", kind: planKind, term });
+        trackEvent("payment_initiated", { type: "plan", method: "crypto", provider: "platega", kind: planKind, term });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuying(false); }
@@ -234,10 +234,10 @@ export default function DashboardPage() {
   const handleBuyDevice = async () => {
     setBuyingDevice(true); setError(null);
     try {
-      const r = await fetch("/api/subscribe/device", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "crypto" }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "device", method: "crypto" });
+        trackEvent("payment_initiated", { type: "device", method: "crypto", provider: "platega" });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingDevice(false); }
@@ -246,10 +246,10 @@ export default function DashboardPage() {
   const handleBuyPlanCard = async () => {
     setBuyingCard(true); setError(null);
     try {
-      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "card" }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "plan", method: "card", kind: planKind, term });
+        trackEvent("payment_initiated", { type: "plan", method: "card", provider: "platega", kind: planKind, term });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingCard(false); }
@@ -258,10 +258,10 @@ export default function DashboardPage() {
   const handleBuyDeviceCard = async () => {
     setBuyingCardDevice(true); setError(null);
     try {
-      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device" }) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "card" }) });
       const d = await r.json();
       if (d.paymentUrl) {
-        trackEvent("payment_initiated", { type: "device", method: "card" });
+        trackEvent("payment_initiated", { type: "device", method: "card", provider: "platega" });
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingCardDevice(false); }
