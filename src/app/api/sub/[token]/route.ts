@@ -97,9 +97,10 @@ const EMPTY_BALANCE_TITLE = "base64:" + Buffer.from("⚠️ No active plan", "ut
 
 function balanceInfoHeaders(empty: boolean): Record<string, string> {
   if (!empty) {
-    // Reset sticky sub-info. Empty header value is invalid (crashes the
-    // response), so send "0" which Happ treats as "block disabled".
-    return { "sub-info-text": "0" };
+    // Per Happ spec, omitting sub-info-text means "block not displayed".
+    // Sending "0" should also disable it, but current Happ builds render a
+    // literal "0" banner (observed 2026-07) — so send nothing at all.
+    return {};
   }
   const text = "No active plan. Buy a plan to keep using Kovra.";
   return {
