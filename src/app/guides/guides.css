@@ -14,6 +14,9 @@
 }
 .gd-page ::selection { background: var(--k-text); color: var(--k-bg); }
 .gd-page a { color: inherit; text-decoration: none; }
+/* pill buttons: beat the inherit reset above (mirrors .k-page overrides) */
+.gd-page a.k-btn-gold { color: var(--k-btn-fg); }
+.gd-page a.k-btn-ghost { color: var(--k-text); }
 
 .gd-wrap { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
 .gd-narrow { max-width: 760px; }

@@ -46,7 +46,7 @@ const LANGS: Record<Lang, { code: string; native: string }> = {
 
 const dict: Record<Lang, Record<string, string>> = {
   en: {
-    nav_features: "Features", nav_pricing: "Pricing", nav_faq: "FAQ",
+    nav_features: "Features", nav_pricing: "Pricing", nav_faq: "FAQ", nav_guides: "Guides",
     nav_signin: "Sign in", nav_get: "Get Started",
     badge: "No logs · No contracts",
     hero_t1: "Privacy.", hero_t2: "Perfected.",
@@ -85,7 +85,7 @@ const dict: Record<Lang, Record<string, string>> = {
     a11y_theme: "Toggle theme", a11y_lang: "Choose language",
   },
   ru: {
-    nav_features: "Возможности", nav_pricing: "Цена", nav_faq: "Вопросы",
+    nav_features: "Возможности", nav_pricing: "Цена", nav_faq: "Вопросы", nav_guides: "Гайды",
     nav_signin: "Войти", nav_get: "Подключить",
     badge: "Без логов · Без договоров",
     hero_t1: "Приватность.", hero_t2: "И точка.",
@@ -124,7 +124,7 @@ const dict: Record<Lang, Record<string, string>> = {
     a11y_theme: "Переключить тему", a11y_lang: "Выбрать язык",
   },
   es: {
-    nav_features: "Funciones", nav_pricing: "Precio", nav_faq: "Preguntas",
+    nav_features: "Funciones", nav_pricing: "Precio", nav_faq: "Preguntas", nav_guides: "Guías",
     nav_signin: "Entrar", nav_get: "Empezar",
     badge: "Sin registros · Sin contratos",
     hero_t1: "Privacidad.", hero_t2: "Perfecta.",
@@ -163,7 +163,7 @@ const dict: Record<Lang, Record<string, string>> = {
     a11y_theme: "Cambiar tema", a11y_lang: "Elegir idioma",
   },
   de: {
-    nav_features: "Funktionen", nav_pricing: "Preis", nav_faq: "FAQ",
+    nav_features: "Funktionen", nav_pricing: "Preis", nav_faq: "FAQ", nav_guides: "Guides",
     nav_signin: "Anmelden", nav_get: "Loslegen",
     badge: "Keine Logs · Keine Verträge",
     hero_t1: "Privatsphäre.", hero_t2: "Perfektioniert.",
@@ -202,7 +202,7 @@ const dict: Record<Lang, Record<string, string>> = {
     a11y_theme: "Farbschema wechseln", a11y_lang: "Sprache wählen",
   },
   fr: {
-    nav_features: "Fonctions", nav_pricing: "Tarif", nav_faq: "FAQ",
+    nav_features: "Fonctions", nav_pricing: "Tarif", nav_faq: "FAQ", nav_guides: "Guides",
     nav_signin: "Connexion", nav_get: "Commencer",
     badge: "Sans journaux · Sans engagement",
     hero_t1: "Confidentialité.", hero_t2: "Perfectionnée.",
@@ -379,6 +379,7 @@ export default function Page() {
             <a href="#features">{t.nav_features}</a>
             <a href="#pricing">{t.nav_pricing}</a>
             <a href="#faq">{t.nav_faq}</a>
+            <a href="/guides">{t.nav_guides}</a>
           </nav>
           <div className="kv-hd-right">
             <div className="kv-menu-hold" ref={langRef}>
@@ -607,6 +608,7 @@ export default function Page() {
             <a href="#features">{t.nav_features}</a>
             <a href="#pricing">{t.nav_pricing}</a>
             <a href="#faq">{t.nav_faq}</a>
+            <a href="/guides">{t.nav_guides}</a>
             <a href="/terms">{t.foot_terms}</a>
             <a href="/privacy">{t.foot_privacy}</a>
             <a href="mailto:support@kovravpn.com">support@kovravpn.com</a>
