@@ -6,7 +6,7 @@ import { QrToggle } from "@/components/QrToggle";
 import {
   Home, LogOut, Copy, Check, Download, Shield, CircleAlert,
   ExternalLink, Loader2, AlertTriangle, Trash2, Plus, Gift,
-  Globe, ChevronDown, Calendar, Layers,
+  Globe, ChevronDown, Calendar, Layers, RotateCcw,
 } from "lucide-react";
 import LinkAccounts from "@/components/LinkAccounts";
 import { trackEvent, stripQueryParam } from "@/lib/attribution";
@@ -139,6 +139,8 @@ export default function DashboardPage() {
   const [promoMsg, setPromoMsg] = useState<string | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetDoneId, setResetDoneId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [referral, setReferral] = useState<ReferralData | null>(null);
@@ -294,6 +296,22 @@ export default function DashboardPage() {
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingAltDevice(false); }
+  };
+
+  const handleResetHwid = async (uuid: string) => {
+    if (!confirm(t.reset_hwid_confirm)) return;
+    setResettingId(uuid); setError(null);
+    try {
+      if (MOCK) { await new Promise((r) => setTimeout(r, 500)); }
+      else {
+        const r = await fetch("/api/vpn/reset-hwid", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uuid }) });
+        const d = await r.json();
+        if (!d.success) { setError(d.error || t.err_conn); return; }
+      }
+      trackEvent("reset_hwid", { uuid });
+      setResetDoneId(uuid);
+      setTimeout(() => setResetDoneId((cur) => (cur === uuid ? null : cur)), 4000);
+    } catch { setError(t.err_conn); } finally { setResettingId(null); }
   };
 
   const handleCreate = async (device?: string) => {
@@ -527,6 +545,11 @@ export default function DashboardPage() {
                     <button onClick={() => subUrl && copyLink(subUrl, p.uuid)} disabled={!subUrl} className="nm-btn w-8 h-8 flex items-center justify-center shrink-0 disabled:opacity-50">{copiedId === p.uuid ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-nm-text-secondary" />}</button>
                   </div>
                   {subUrl && <QrToggle url={subUrl} />}
+                  <button onClick={() => handleResetHwid(p.uuid)} disabled={resettingId === p.uuid} className="nm-btn w-full py-2 mt-2 text-xs font-medium text-nm-text-secondary inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50">
+                    {resettingId === p.uuid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : resetDoneId === p.uuid ? <Check className="w-3.5 h-3.5 text-green-500" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    {resetDoneId === p.uuid ? t.reset_hwid_done : t.reset_hwid}
+                  </button>
+                  <p className="text-[10px] text-nm-text-secondary mt-1.5 leading-snug">{t.reset_hwid_note}</p>
                 </div>
               );
             })}

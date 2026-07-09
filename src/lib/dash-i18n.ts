@@ -66,6 +66,10 @@ interface Dict {
   // devices / profiles
   your_devices: Str;
   device_link_note: Str;
+  reset_hwid: Str;
+  reset_hwid_note: Str;
+  reset_hwid_done: Str;
+  reset_hwid_confirm: Str;
   add_to_app: Str;
   delete: Str;
   connect: Str;
@@ -167,6 +171,10 @@ const en: Dict = {
   buy_device: "Add device · $5",
   your_devices: "Your devices",
   device_link_note: "Subscription link for this device. Add it to Happ or V2RayTun.",
+  reset_hwid: "Reset device binding",
+  reset_hwid_note: "One link works on one device. Reset if you switched devices or see \"one device per link\".",
+  reset_hwid_done: "Binding reset. Refresh the subscription on the device you want to use.",
+  reset_hwid_confirm: "Reset device binding for this link?",
   add_to_app: "Add to app",
   delete: "Delete",
   connect: "Connect",
@@ -262,6 +270,10 @@ const ru: Dict = {
   buy_device: "Добавить устройство · $5",
   your_devices: "Ваши устройства",
   device_link_note: "Ссылка подписки для этого устройства. Добавьте её в Happ или V2RayTun.",
+  reset_hwid: "Сбросить привязку устройства",
+  reset_hwid_note: "Одна ссылка работает на одном устройстве. Сбросьте, если сменили устройство или видите «одно устройство на ссылку».",
+  reset_hwid_done: "Привязка сброшена. Обновите подписку на нужном устройстве.",
+  reset_hwid_confirm: "Сбросить привязку устройства для этой ссылки?",
   add_to_app: "Добавить в приложение",
   delete: "Удалить",
   connect: "Подключить",
@@ -357,6 +369,10 @@ const es: Dict = {
   buy_device: "Añadir dispositivo · $5",
   your_devices: "Tus dispositivos",
   device_link_note: "Enlace de suscripción para este dispositivo. Añádelo a Happ o V2RayTun.",
+  reset_hwid: "Restablecer vínculo del dispositivo",
+  reset_hwid_note: "Un enlace funciona en un dispositivo. Restablece si cambiaste de dispositivo o ves «un dispositivo por enlace».",
+  reset_hwid_done: "Vínculo restablecido. Actualiza la suscripción en el dispositivo que quieras usar.",
+  reset_hwid_confirm: "¿Restablecer el vínculo del dispositivo para este enlace?",
   add_to_app: "Añadir a la app",
   delete: "Eliminar",
   connect: "Conectar",
@@ -452,6 +468,10 @@ const de: Dict = {
   buy_device: "Gerät hinzufügen · $5",
   your_devices: "Deine Geräte",
   device_link_note: "Abo-Link für dieses Gerät. Füge ihn zu Happ oder V2RayTun hinzu.",
+  reset_hwid: "Gerätebindung zurücksetzen",
+  reset_hwid_note: "Ein Link funktioniert auf einem Gerät. Zurücksetzen, wenn du das Gerät gewechselt hast oder «ein Gerät pro Link» siehst.",
+  reset_hwid_done: "Bindung zurückgesetzt. Aktualisiere das Abo auf dem gewünschten Gerät.",
+  reset_hwid_confirm: "Gerätebindung für diesen Link zurücksetzen?",
   add_to_app: "Zur App hinzufügen",
   delete: "Löschen",
   connect: "Verbinden",
@@ -547,6 +567,10 @@ const fr: Dict = {
   buy_device: "Ajouter un appareil · $5",
   your_devices: "Vos appareils",
   device_link_note: "Lien d'abonnement pour cet appareil. Ajoutez-le à Happ ou V2RayTun.",
+  reset_hwid: "Réinitialiser la liaison de l'appareil",
+  reset_hwid_note: "Un lien fonctionne sur un seul appareil. Réinitialisez si vous avez changé d'appareil ou voyez «un appareil par lien».",
+  reset_hwid_done: "Liaison réinitialisée. Actualisez l'abonnement sur l'appareil souhaité.",
+  reset_hwid_confirm: "Réinitialiser la liaison de l'appareil pour ce lien ?",
   add_to_app: "Ajouter à l'app",
   delete: "Supprimer",
   connect: "Connecter",

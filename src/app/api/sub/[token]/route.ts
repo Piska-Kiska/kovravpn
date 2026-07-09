@@ -120,6 +120,59 @@ const EMPTY_BALANCE_BODY = Buffer.from(
   "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#No%20active%20plan%20-%20kovravpn.com",
 ).toString("base64");
 
+// ── 1 subscription = 1 device (HWID binding) ────────────────────────────
+// Happ sends x-hwid by default; non-Happ clients (v2rayN/sing-box) omit it
+// and pass through unbound. A second device on the same link gets a dummy
+// config telling the user to use a separate link per device.
+const SECOND_DEVICE_TITLE =
+  "base64:" + Buffer.from("Device limit", "utf-8").toString("base64");
+const SECOND_DEVICE_TEXT =
+  "One link works on one device. Use a separate link from your dashboard for each device.";
+const SECOND_DEVICE_BODY = Buffer.from(
+  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
+    encodeURIComponent("One device per link - kovravpn.com"),
+).toString("base64");
+
+function secondDeviceHeaders(): HeadersInit {
+  return {
+    ...HAPP_UI,
+    "sub-info-color": "red",
+    "sub-info-text": "base64:" + Buffer.from(SECOND_DEVICE_TEXT, "utf-8").toString("base64"),
+    announce: "base64:" + Buffer.from(SECOND_DEVICE_TEXT, "utf-8").toString("base64"),
+    "profile-title": SECOND_DEVICE_TITLE,
+    "support-url": "https://t.me/KovraVPN_bot",
+    "profile-web-page-url": "https://kovravpn.com",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+  };
+}
+
+// ── Deleted-subscription notice ─────────────────────────────────────────
+// removeProfile sets `sub_deleted:{token}` = owner userId; the client then
+// shows "buy a new plan" instead of a stale 404.
+const DELETED_SUB_TITLE =
+  "base64:" + Buffer.from("Subscription removed", "utf-8").toString("base64");
+const DELETED_SUB_TEXT =
+  "You removed this subscription. Create a new one on kovravpn.com or in the bot.";
+const DELETED_SUB_BODY = Buffer.from(
+  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
+    encodeURIComponent("Subscription removed - kovravpn.com"),
+).toString("base64");
+
+function deletedSubHeaders(): HeadersInit {
+  return {
+    ...HAPP_UI,
+    "sub-info-color": "red",
+    "sub-info-text": "base64:" + Buffer.from(DELETED_SUB_TEXT, "utf-8").toString("base64"),
+    announce: "base64:" + Buffer.from(DELETED_SUB_TEXT, "utf-8").toString("base64"),
+    "profile-title": DELETED_SUB_TITLE,
+    "support-url": "https://t.me/KovraVPN_bot",
+    "profile-web-page-url": "https://kovravpn.com",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+  };
+}
+
 function emptyHeaders(): HeadersInit {
   // No subscription-userinfo here: an expire value would trigger Happ's
   // expire message, which suppresses the sub-info block we want to show.
@@ -203,6 +256,29 @@ export async function GET(
     const { token } = await params;
     if (!token || token.length < 8) {
       return new NextResponse("Invalid token", { status: 403 });
+    }
+
+    // Deleted-subscription notice (set by removeProfile).
+    try {
+      const delOwner = await redis.get(`sub_deleted:${token}`);
+      if (delOwner) {
+        return new NextResponse(DELETED_SUB_BODY, { status: 200, headers: deletedSubHeaders() });
+      }
+    } catch { /* ignore */ }
+
+    // HWID device binding: 1 subscription = 1 device. Clients that don't send
+    // x-hwid (v2rayN/sing-box) are allowed through unbound.
+    const hwid = (req.headers.get("x-hwid") || "").trim();
+    if (hwid) {
+      const hwidKey = `sub:${token}:hwid`;
+      const bound = await redis.get(hwidKey);
+      if (bound && bound !== hwid) {
+        return new NextResponse(SECOND_DEVICE_BODY, { status: 200, headers: secondDeviceHeaders() });
+      }
+      if (!bound) {
+        // 1-year binding; reset clears it so another device can claim the slot.
+        await redis.set(hwidKey, hwid, { ex: 60 * 60 * 24 * 365 });
+      }
     }
 
     const format = resolveFormat(req);

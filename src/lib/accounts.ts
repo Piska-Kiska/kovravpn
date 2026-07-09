@@ -88,6 +88,13 @@ export async function removeProfile(userId: string, uuid: string): Promise<void>
   if (removed?.subToken) {
     try {
       await redis.del(`sub_prof:${removed.subToken}`);
+      // Clear the HWID binding so the freed link can bind a new device later,
+      // and flag the token so the client shows a "removed" notice (30d) rather
+      // than a stale 404 if it keeps polling.
+      await redis.del(`sub:${removed.subToken}:hwid`);
+      await redis.set(`sub_deleted:${removed.subToken}`, userId, {
+        ex: 30 * 24 * 60 * 60,
+      });
     } catch (err) {
       console.error("[removeProfile] failed to clean sub_prof:", err);
     }
