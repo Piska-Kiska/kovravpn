@@ -394,7 +394,7 @@ export default function DashboardPage() {
                     const pm = (k === "plan3" ? pricing.plan3 : pricing.plan1)[String(term)];
                     return (
                       <button key={k} onClick={() => setPlanKind(k)}
-                        className={`p-3 rounded-xl text-left transition-all cursor-pointer ${active ? "nm-btn-accent" : "nm-pressed-sm"}`}>
+                        className={`p-3 rounded-xl text-center transition-all cursor-pointer ${active ? "nm-btn-accent" : "nm-pressed-sm"}`}>
                         <div className={`text-base font-bold ${active ? "" : "text-nm-text"}`}>{label}</div>
                         <div className={`text-sm mt-0.5 ${active ? "opacity-80" : "text-nm-text-secondary"}`}>${pm?.perMonth.toFixed(2)}{t.per_mo}</div>
                       </button>
