@@ -25,11 +25,11 @@ const WIDTH = 1200;
 const HEIGHT = 630;
 
 // Keep these in sync with Tailwind tokens in tailwind.config.ts
-const BG = "#1a1d23";
-const BG_SECONDARY = "#252930";
-const ACCENT = "#10B981";
-const TEXT = "#f1f3f7";
-const TEXT_SECONDARY = "#9ca3af";
+const BG = "#050506";
+const BG_SECONDARY = "#0f0f11";
+const ACCENT = "#C5A572";
+const TEXT = "#f5f5f7";
+const TEXT_SECONDARY = "#86868b";
 
 const MAX_TITLE = 80;
 const MAX_SUBTITLE = 120;
@@ -77,19 +77,21 @@ export async function GET(req: NextRequest) {
               width: 56,
               height: 56,
               borderRadius: 16,
-              background: ACCENT,
+              background: "linear-gradient(135deg, #2C2C2E 0%, #1C1C1E 100%)",
+              border: "1px solid rgba(255,255,255,0.1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 32,
-              fontWeight: 900,
-              color: BG,
             }}
           >
-            П
+            <svg width="30" height="30" viewBox="0 0 48 48" fill="none">
+              <path d="M14 8 L14 40" stroke="#F5F5F7" strokeWidth="6" strokeLinecap="round" />
+              <path d="M16 22 L34 8" stroke="#C5A572" strokeWidth="6" strokeLinecap="round" />
+              <path d="M16 26 L34 40" stroke="#C5A572" strokeWidth="6" strokeLinecap="round" />
+            </svg>
           </div>
           <span style={{ color: TEXT, fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}>
-            Kovra
+            Kovra<span style={{ color: "#C5A572" }}>.</span>
           </span>
         </div>
 

@@ -373,7 +373,7 @@ export default function Page() {
         <div className="kv-wrap kv-hd-in">
           <a className="kv-brand" href="#top">
             <img src="/icon-192.png" alt="" width={26} height={26} />
-            Kovra
+            Kovra<span className="kv-dot">.</span>
           </a>
           <nav className="kv-nav" aria-label="Sections">
             <a href="#features">{t.nav_features}</a>
@@ -601,7 +601,7 @@ export default function Page() {
         <div className="kv-wrap kv-foot-in">
           <a className="kv-brand" href="#top" style={{ fontSize: 17 }}>
             <img src="/icon-192.png" alt="" width={24} height={24} />
-            Kovra
+            Kovra<span className="kv-dot">.</span>
           </a>
           <nav className="kv-foot-links" aria-label="Footer">
             <a href="#features">{t.nav_features}</a>

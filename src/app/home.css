@@ -43,6 +43,7 @@ html { scroll-padding-top: 96px; }
   letter-spacing: -0.02em;
 }
 .kv-brand img { width: 26px; height: 26px; border-radius: 7px; object-fit: contain; }
+.kv-dot { color: #C5A572; }
 .kv-nav {
   display: flex;
   gap: 34px;

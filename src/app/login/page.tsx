@@ -163,6 +163,7 @@ const css = `
 .kvr-tg-item{font-weight:500}
 .kvr-tg-item:hover{background:var(--glass-strong);color:var(--text)}
 .kvr-tg-item.on{background:var(--glass-strong);color:var(--text)}
+.kvr-dot{color:#C5A572;font-weight:700}
 `;
 
 function KvrToggles({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
@@ -279,7 +280,7 @@ export default function LoginPage() {
           <div className="kvr-nav-in">
             <Link href="/" className="kvr-brand">
               <img src="/icon-192.png" alt="" />
-              <span data-i18n="common.brand">Kovra</span>
+              <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
             </Link>
             <div className="kvr-nav-right">
               <KvrToggles theme={theme} setTheme={setTheme} />
@@ -294,7 +295,7 @@ export default function LoginPage() {
         <div className="kvr-card">
           <div className="kvr-logo">
             <img src="/icon-192.png" alt="" />
-            <span data-i18n="common.brand">Kovra</span>
+            <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
           </div>
           <h1 className="kvr-h1" data-i18n="login.title">Sign in</h1>
           <p className="kvr-sub" data-i18n="login.subtitle">Manage your subscription and settings</p>

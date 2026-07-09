@@ -180,6 +180,7 @@ const css = `
 .kvr-tg-item{font-weight:500}
 .kvr-tg-item:hover{background:var(--glass-strong);color:var(--text)}
 .kvr-tg-item.on{background:var(--glass-strong);color:var(--text)}
+.kvr-dot{color:#C5A572;font-weight:700}
 `;
 
 export default function RegisterPage() {
@@ -319,7 +320,7 @@ export default function RegisterPage() {
           <div className="kvr-nav-in">
             <Link href="/" className="kvr-brand">
               <img src="/icon-192.png" alt="" />
-              <span data-i18n="common.brand">Kovra</span>
+              <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
             </Link>
             <div className="kvr-nav-right">
               <KvrToggles theme={theme} setTheme={setTheme} />
@@ -335,7 +336,7 @@ export default function RegisterPage() {
         <div className="kvr-card">
           <div className="kvr-logo">
             <img src="/icon-192.png" alt="" />
-            <span data-i18n="common.brand">Kovra</span>
+            <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
           </div>
           <h1 className="kvr-h1" data-i18n="register.title">Create an account</h1>
           <p className="kvr-sub" data-i18n="register.subtitle">Crypto or card. Ready in a minute.</p>
