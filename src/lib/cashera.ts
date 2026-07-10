@@ -102,7 +102,7 @@ async function request<T>(
     try {
       const res = await fetch(`${API_BASE}${path}`, {
         method,
-        headers: { "X-Api-Key": API_KEY, "Content-Type": "application/json" },
+        headers: { "X-Api-Key": API_KEY, "Content-Type": "application/json", Accept: "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: ctrl.signal,
         cache: "no-store",
