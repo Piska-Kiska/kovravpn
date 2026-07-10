@@ -3,65 +3,68 @@
 // USD → EUR conversion for Platega card payments (method 12): Kovra prices
 // are USD, the international method invoices in EUR.
 //
-// Rate source: Platega's own GET /rates/payment_method_rate with
-// currencyFrom=USD & currencyTo=EUR. The docs do not pin down whether
-// `rate` means "EUR per 1 USD" or the inverse (their USDT->RUB example
-// reads inverted), so the value is NORMALIZED by sanity band: eurPerUsd
-// must land in 0.70..1.00; a raw value in 1.00..1.43 is treated as
-// usdPerEur and inverted; anything else is rejected. The first live
-// response is logged verbatim to settle the semantics.
+// Rate source: ECB reference rate via the keyless Frankfurter API
+// (api.frankfurter.dev, updated every working day ~16:00 CET). Platega's
+// own /rates endpoint returns 404 "Rate not found" for the USD→EUR pair on
+// this merchant (verified 2026-07-10) — switch back to it for zero drift
+// once support enables the pair.
 //
-// Charged amount is rounded UP to whole euro cents. Rate cached in Redis
-// for 5 minutes; last known value (no TTL) is the fallback when the rates
-// API is down.
+// Resolution order:
+//   1. PLATEGA_EUR_PER_USD env (manual pin, sanity-checked)
+//   2. Redis cache (6h — the ECB rate is daily)
+//   3. Frankfurter fetch
+//   4. last known value in Redis (no TTL)
+//
+// Charged amount is rounded UP to whole euro cents.
 
 import { redis } from "@/lib/redis";
-import { getPlategaRate } from "@/lib/platega";
+import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
+const FRANKFURTER_URL =
+  "https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR";
 const CACHE_KEY = "platega_fx:eur_per_usd";
 const LAST_KEY = "platega_fx:eur_per_usd:last";
-const CACHE_TTL_SEC = 300;
+const CACHE_TTL_SEC = 6 * 3600;
 
 const MIN_EUR_PER_USD = 0.7;
 const MAX_EUR_PER_USD = 1.0;
 
 interface CachedRate {
   eurPerUsd: number;
-  raw: number;
+  source: string;
   at: number;
+}
+
+function inBand(x: number): boolean {
+  return Number.isFinite(x) && x >= MIN_EUR_PER_USD && x <= MAX_EUR_PER_USD;
 }
 
 function parseCached(raw: unknown): CachedRate | null {
   if (!raw) return null;
   try {
     const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as CachedRate;
-    return typeof v?.eurPerUsd === "number" &&
-      v.eurPerUsd >= MIN_EUR_PER_USD &&
-      v.eurPerUsd <= MAX_EUR_PER_USD
-      ? v
-      : null;
+    return inBand(v?.eurPerUsd) ? v : null;
   } catch {
     return null;
   }
 }
 
-function normalize(raw: number): number | null {
-  if (!Number.isFinite(raw) || raw <= 0) return null;
-  if (raw >= MIN_EUR_PER_USD && raw <= MAX_EUR_PER_USD) return raw;
-  const inv = 1 / raw;
-  if (inv >= MIN_EUR_PER_USD && inv <= MAX_EUR_PER_USD) return inv;
-  return null;
-}
-
-async function fetchRate(paymentMethod: number): Promise<CachedRate> {
-  const res = await getPlategaRate(paymentMethod, "USD", "EUR");
-  console.log("[platega-fx] raw rate response", res);
-  const raw = Number(res.rate);
-  const eurPerUsd = normalize(raw);
-  if (eurPerUsd === null) {
-    throw new Error(`platega rates: unusable rate ${JSON.stringify(res)}`);
+async function fetchEcbRate(): Promise<CachedRate> {
+  const res = await fetchWithTimeout(FRANKFURTER_URL, {
+    method: "GET",
+    timeoutMs: 10_000,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`frankfurter HTTP ${res.status}: ${text.slice(0, 200)}`);
   }
-  return { eurPerUsd, raw, at: Date.now() };
+  const data = JSON.parse(text) as { rates?: { EUR?: number } };
+  console.log("[platega-fx] frankfurter response", text.slice(0, 200));
+  const rate = Number(data?.rates?.EUR);
+  if (!inBand(rate)) {
+    throw new Error(`frankfurter: rate out of sanity band: ${rate}`);
+  }
+  return { eurPerUsd: rate, source: "ecb", at: Date.now() };
 }
 
 export interface UsdToEurResult {
@@ -73,18 +76,25 @@ export interface UsdToEurResult {
 
 export async function usdToEur(
   amountUsd: number,
-  paymentMethod: number,
+  _paymentMethod?: number,
 ): Promise<UsdToEurResult> {
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
     throw new Error(`invalid amountUsd: ${amountUsd}`);
   }
 
-  let rate = parseCached(await redis.get(CACHE_KEY).catch(() => null));
+  let rate: CachedRate | null = null;
   let stale = false;
+
+  const pinned = Number(process.env.PLATEGA_EUR_PER_USD || "");
+  if (inBand(pinned)) {
+    rate = { eurPerUsd: pinned, source: "env", at: Date.now() };
+  }
+
+  if (!rate) rate = parseCached(await redis.get(CACHE_KEY).catch(() => null));
 
   if (!rate) {
     try {
-      rate = await fetchRate(paymentMethod);
+      rate = await fetchEcbRate();
       await redis.set(CACHE_KEY, JSON.stringify(rate), { ex: CACHE_TTL_SEC });
       await redis.set(LAST_KEY, JSON.stringify(rate)); // no TTL: fallback
     } catch (err) {
