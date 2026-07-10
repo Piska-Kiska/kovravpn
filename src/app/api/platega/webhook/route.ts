@@ -82,7 +82,9 @@ async function getOrderRecord(
   if (!raw) return null;
   try {
     const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as PlategaOrderRecord;
-    return typeof v?.amountMinor === "number" && v?.currency === "RUB" ? v : null;
+    return typeof v?.amountMinor === "number" && typeof v?.currency === "string"
+      ? v
+      : null;
   } catch {
     return null;
   }

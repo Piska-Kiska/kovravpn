@@ -1,11 +1,10 @@
 // src/lib/platega-order.ts
 //
 // Shared creation of Platega payments (card = method 12, crypto = method 13)
-// for the web dashboard. Prices are USD; Platega is charged in RUB, so the
-// amount is converted via lib/cashera-fx (Cashera merchant rate, Redis-cached
-// with stale fallback). TODO: switch the rate source to Platega's own
-// GET /conversions once the endpoint is confirmed with the manager — until
-// then the margin (not correctness) depends on the Cashera rate.
+// for the web dashboard. Prices are USD. Invoice currency per Platega
+// support: intl acquiring (12) is charged in EUR (converted via
+// lib/platega-fx using Platega's own rates endpoint, Redis-cached with a
+// stale fallback), crypto (13) is charged in USD as-is (no conversion).
 //
 // externalId reuses the existing order schemes:
 //   sub_<kind>_<term>_<userId>_<ts> | dev_<userId>_<ts>
@@ -25,7 +24,7 @@ import {
   type PlanKind,
   type Term,
 } from "@/lib/subscriptions";
-import { usdToRubMinor } from "@/lib/cashera-fx";
+import { usdToEur } from "@/lib/platega-fx";
 import {
   createPlategaTransaction,
   PLATEGA_METHOD_CARD,
@@ -34,7 +33,6 @@ import {
 } from "@/lib/platega";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
-const FX_METHOD = process.env.CASHERA_PAYMENT_METHOD || "mastercard";
 const ORDER_TTL_SEC = 7 * 86400;
 
 export type PlategaPurchase =
@@ -44,7 +42,8 @@ export type PlategaPurchase =
 export interface PlategaPaymentResult {
   paymentUrl: string;
   transactionId: string;
-  amountRub: number;
+  amountCharged: number;
+  currency: string;
 }
 
 export async function createPlategaPayment(
@@ -73,13 +72,31 @@ export async function createPlategaPayment(
     label = `+1 device · ${DEVICE_ADDON_DAYS} days`;
   }
 
-  const fx = await usdToRubMinor(amountUsd, FX_METHOD);
-  if (fx.stale) {
-    console.warn("[platega-order] using stale fx rate", { rubPerUsd: fx.rubPerUsd });
-  }
-
   const paymentMethod =
     method === "card" ? PLATEGA_METHOD_CARD : PLATEGA_METHOD_CRYPTO;
+
+  // card (12): EUR via Platega's own rate; crypto (13): USD passthrough.
+  let amountCharged: number;
+  let amountMinor: number;
+  let currency: string;
+  let fxRate: number;
+  if (method === "card") {
+    const fx = await usdToEur(amountUsd, paymentMethod);
+    if (fx.stale) {
+      console.warn("[platega-order] using stale fx rate", {
+        eurPerUsd: fx.eurPerUsd,
+      });
+    }
+    amountCharged = fx.amountEur;
+    amountMinor = fx.amountMinor;
+    currency = "EUR";
+    fxRate = fx.eurPerUsd;
+  } else {
+    amountMinor = Math.round(amountUsd * 100);
+    amountCharged = amountMinor / 100;
+    currency = "USD";
+    fxRate = 1;
+  }
 
   // Persist the exact expected charge BEFORE creating the payment.
   const order: PlategaOrderRecord = {
@@ -87,10 +104,10 @@ export async function createPlategaPayment(
     kind,
     term,
     amountUsd,
-    amountRub: fx.amountRub,
-    amountMinor: fx.amountMinor,
-    currency: "RUB",
-    rubPerUsd: fx.rubPerUsd,
+    amountCharged,
+    amountMinor,
+    currency,
+    fxRate,
     method: paymentMethod,
     createdAt: Date.now(),
   };
@@ -100,7 +117,8 @@ export async function createPlategaPayment(
 
   const tx = await createPlategaTransaction({
     paymentMethod,
-    amountRub: fx.amountRub,
+    amount: amountCharged,
+    currency,
     description: `Kovra ${label}`,
     payload: externalId,
     returnUrl: `${SITE_URL}/dashboard?paid=1`,
@@ -115,6 +133,7 @@ export async function createPlategaPayment(
   return {
     paymentUrl: tx.redirect,
     transactionId: tx.transactionId,
-    amountRub: fx.amountRub,
+    amountCharged,
+    currency,
   };
 }

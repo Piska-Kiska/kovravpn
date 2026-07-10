@@ -39,17 +39,18 @@ export interface PlategaOrderRecord {
   kind: "plan1" | "plan3" | "device";
   term?: number;
   amountUsd: number;
-  amountRub: number; // whole rubles shown/charged
-  amountMinor: number; // kopecks, for exact webhook comparison
-  currency: "RUB";
-  rubPerUsd: number;
+  amountCharged: number; // major units actually charged (EUR / USD)
+  amountMinor: number; // minor units (cents), for exact webhook comparison
+  currency: string; // EUR for card (12), USD for crypto (13)
+  fxRate: number; // charged-currency per 1 USD (1 for USD)
   method: number; // 12 | 13
   createdAt: number;
 }
 
 interface CreateTxParams {
   paymentMethod: number;
-  amountRub: number; // major units (rubles)
+  amount: number; // major units in `currency`
+  currency: string; // EUR | USD (support: EUR = intl + crypto, USD = crypto)
   description: string;
   payload: string; // our externalId, for reconciliation
   returnUrl: string;
@@ -77,7 +78,10 @@ export async function createPlategaTransaction(
     },
     body: JSON.stringify({
       paymentMethod: p.paymentMethod,
-      paymentDetails: { amount: p.amountRub, currency: "RUB" },
+      paymentDetails: {
+        amount: Math.round(p.amount * 100) / 100,
+        currency: p.currency,
+      },
       description: p.description.slice(0, 255),
       return: p.returnUrl,
       failedUrl: p.failedUrl,
@@ -104,6 +108,49 @@ export async function createPlategaTransaction(
     );
   }
   return data;
+}
+
+export interface PlategaRateResponse {
+  paymentMethod?: number;
+  currencyFrom?: string;
+  currencyTo?: string;
+  rate?: number;
+  updatedAt?: string;
+}
+
+/** Current exchange rate for a method and currency pair (docs: /rates). */
+export async function getPlategaRate(
+  paymentMethod: number,
+  currencyFrom: string,
+  currencyTo: string,
+): Promise<PlategaRateResponse> {
+  if (!plategaEnabled()) throw new PlategaError("PLATEGA_* env is not set");
+  const q = new URLSearchParams({
+    merchantId: MERCHANT_ID,
+    paymentMethod: String(paymentMethod),
+    currencyFrom,
+    currencyTo,
+  });
+  const res = await fetchWithTimeout(
+    `${BASE_URL}/rates/payment_method_rate?${q.toString()}`,
+    {
+      method: "GET",
+      timeoutMs: 15_000,
+      headers: { "X-MerchantId": MERCHANT_ID, "X-Secret": SECRET },
+    },
+  );
+  const text = await res.text();
+  if (!res.ok) {
+    throw new PlategaError(
+      `rates failed: HTTP ${res.status} ${text.slice(0, 300)}`,
+      res.status,
+    );
+  }
+  try {
+    return JSON.parse(text) as PlategaRateResponse;
+  } catch {
+    throw new PlategaError(`rates returned non-JSON: ${text.slice(0, 200)}`);
+  }
 }
 
 function safeEqual(a: string | null | undefined, b: string): boolean {
