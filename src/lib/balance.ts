@@ -34,8 +34,7 @@ import {
   maxActiveExpiry,
   activeSlots,
 } from "./subscriptions";
-import { listInbounds } from "./xpanel";
-import { updateClientExpirySync } from "./xpanel-sync";
+import { updateClientOnStaticPanels } from "./kovra-servers-sync";
 
 // ─── Legacy constants (still imported by name in some routes) ─────────
 // Values are now meaningless for billing but must exist. Crypto-only.
@@ -136,13 +135,9 @@ export async function syncAllExpiry(userId: string): Promise<void> {
     account.paidUntil = expiryTime;
     await redis.set(`account:${userId}`, JSON.stringify(account));
 
-    const inbounds = await listInbounds();
-    const inbound = inbounds.obj?.[0];
-    if (!inbound) return;
-
     for (const p of profiles) {
       try {
-        await updateClientExpirySync(inbound.id, p.uuid, p.clientEmail, expiryTime);
+        await updateClientOnStaticPanels({ uuid: p.uuid, email: p.clientEmail, subId: p.clientEmail, expiryTimeMs: expiryTime });
       } catch (err) {
         console.error(`[syncExpiry] Failed to update ${p.uuid}:`, err);
       }
