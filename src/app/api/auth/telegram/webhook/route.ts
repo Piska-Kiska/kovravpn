@@ -22,8 +22,7 @@ import {
   getUserLang,
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
-import { listInbounds, buildVlessUrl } from "@/lib/xpanel";
-import { addClientSync, deleteClientSync } from "@/lib/xpanel-sync";
+import { removeClientFromStaticPanels } from "@/lib/kovra-servers-sync";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
 import { syncAllExpiry } from "@/lib/balance";
 import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
@@ -467,7 +466,11 @@ async function handleConfirmDel(chatId: number, msgId: number, uuid: string) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
   await edit(chatId, msgId, t("del.progress", lang), []);
-  try { await deleteClientSync(1, uuid); } catch { /* ok */ }
+  try {
+    const profs = await getProfiles(userId);
+    const prof = profs.find((p) => p.uuid === uuid);
+    await removeClientFromStaticPanels(uuid, prof?.clientEmail ?? uuid);
+  } catch { /* ok */ }
   await removeProfile(userId, uuid);
   await syncAllExpiry(userId);
   await edit(chatId, msgId, t("del.done", lang), [

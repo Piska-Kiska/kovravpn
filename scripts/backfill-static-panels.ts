@@ -4,6 +4,7 @@
 import { redis } from "../src/lib/redis";
 import { addClientToStaticPanels } from "../src/lib/kovra-servers-sync";
 
+async function main() {
 const dry = process.argv.includes("--dry");
 
 function parseArr(raw: unknown): any[] {
@@ -38,3 +39,5 @@ for (const key of keys) {
   }
 }
 console.log(`done: total=${total} ok=${okCnt} fail=${failCnt}`);
+}
+main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
