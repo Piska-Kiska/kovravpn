@@ -71,9 +71,9 @@ const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
 const DEFAULT_TITLE =
-  "Kovra — Fast, Private VPN · VLESS Reality";
+  "Kovra VPN: Anonymous, No Logs, No Email � Crypto & Cards";
 const DEFAULT_DESC =
-  "Kovra is a crypto-friendly VPN built on VLESS Reality. Low ping, strong encryption, servers across Europe. Connect in 2 minutes.";
+  "Anonymous VPN with no email signup and a strict no-logs policy. Pay with USDT, BTC or card. VLESS Reality traffic camouflage, EU servers, online in 2 minutes.";
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but

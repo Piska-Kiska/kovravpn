@@ -119,6 +119,120 @@ export const GUIDES: readonly GuideMeta[] = [
       "vpn subscription usdt",
     ],
   },
+  {
+    slug: "truly-anonymous-vpn",
+    title: "Truly Anonymous VPN in 2026: No Email, No Card, No Name",
+    description:
+      "What it takes to run a VPN account with zero identity attached: anonymous signup, crypto payment, no-logs infrastructure, and the honest limits of anonymity.",
+    teaser:
+      "The three data trails every VPN account leaves, how to cut each one, and where anonymity actually ends.",
+    tag: "Privacy",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 8,
+    keywords: [
+      "anonymous vpn",
+      "truly anonymous vpn",
+      "vpn no personal data",
+      "anonymous vpn no email",
+      "vpn anonymous payment",
+    ],
+  },
+  {
+    slug: "pay-vpn-with-bitcoin",
+    title: "How to Pay for a VPN with Bitcoin: Fees, Timing, Privacy",
+    description:
+      "Paying for a VPN with Bitcoin step by step: on-chain fees explained, when BTC beats stablecoins, confirmation times, UTXO privacy basics and costly mistakes.",
+    teaser:
+      "On-chain BTC is the classic way to buy a VPN. When it makes sense, what it costs, and how not to overpay the miners.",
+    tag: "Payments",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 7,
+    keywords: [
+      "pay for vpn with bitcoin",
+      "bitcoin vpn",
+      "buy vpn with btc",
+      "vpn btc payment",
+      "vpn subscription bitcoin",
+    ],
+  },
+  {
+    slug: "mullvad-alternatives",
+    title: "Mullvad Alternatives in 2026: When the Gold Standard Falls Short",
+    description:
+      "Mullvad is excellent, but WireGuard is easy for DPI to spot and port forwarding is gone. Where it falls short and which private VPNs cover those gaps.",
+    teaser:
+      "An honest look at what Mullvad does best, the cases it genuinely does not cover, and what to use instead.",
+    tag: "Privacy",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 9,
+    keywords: [
+      "mullvad alternative",
+      "mullvad alternatives",
+      "vpn like mullvad",
+      "mullvad vs kovra",
+      "anonymous vpn alternative",
+    ],
+  },
+  {
+    slug: "nordvpn-alternative-crypto",
+    title: "NordVPN Alternatives That Accept Crypto (No Email Needed)",
+    description:
+      "NordVPN takes crypto but still wants your email. Alternatives that treat crypto as a first-class payment and skip identity at signup, compared honestly.",
+    teaser:
+      "Paying Nord in BTC does not make the account anonymous. What actually does, and which providers are built that way.",
+    tag: "Payments",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 8,
+    keywords: [
+      "nordvpn alternative",
+      "nordvpn alternative crypto",
+      "vpn like nordvpn",
+      "nordvpn without email",
+      "private alternative to nordvpn",
+    ],
+  },
+  {
+    slug: "no-logs-vpn-for-torrenting",
+    title: "No-Logs VPN for Torrenting: What Actually Protects You",
+    description:
+      "How BitTorrent exposes your IP to the swarm, what a verified no-logs VPN changes, kill switches, payment trails and the checklist before you trust a provider.",
+    teaser:
+      "Everyone in a torrent swarm sees your IP. What a no-logs VPN really changes, and the features that matter more than marketing.",
+    tag: "Privacy",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 8,
+    keywords: [
+      "no logs vpn torrenting",
+      "vpn for torrenting",
+      "p2p vpn no logs",
+      "torrenting privacy vpn",
+      "safe torrenting vpn",
+    ],
+  },
+  {
+    slug: "best-crypto-vpn-2026",
+    title: "Best Crypto VPN in 2026: 4 Providers Compared Honestly",
+    description:
+      "Four VPNs that take crypto seriously in 2026: Kovra, Mullvad, IVPN and AirVPN compared on signup data, coins, protocols, DPI resistance and jurisdiction.",
+    teaser:
+      "Not a top-10 built from affiliate payouts: four providers where crypto and privacy are the product, compared on facts.",
+    tag: "Payments",
+    published: "2026-07-14",
+    updated: "2026-07-14",
+    minutes: 9,
+    keywords: [
+      "best crypto vpn",
+      "crypto vpn 2026",
+      "vpn that accepts crypto",
+      "best vpn crypto payment",
+      "usdt vpn 2026",
+    ],
+  },
 ] as const;
 
 export function getGuide(slug: string): GuideMeta {
@@ -127,9 +241,18 @@ export function getGuide(slug: string): GuideMeta {
   return g;
 }
 
-/** Related guides for the footer block: everything except self, first 3. */
+/**
+ * Related guides for the footer block: the 3 entries after this one in the
+ * registry, wrapping around. Rotation (instead of "always the first 3")
+ * spreads internal links evenly across all guides, which matters for
+ * crawl discovery and PageRank flow once the registry grows past a few
+ * entries.
+ */
 export function relatedGuides(slug: string): GuideMeta[] {
-  return GUIDES.filter((g) => g.slug !== slug).slice(0, 3);
+  const i = GUIDES.findIndex((g) => g.slug === slug);
+  if (i === -1) return GUIDES.slice(0, 3) as GuideMeta[];
+  const rotated = [...GUIDES.slice(i + 1), ...GUIDES.slice(0, i)];
+  return rotated.slice(0, 3);
 }
 
 /** schema.org Article for a guide. Rendered via jsonLd() like other schemas. */
