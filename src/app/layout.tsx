@@ -71,7 +71,7 @@ const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
 const DEFAULT_TITLE =
-  "Kovra VPN: Anonymous, No Logs, No Email · Crypto & Cards";
+  "Kovra VPN: Anonymous, No Logs, No Email Â· Crypto & Cards";
 const DEFAULT_DESC =
   "Anonymous VPN with no email signup and a strict no-logs policy. Pay with USDT, BTC or card. VLESS Reality traffic camouflage, EU servers, online in 2 minutes.";
 
@@ -94,6 +94,10 @@ const BRAND_KEYWORDS = [
   "low ping VPN",
   "crypto VPN",
   "no-logs VPN",
+  "anonymous VPN",
+  "VPN without email",
+  "USDT VPN",
+  "VPN with crypto payment",
 ];
 
 /**
