@@ -17,14 +17,26 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pingIndexNow } from "@/lib/indexnow";
+import { GUIDES, SITE_URL } from "@/lib/guides";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
+/**
+ * Everything indexable, derived from the same registry that feeds the
+ * sitemap. Previously this was a hardcoded list of four URLs, so the
+ * /guides cluster — the pages actually written to rank — was never
+ * announced and had to wait for an organic crawl.
+ *
+ * Well under the 100-URL cap in pingIndexNow, with room for the registry
+ * to keep growing.
+ */
 const URLS = [
-  "https://kovravpn.com/",
-  "https://kovravpn.com/guide",
-  "https://kovravpn.com/terms",
-  "https://kovravpn.com/privacy",
+  `${SITE_URL}/`,
+  `${SITE_URL}/guide`,
+  `${SITE_URL}/guides`,
+  ...GUIDES.map((g) => `${SITE_URL}/guides/${g.slug}`),
+  `${SITE_URL}/terms`,
+  `${SITE_URL}/privacy`,
 ];
 
 export async function GET(req: NextRequest) {

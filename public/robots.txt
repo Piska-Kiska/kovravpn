@@ -1,5 +1,40 @@
+# kovravpn.com
+
 User-agent: *
 Allow: /
+# OG images are generated at /api/og — they must stay crawlable or social
+# previews and Google Discover thumbnails resolve to nothing. Allow comes
+# before the broader Disallow because the most specific rule wins.
+Allow: /api/og
 Disallow: /api/
+Disallow: /dashboard
+Disallow: /promo
+
+# Answer engines. Explicitly welcomed: the /guides section is written to be
+# quoted, and being cited in an AI answer is now a discovery channel in its
+# own right.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
 
 Sitemap: https://kovravpn.com/sitemap.xml
