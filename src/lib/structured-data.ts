@@ -59,12 +59,27 @@ export function buildOrganizationSchema() {
     foundingDate: "2026-04",
     description:
       "Kovra is a fast, private VPN on VLESS Reality. Low ping, unblocking, servers across Europe.",
+    // Topical authority declaration. Each entry corresponds to a subject the
+    // site actually covers in depth under /guides — Google cross-checks
+    // knowsAbout against on-site content, so padding it with unrelated terms
+    // is counter-productive.
     knowsAbout: [
       "VPN",
       "VLESS Reality",
       "ML-KEM",
       "post-quantum cryptography",
       "DPI bypass",
+      "internet censorship circumvention",
+      "proxy servers",
+      "SOCKS5",
+      "Shadowsocks",
+      "WireGuard",
+      "OpenVPN",
+      "cryptocurrency payments",
+      "USDT",
+      "anonymous online payments",
+      "no-logs policy verification",
+      "DNS leak testing",
       "обход блокировок Roskomnadzor",
       "VPN для игр",
     ],

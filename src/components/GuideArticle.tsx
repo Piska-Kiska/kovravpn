@@ -11,6 +11,7 @@ import {
 } from "@/lib/structured-data";
 import type { FaqItem } from "@/lib/faq-items";
 import { ogImageUrl } from "@/lib/og-url";
+import GuideKeywords from "@/components/GuideKeywords";
 import {
   SITE_URL,
   getGuide,
@@ -78,6 +79,16 @@ export default function GuideArticle({
           </div>
         </header>
 
+        {/* Direct answer, rendered before the body. Mirrors `abstract` in
+            the Article schema word-for-word: answer engines that quote it
+            must find the same sentence on the page. */}
+        {g.tldr && (
+          <aside className="gd-answer" aria-label="Short answer">
+            <span className="gd-answer-k">Short answer</span>
+            <p>{g.tldr}</p>
+          </aside>
+        )}
+
         <article className="gd-prose">{children}</article>
 
         {faq.length > 0 && (
@@ -124,6 +135,8 @@ export default function GuideArticle({
             ))}
           </div>
         </section>
+
+        <GuideKeywords slug={slug} />
       </div>
     </main>
   );

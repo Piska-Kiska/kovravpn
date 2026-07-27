@@ -82,22 +82,46 @@ const DEFAULT_DESC =
  * alternateName + visible body text) increases the chance the algorithm
  * stops auto-correcting "kovra" -> "proxy vpn" in SERPs. The current
  * auto-correct is the single biggest reason brand searches fail.
+ *
+ * Two groups below. Brand terms exist for that disambiguation problem;
+ * category terms describe what the product is, so the page has a
+ * vocabulary overlap with the queries it should appear for. Category
+ * terms are only listed here when the concept is genuinely covered by
+ * the site — the matching depth lives in /guides, and a keyword with no
+ * corresponding content is the kind of mismatch that costs trust rather
+ * than earning rankings.
  */
 const BRAND_KEYWORDS = [
+  // Brand and technology
   "Kovra",
   "Kovra VPN",
   "VPN VLESS Reality",
   "ML-KEM VPN",
   "post-quantum VPN",
+  "VLESS Reality",
+  "Xray VPN",
+  // Category
   "private VPN",
   "fast VPN",
   "low ping VPN",
-  "crypto VPN",
   "no-logs VPN",
   "anonymous VPN",
   "VPN without email",
+  "VPN without phone number",
+  // Payments
+  "crypto VPN",
   "USDT VPN",
   "VPN with crypto payment",
+  "pay for VPN with bitcoin",
+  "VPN no credit card",
+  "cheap private VPN",
+  // Proxy and censorship intent
+  "VPN vs proxy",
+  "proxy alternative",
+  "SOCKS5 proxy alternative",
+  "DPI bypass VPN",
+  "VPN that works in China",
+  "unblock websites VPN",
 ];
 
 /**
