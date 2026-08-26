@@ -28,12 +28,28 @@ import { syncAllExpiry } from "@/lib/balance";
 import { markTopup } from "@/lib/accounts";
 import { grantReferralReward } from "@/lib/referrals";
 import { verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
-import { reserveDedupKey } from "@/lib/dedup";
+import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
 import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { ADMIN_TG_ID } from "@/lib/admin-bot";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
+
+/** Прямая отправка по идентификатору чата — для тревог админу. */
+async function sendTelegram(chatId: string, text: string): Promise<void> {
+  if (!chatId || !BOT_TOKEN) return;
+  try {
+    await fetchWithTimeout(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      timeoutMs: 5000,
+    });
+  } catch (err) {
+    console.error("[crypto-webhook] sendTelegram error:", err);
+  }
+}
 
 async function notifyTelegram(userId: string, message: string): Promise<void> {
   try {
@@ -109,7 +125,17 @@ export async function POST(req: NextRequest) {
       const reservedT = await reserveDedupKey(`crypto_payment_done:${pidT}`, DEDUP_TTL_SEC);
       if (!reservedT) return NextResponse.json({ ok: true, ignored: "duplicate" });
       const usd = Number(payload.price_amount) || 0;
-      const newBal = await addBalanceUsd(tu.userId, usd);
+      let newBal: number;
+      try {
+        newBal = await addBalanceUsd(tu.userId, usd);
+      } catch (err) {
+        // Ключ дедупа уже занят, а зачисления не было. Освобождаем его и просим
+        // повторить: без этого оплата осталась бы без денег НАВСЕГДА — повтор
+        // отсёкся бы как дубликат.
+        console.error("[crypto-webhook] wallet credit failed, requesting retry:", err);
+        await releaseDedupKey(`crypto_payment_done:${pidT}`);
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
       await notifyTelegram(
         tu.userId,
         [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
@@ -140,23 +166,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: "duplicate" });
     }
 
-    // ─── Grant entitlement ───
+    // ─── Ступень 1: выдача (граница, после которой повтор удваивал бы) ───
+    //
+    // До этой правки любой сбой здесь улетал в общий catch, который отвечал
+    // 200: NOWPayments считал доставку удачной и повторов не слал, а занятый
+    // на 90 дней ключ дедупа отсекал даже ручную переотправку. Деньги взяты,
+    // подписки нет, тревоги нет — и повторить нечем.
     let summaryLine = "";
-    if (parsed.type === "plan") {
-      const plan = resolvePlan(parsed.kind, parsed.term);
-      if (!plan) {
-        return NextResponse.json({ ok: true, ignored: "bad plan in order_id" });
+    try {
+      if (parsed.type === "plan") {
+        const plan = resolvePlan(parsed.kind, parsed.term);
+        if (!plan) {
+          return NextResponse.json({ ok: true, ignored: "bad plan in order_id" });
+        }
+        await applyPlanPurchase(userId, plan);
+        const label = parsed.kind === "plan3" ? "3 devices" : "1 device";
+        summaryLine = `${label} · ${parsed.term} mo`;
+      } else {
+        await applyDeviceAddon(userId);
+        summaryLine = "+1 device · 30 days";
       }
-      await applyPlanPurchase(userId, plan);
-      const label = parsed.kind === "plan3" ? "3 devices" : "1 device";
-      summaryLine = `${label} · ${parsed.term} mo`;
-    } else {
-      await applyDeviceAddon(userId);
-      summaryLine = "+1 device · 30 days";
+    } catch (err) {
+      console.error("[crypto-webhook] grant failed, requesting retry:", err);
+      await releaseDedupKey(`crypto_payment_done:${paymentId}`);
+      return NextResponse.json({ error: "internal" }, { status: 500 });
     }
 
-    await syncAllExpiry(userId);
-    await markTopup(userId);
+    // ─── Ступень 2: синхронизация и уведомления (повтору не подлежит) ───
+    try {
+      await syncAllExpiry(userId);
+      await markTopup(userId);
+    } catch (err) {
+      console.error("[crypto-webhook] post-grant sync failed:", err);
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>NOWPayments: выдано, но синхронизация не прошла</b>\nuser <code>${userId}</code>, payment <code>${paymentId}</code>. Запустить syncAllExpiry вручную.`,
+      );
+    }
 
     const subs = await getSubscriptions(userId);
     const s = summarize(subs);
@@ -193,7 +239,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // Сюда попадает то, что не поймали ступени выше. Отвечаем 200 осознанно —
+    // повтор после уже сделанной выдачи удвоил бы её, — но молчать нельзя:
+    // до этой правки такой сбой не оставлял ни строчки, кроме журнала.
     console.error("[crypto-webhook] unhandled error:", error);
+    await sendTelegram(
+      ADMIN_TG_ID,
+      `🚨 <b>NOWPayments: необработанный сбой в вебхуке</b>\n\n<code>${String(
+        error instanceof Error ? error.message : error,
+      ).slice(0, 300)}</code>\n\nПроверить платёж вручную.`,
+    ).catch(() => {});
     return NextResponse.json({ ok: true });
   }
 }

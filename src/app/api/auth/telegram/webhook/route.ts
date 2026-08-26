@@ -969,6 +969,19 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    // Дедуп по номеру обновления.
+    //
+    // Telegram повторяет доставку всего, на что не получил 2xx вовремя, а
+    // покупка внутри бота списывает кошелёк и выдаёт подписку ДО того, как
+    // отправит ответное сообщение. Стоит вызову к api.telegram.org подвиснуть —
+    // и повтор пройдёт весь путь заново: деньги спишутся дважды, подписка
+    // выдастся дважды, и ни одной тревоги. Отсекаем повтор до любых действий.
+    const updateId = body?.update_id;
+    if (typeof updateId === "number") {
+      const fresh = await redis.set(`kovra:tg:upd:${updateId}`, "1", { nx: true, ex: 3600 });
+      if (fresh === null) return NextResponse.json({ ok: true });
+    }
+
     // Sync Telegram identity on every update (fire-and-forget).
     const fromUser = body.message?.from ?? body.callback_query?.from;
     if (fromUser?.id) {
@@ -1347,7 +1360,14 @@ export async function POST(req: NextRequest) {
     await send(chatId, t("fallback.user", lang), mainMenuKb(lang));
     return NextResponse.json({ ok: true });
   } catch (error) {
+    // 200, а не 500, и это осознанно.
+    //
+    // На 5xx Telegram повторяет обновление, а обработчик к моменту падения мог
+    // уже списать кошелёк и выдать подписку — повтор сделал бы это второй раз.
+    // Дедуп по update_id выше отсекает повтор и сам по себе, но ответ 200
+    // закрывает вопрос ещё до него: потерять уведомление дешевле, чем списать
+    // деньги дважды.
     console.error("Webhook error:", error);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    return NextResponse.json({ ok: false });
   }
 }

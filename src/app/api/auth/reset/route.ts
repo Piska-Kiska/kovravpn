@@ -5,6 +5,20 @@ import { redis } from "@/lib/redis";
 import { getUserRecord, saveUserRecord } from "@/lib/accounts";
 import { rateLimit, getClientIp } from "@/lib/ratelimit";
 
+/**
+ * Сколько неверных попыток переживает код, прежде чем его гасят.
+ *
+ * Ограничение частоты стоит на АДРЕСЕ, а адрес меняется прокси: код из шести
+ * цифр живёт десять минут и без этого счётчика выдерживает сколько угодно
+ * попыток с разных адресов. Двести адресов по пять попыток в минуту дают
+ * десять тысяч догадок на окно — около процента на код, и это повторяемо.
+ * Счётчик привязан к самому коду, поэтому смена адреса его не обходит.
+ */
+const MAX_CODE_ATTEMPTS = 5;
+/** Тот же срок, с каким код кладут: счётчик не должен его пережить. */
+const CODE_TTL_SEC = 600;
+const ATTEMPTS_KEY = (key: string) => `${key}:attempts`;
+
 export async function POST(req: NextRequest) {
   try {
     const ip = getClientIp(req);
@@ -43,6 +57,16 @@ export async function POST(req: NextRequest) {
     const data = typeof raw === "string" ? JSON.parse(raw) : raw;
 
     if (String(data.code) !== String(code)) {
+      const attempts = Number(await redis.incr(ATTEMPTS_KEY(resetKey))) || 0;
+      if (attempts === 1) await redis.expire(ATTEMPTS_KEY(resetKey), CODE_TTL_SEC);
+      if (attempts >= MAX_CODE_ATTEMPTS) {
+        await redis.del(resetKey);
+        await redis.del(ATTEMPTS_KEY(resetKey));
+        return NextResponse.json(
+          { error: "Слишком много неверных попыток — запросите новый код" },
+          { status: 429 }
+        );
+      }
       return NextResponse.json(
         { error: "Неверный код" },
         { status: 400 }
@@ -63,6 +87,7 @@ export async function POST(req: NextRequest) {
 
     // Clean up
     await redis.del(resetKey);
+    await redis.del(ATTEMPTS_KEY(resetKey));
 
     return NextResponse.json({ success: true });
   } catch (error) {

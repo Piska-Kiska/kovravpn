@@ -39,6 +39,22 @@ export async function GET(req: NextRequest) {
 
   const data = typeof raw === "string" ? JSON.parse(raw) : raw;
 
+  // Код принадлежит той сессии, которая его завела.
+  //
+  // Без этой сверки любой вошедший мог погасить ЧУЖОЙ код. Атакующий заводит
+  // код у себя, подтверждает его своим Telegram и заманивает жертву на этот
+  // адрес: обработчик — GET, а кука `sameSite: "lax"` уходит при обычном
+  // переходе по ссылке. Его Telegram привязывался бы к аккаунту жертвы, и
+  // дальше каждое его сообщение боту приводило бы в чужой аккаунт — устройства,
+  // ссылки подписки, баланс. Соседний `link/email/verify` эту сверку делает,
+  // здесь её просто не было.
+  if (data.userId !== session.userId) {
+    return NextResponse.json(
+      { linked: false, error: "Код принадлежит другому аккаунту" },
+      { status: 403 },
+    );
+  }
+
   if (!data.verified) {
     // Polling: user hasn't sent the code to the bot yet.
     return NextResponse.json({ linked: false });
