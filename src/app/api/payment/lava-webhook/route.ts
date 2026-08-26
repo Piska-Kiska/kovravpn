@@ -202,6 +202,27 @@ export async function POST(req: NextRequest) {
     utmSource !== "" &&
     utmSource !== LAVA_UTM_SOURCE
   ) {
+    // Обрабатывать чужой контракт нельзя: ни заказа, ни суммы у нас нет.
+    //
+    // Но если он ОПЛАЧЕН — молчать тоже нельзя. Вебхук у lava.top вешается на
+    // API-ключ, и оплаченное событие чужого проекта здесь означает ровно одно:
+    // ключи и адреса перепутаны, деньги взяты, а выдачи не будет ни у нас, ни
+    // у соседа. Неоплаченные чужие события проходят тихо — их много и они
+    // ничего не стоят.
+    if (invoice.status === "COMPLETED") {
+      await sendTelegram(
+        ADMIN_TG_ID,
+        [
+          `⚠️ <b>lava.top: оплачен контракт ЧУЖОГО проекта</b>`,
+          ``,
+          `контракт <code>${esc(contractId)}</code>`,
+          `метка источника: <code>${esc(utmSource)}</code>, а мы — <code>${esc(LAVA_UTM_SOURCE)}</code>`,
+          `сумма: ${esc(invoice.receipt?.amount)} ${esc(invoice.receipt?.currency)}`,
+          ``,
+          `Похоже, вебхук повешен не на тот API-ключ. Выдачи не было НИГДЕ.`,
+        ].join("\n"),
+      );
+    }
     return NextResponse.json({ ok: true, ignored: "another project" });
   }
 
