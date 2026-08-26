@@ -15,6 +15,7 @@ import {
   DEVICE_ADDON_PRICE,
   DEVICE_ADDON_DAYS,
 } from "@/lib/subscriptions";
+import { lavaConfigured } from "@/lib/lava";
 import { isHappEncryptedEnabled } from "@/lib/feature-flags";
 import { authenticateRequest } from "@/lib/auth";
 
@@ -80,6 +81,10 @@ export async function POST(req: NextRequest) {
         plan3Slots: PLAN_SLOTS.plan3,
         deviceAddonPrice: DEVICE_ADDON_PRICE,
         deviceAddonDays: DEVICE_ADDON_DAYS,
+        // Настроена ли линия lava.top. Кнопки способов рисует клиент, и без
+        // этого признака он показывал бы их и на проекте без ключей — каждое
+        // нажатие возвращало бы 503. Отдаём только «да/нет», без значений.
+        lavaEnabled: lavaConfigured,
       },
       profiles,
       subUrl,

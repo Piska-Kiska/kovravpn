@@ -11,6 +11,8 @@ import {
 import LinkAccounts from "@/components/LinkAccounts";
 import { trackEvent, stripQueryParam } from "@/lib/attribution";
 import { useDashLang, DASH_LANGS, type DashLang } from "@/lib/dash-i18n";
+import { lavaMethodChoices, type LavaCurrency, type LavaMethodId } from "@/lib/lava-methods";
+import { chargeIn, formatCharge } from "@/lib/lava-price";
 
 type Tab = "home" | "help";
 
@@ -22,6 +24,8 @@ interface Pricing {
   plan3: Record<string, PlanPrice>;
   plan1Slots: number; plan3Slots: number;
   deviceAddonPrice: number; deviceAddonDays: number;
+  /** Настроена ли линия lava.top. Пусто у старого ответа — считаем «нет». */
+  lavaEnabled?: boolean;
 }
 interface AccountData {
   plan: string;
@@ -77,6 +81,48 @@ const CARD_NOTE: Record<string, string> = {
   fr: "Les paiements par carte passent par notre partenaire de paiement (le relevé indique «skillstep»); le montant est converti en EUR.",
 };
 
+/**
+ * Способы lava.top на кнопках.
+ *
+ * Bancontact сюда НЕ входит намеренно: он один требует имя покупателя в
+ * запросе, а спрашивать имя ради одного бельгийского способа значит удлинить
+ * форму всем остальным.
+ */
+const LAVA_LABEL: Partial<Record<LavaMethodId, string>> = {
+  card: "💳 Card",
+  paypal: "🅿️ PayPal",
+  applepay: "🍎 Apple Pay",
+  pix: "🇧🇷 Pix",
+  sepa: "🇪🇺 SEPA",
+  ideal: "🇳🇱 iDEAL",
+  mbway: "🇵🇹 MB WAY",
+};
+
+const LAVA_NOTE: Record<string, string> = {
+  en: "International methods — a Russian card will not work here.",
+  ru: "Зарубежные способы — российская карта здесь не подойдёт.",
+  es: "Métodos internacionales: una tarjeta rusa no funcionará aquí.",
+  de: "Internationale Methoden — eine russische Karte funktioniert hier nicht.",
+  fr: "Méthodes internationales — une carte russe ne fonctionnera pas ici.",
+};
+
+/**
+ * Какие способы показать для этой суммы.
+ *
+ * Фильтр по нижнему порогу делает сам каталог: лава счета ниже $5 и €5.5 не
+ * выставляет, и показанная кнопка довела бы человека до отказа уже после
+ * нажатия. Поэтому на месячном тарифе за $5 евровые способы честно исчезают.
+ */
+function lavaChips(priceUsd: number | undefined, enabled: boolean | undefined) {
+  // Линия без ключей не показывается вовсе: иначе каждое нажатие возвращало бы
+  // отказ, и покупатель решил бы, что сломан платёж, а не выключена настройка.
+  if (enabled !== true) return [];
+  if (typeof priceUsd !== "number" || !Number.isFinite(priceUsd)) return [];
+  return lavaMethodChoices("USD", (c) => chargeIn(priceUsd, c)).filter(
+    (c) => LAVA_LABEL[c.id] !== undefined,
+  );
+}
+
 function fmtDate(ms: number, lang: string): string {
   if (!ms) return "—";
   try {
@@ -127,6 +173,9 @@ export default function DashboardPage() {
   const [buyingCard, setBuyingCard] = useState(false);
   const [buyingAlt, setBuyingAlt] = useState(false);
   const [buyingAltDevice, setBuyingAltDevice] = useState(false);
+  // Какая именно кнопка lava.top сейчас крутится. Не булево: способов
+  // несколько, и крутиться должен только нажатый.
+  const [buyingLava, setBuyingLava] = useState<string | null>(null);
   const [buyingCardDevice, setBuyingCardDevice] = useState(false);
 
   // device create
@@ -296,6 +345,30 @@ export default function DashboardPage() {
         window.location.href = d.paymentUrl;
       } else setError(d.error || t.err_pay);
     } catch { setError(t.err_conn); } finally { setBuyingAltDevice(false); }
+  };
+
+  // lava.top — единственный способ заплатить из-за рубежа не криптовалютой.
+  // Способ и валюта уходят вместе: лава показывает покупателю ровно один
+  // способ на счёт, а подпись на кнопке обязана совпасть со списанием.
+  const handleBuyLava = async (
+    body: Record<string, unknown>,
+    id: LavaMethodId,
+    currency: LavaCurrency,
+    tag: string,
+  ) => {
+    setBuyingLava(tag); setError(null);
+    try {
+      const r = await fetch("/api/subscribe/lava", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, method: id, currency }),
+      });
+      const d = await r.json();
+      if (d.paymentUrl) {
+        trackEvent("payment_initiated", { ...body, method: id, currency, provider: "lava" });
+        window.location.href = d.paymentUrl;
+      } else setError(d.error || t.err_pay);
+    } catch { setError(t.err_conn); } finally { setBuyingLava(null); }
   };
 
   const handleResetHwid = async (uuid: string) => {
@@ -485,6 +558,24 @@ export default function DashboardPage() {
                   className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buyingAlt ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {t.pay_crypto}</>}
                 </button>
+                {lavaChips(selPrice?.total, pricing?.lavaEnabled).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[11px] text-nm-text-secondary text-center mb-1.5 opacity-80">
+                      {LAVA_NOTE[lang] ?? LAVA_NOTE.en}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {lavaChips(selPrice?.total, pricing?.lavaEnabled).map((c) => (
+                        <button key={c.id} disabled={buyingLava !== null}
+                          onClick={() => handleBuyLava({ what: "plan", kind: effectiveKind, term }, c.id, c.currency, `plan:${c.id}`)}
+                          className="nm-btn px-3 py-2 text-xs font-medium text-nm-text flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                          {buyingLava === `plan:${c.id}`
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <>{LAVA_LABEL[c.id]} · {formatCharge(selPrice?.total as number, c.currency)}</>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-nm-text-secondary text-center mt-2">{isRenewal ? (RENEW_NOTE[lang] ?? RENEW_NOTE.en) : t.renews_note}</p>
                 <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
@@ -525,6 +616,24 @@ export default function DashboardPage() {
                   className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                   {buyingAltDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {t.pay_crypto}</>}
                 </button>
+                {lavaChips(pricing?.deviceAddonPrice, pricing?.lavaEnabled).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[11px] text-nm-text-secondary text-center mb-1.5 opacity-80">
+                      {LAVA_NOTE[lang] ?? LAVA_NOTE.en}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {lavaChips(pricing?.deviceAddonPrice, pricing?.lavaEnabled).map((c) => (
+                        <button key={c.id} disabled={buyingLava !== null}
+                          onClick={() => handleBuyLava({ what: "device" }, c.id, c.currency, `device:${c.id}`)}
+                          className="nm-btn px-3 py-2 text-xs font-medium text-nm-text flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                          {buyingLava === `device:${c.id}`
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <>{LAVA_LABEL[c.id]} · {formatCharge(pricing?.deviceAddonPrice as number, c.currency)}</>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
               </div>
             )}
