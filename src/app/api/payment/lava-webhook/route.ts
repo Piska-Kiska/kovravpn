@@ -43,6 +43,7 @@ import {
   verifyWebhookAuth,
 } from "@/lib/lava";
 import { chargeIn, getCharge, priceUsdForOrderId } from "@/lib/lava-purchase";
+import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import type { LavaCurrency } from "@/lib/lava-methods";
 import { redis } from "@/lib/redis";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
@@ -234,8 +235,18 @@ export async function POST(req: NextRequest) {
     return retry("storage_unavailable");
   }
 
+  // Два вида покупки на одной линии, и различаются они только видом номера.
+  //
+  // `sub_…`/`dev_…` — покупка подписки с сайта. `topup_…` — пополнение
+  // кошелька из бота: тарифы бот покупает с кошелька, поэтому валютная линия
+  // пополняет именно его. Без этой ветки оплата из бота дошла бы до сюда и
+  // упала в «контракт без покупки» — деньги взяты, кошелёк пуст.
+  const topup = orderId === null ? null : parseTopupOrderId(orderId);
   const parsed = orderId === null ? null : parseSubOrderId(orderId);
-  if (parsed === null) {
+  // Владелец покупки — то из двух, что разобралось. Оба вида несут userId, и
+  // одна переменная избавляет от приведений типов ниже по коду.
+  const owner = topup ?? parsed;
+  if (owner === null) {
     console.warn("[lava-webhook] contract without a purchase", contractId, invoice.status);
     // Тревожим ТОЛЬКО когда деньги действительно взяты. Неоплаченные
     // проверочные контракты копятся десятками и будить админа не должны.
@@ -256,7 +267,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, note: "no purchase", status: invoice.status });
   }
 
-  const userId = parsed.userId;
+  const userId = owner.userId;
 
   // Успех, о котором их собственный API ещё не знает.
   //
@@ -305,7 +316,7 @@ export async function POST(req: NextRequest) {
   let expected: { amount: number; currency: string } | null = null;
   if (stored !== null) {
     expected = { amount: stored.amount, currency: stored.currency };
-  } else {
+  } else if (parsed !== null) {
     const priceUsd = priceUsdForOrderId(parsed);
     try {
       expected =
@@ -316,6 +327,8 @@ export async function POST(req: NextRequest) {
       expected = null;
     }
   }
+  // У пополнения кошелька пересчитать нечего: сумму выбирал человек, и знать
+  // её можно только из записи. Нет записи — не зачисляем, будет тревога ниже.
 
   if (
     expected === null ||
@@ -338,6 +351,57 @@ export async function POST(req: NextRequest) {
       ].join("\n"),
     );
     return NextResponse.json({ ok: true, status: "amount_mismatch" });
+  }
+
+  // ── Пополнение кошелька ──────────────────────────────────────────────────
+  //
+  // Зачисляем ДОЛЛАРЫ, выбранные человеком, а не списанную сумму: у еврового
+  // счёта это разные числа, и зачислить €9.20 как $9.20 значит подарить
+  // разницу или отобрать её.
+  if (topup !== null) {
+    const usd = stored?.priceUsd;
+    if (typeof usd !== "number" || !Number.isFinite(usd) || usd <= 0) {
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>lava.top: оплачено пополнение без записи</b>\nконтракт <code>${esc(contractId)}</code>, пополнение <code>${esc(orderId)}</code>. Кошелёк НЕ пополнен — зачислить вручную.`,
+      );
+      return NextResponse.json({ ok: true, status: "no topup record" });
+    }
+    let newBal: number;
+    try {
+      newBal = await addBalanceUsd(userId, usd);
+    } catch (err) {
+      console.error("[lava-webhook] wallet credit failed, requesting retry:", err);
+      return retry("credit_failed");
+    }
+    await notifyUser(
+      userId,
+      [
+        `✅ <b>Balance topped up</b>`,
+        ``,
+        `💵 +$${usd.toFixed(2)}`,
+        `💰 Balance: <b>$${newBal.toFixed(2)}</b>`,
+      ].join("\n"),
+    );
+    const feeTopup = Number(invoice.receipt?.fee);
+    await sendTelegram(
+      ADMIN_TG_ID,
+      [
+        `🌋 <b>Kovra: пополнение кошелька через lava.top</b>`,
+        ``,
+        `+$${usd.toFixed(2)} · списано ${paid} ${esc(currency)}` +
+          (Number.isFinite(feeTopup) ? ` · комиссия ${feeTopup}` : ""),
+        `user <code>${esc(userId)}</code>`,
+        `contract <code>${esc(contractId)}</code>`,
+      ].join("\n"),
+    );
+    return NextResponse.json({ ok: true, status: "credited" });
+  }
+
+  // Дальше — только покупка подписки: пополнение кошелька вышло выше, а
+  // «ни то, ни другое» отсеяно ещё до сверки суммы.
+  if (parsed === null) {
+    return NextResponse.json({ ok: true, ignored: "no purchase" });
   }
 
   // ── Ступень 1: выдача (граница, после которой повтор удваивал бы) ─────────

@@ -27,6 +27,17 @@ import { getReferralStats, resolveReferralCode, recordReferral, grantReferralRew
 import { syncAllExpiry } from "@/lib/balance";
 import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { createInvoice } from "@/lib/nowpayments";
+import {
+  LAVA_MIN_AMOUNT,
+  createInvoice as createLavaInvoice,
+  lavaConfigured,
+  lavaMethodChoices,
+  rememberContract,
+} from "@/lib/lava";
+import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
+import { chargeIn, formatCharge } from "@/lib/lava-price";
+import { rememberCharge } from "@/lib/lava-purchase";
+import { buildTopupOrderId as buildLavaTopupOrderId } from "@/lib/bot-wallet";
 import { createCardPayment } from "@/lib/cashera-order";
 import { getBalanceUsd, addBalanceUsd, chargeBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
 import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddon, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
@@ -704,9 +715,11 @@ const MIN_TOPUP_CARD_USD = 5;
 const MAX_TOPUP_USD = 1000;
 const QUICK_TOPUP = [10, 20, 50, 100];
 
-type TopupMethod = "crypto" | "cryptobot" | "card";
+type TopupMethod = "crypto" | "cryptobot" | "card" | "lava";
 
 function minForMethod(method: TopupMethod): number {
+  // Порог самой лавы, а не наше число: счета ниже $5 она не выставляет вовсе.
+  if (method === "lava") return LAVA_MIN_AMOUNT.USD;
   if (method === "card") return MIN_TOPUP_CARD_USD;
   return method === "cryptobot" ? MIN_TOPUP_CRYPTOBOT_USD : MIN_TOPUP_NOWPAY_USD;
 }
@@ -718,6 +731,9 @@ async function screenTopup(chatId: number, msgId: number) {
     [{ text: t("topup.m.card", lang) + ` · $${MIN_TOPUP_CARD_USD}+`, callback_data: "topup_m_card" }],
     [{ text: t("topup.m.cryptobot", lang) + ` · $${MIN_TOPUP_CRYPTOBOT_USD}+`, callback_data: "topup_m_cryptobot" }],
     [{ text: t("topup.m.crypto", lang) + ` · $${MIN_TOPUP_NOWPAY_USD}+`, callback_data: "topup_m_crypto" }],
+    ...(lavaConfigured
+      ? [[{ text: `🌍 Card · PayPal · Apple Pay · $${LAVA_MIN_AMOUNT.USD}+`, callback_data: "topup_m_lava" }]]
+      : []),
     backBtn("account", lang),
   ]);
 }
@@ -735,6 +751,107 @@ async function screenTopupAmount(chatId: number, msgId: number, method: TopupMet
   rows.push([{ text: t("topup.manual", lang), callback_data: `tu_${method}_manual` }]);
   rows.push(backBtn("topup", lang));
   await edit(chatId, msgId, t("topup.pick", lang, { min, max: MAX_TOPUP_USD }), rows);
+}
+
+/** Подписи способов. Bancontact пропущен: он один требует имя покупателя. */
+const LAVA_BOT_LABEL: Partial<Record<LavaMethodId, string>> = {
+  card: "💳 Card",
+  paypal: "🅿️ PayPal",
+  applepay: "🍎 Apple Pay",
+  pix: "🇧🇷 Pix",
+  sepa: "🇪🇺 SEPA",
+  ideal: "🇳🇱 iDEAL",
+  mbway: "🇵🇹 MB WAY",
+};
+
+/**
+ * Второй уровень выбора: чем именно платить.
+ *
+ * Отдельным экраном, потому что лава показывает покупателю РОВНО ОДИН способ
+ * на счёт — списка на её странице нет. Сумма подписана у каждого: в евро она
+ * другая, и человек должен видеть списание до перехода.
+ */
+async function screenLavaMethods(chatId: number, msgId: number, amountUsd: number) {
+  const lang = await resolveLang(await getUserId(chatId));
+  const min = minForMethod("lava");
+  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+    return;
+  }
+  // Способы, которых лава на эту сумму не примет, не показываем вовсе: на $5
+  // евровые отпадают, и показанная кнопка довела бы до отказа после нажатия.
+  const chips = lavaMethodChoices("USD", (c) => chargeIn(amountUsd, c)).filter(
+    (c) => LAVA_BOT_LABEL[c.id] !== undefined,
+  );
+  const rows: InlineBtn[][] = [];
+  for (let i = 0; i < chips.length; i += 2) {
+    rows.push(chips.slice(i, i + 2).map((c) => ({
+      text: `${LAVA_BOT_LABEL[c.id]} · ${formatCharge(amountUsd, c.currency)}`,
+      callback_data: `lv_${amountUsd}_${c.id}_${c.currency}`,
+    })));
+  }
+  rows.push(backBtn("topup_m_lava", lang));
+  await edit(chatId, msgId, [
+    `🌍 <b>Top up $${amountUsd.toFixed(2)}</b>`,
+    ``,
+    `Choose how to pay — the button shows the exact amount.`,
+    ``,
+    `<i>The payment page will offer only the method you pick: that is how the gateway works.</i>`,
+  ].join("\n"), rows);
+}
+
+async function handleTopupLava(
+  chatId: number,
+  msgId: number,
+  amountUsd: number,
+  method: LavaMethodId,
+  currency: LavaCurrency,
+) {
+  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  if (!userId) {
+    await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]);
+    return;
+  }
+  const min = minForMethod("lava");
+  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+    return;
+  }
+  try {
+    const charge = chargeIn(amountUsd, currency);
+    const topupId = buildLavaTopupOrderId(userId);
+    const invoice = await createLavaInvoice({
+      orderId: topupId,
+      amount: charge,
+      currency,
+      methodId: method,
+      locale: lang === "ru" ? "ru" : "en",
+      successUrl: `${SITE_URL}/dashboard?paid=lava`,
+      failUrl: `${SITE_URL}/dashboard`,
+    });
+    // Указатель и ожидаемая сумма — ДО того, как ссылка уйдёт человеку: в
+    // событии лавы нашего номера нет, и без записи зачислять будет нечего.
+    await rememberContract(invoice.contractId, topupId);
+    await rememberCharge(invoice.contractId, {
+      orderId: topupId,
+      userId,
+      currency,
+      amount: charge,
+      priceUsd: amountUsd,
+      label: `wallet top-up $${amountUsd.toFixed(2)}`,
+      createdAt: Date.now(),
+    });
+    await edit(chatId, msgId,
+      t("topup.invoice", lang, { amount: amountUsd.toFixed(2) }),
+      [
+        [{ text: `${formatCharge(amountUsd, currency)}`, url: invoice.paymentUrl }],
+        backBtn("topup_m_lava", lang),
+      ]);
+  } catch (err) {
+    console.error("[bot] lava topup error:", err instanceof Error ? err.message : err);
+    await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
+  }
 }
 
 async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
@@ -915,9 +1032,27 @@ export async function POST(req: NextRequest) {
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");
       else if (data === "topup_m_card") await screenTopupAmount(chatId, msgId, "card");
+      else if (data === "topup_m_lava") {
+        if (!lavaConfigured) await screenTopup(chatId, msgId);
+        else await screenTopupAmount(chatId, msgId, "lava");
+      }
+      else if (data.startsWith("lv_")) {
+        const [, amt, method, cur] = data.split("_");
+        const n = Number(amt);
+        if (Number.isFinite(n) && method && cur) {
+          await handleTopupLava(chatId, msgId, n, method as LavaMethodId, cur as LavaCurrency);
+        }
+      }
       else if (data.startsWith("tu_")) {
         const parts = data.split("_");
-        const method: TopupMethod = parts[1] === "cryptobot" ? "cryptobot" : parts[1] === "card" ? "card" : "crypto";
+        const method: TopupMethod =
+          parts[1] === "cryptobot"
+            ? "cryptobot"
+            : parts[1] === "card"
+              ? "card"
+              : parts[1] === "lava"
+                ? "lava"
+                : "crypto";
         const val = parts[2];
         if (val === "manual") {
           await redis.set(`topup_usd_await:${chatId}`, method, { ex: 300 });
@@ -925,7 +1060,12 @@ export async function POST(req: NextRequest) {
           await edit(chatId, msgId, t("topup.amount", lang, { min: minForMethod(method), max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
         } else {
           const amt = parseInt(val);
-          if (Number.isFinite(amt)) await handleTopupBalance(chatId, msgId, method, amt);
+          if (Number.isFinite(amt)) {
+            // У валютной линии между суммой и счётом стоит выбор способа:
+            // лава показывает ровно один на счёт.
+            if (method === "lava") await screenLavaMethods(chatId, msgId, amt);
+            else await handleTopupBalance(chatId, msgId, method, amt);
+          }
         }
       }
       else if (data.startsWith("buyplan_")) {
@@ -1103,11 +1243,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Custom top-up amount in USD (crypto / cryptobot)
+    // Своя сумма пополнения в долларах — для любого способа кошелька.
     const topupMethod = await redis.get(`topup_usd_await:${chatId}`);
     if (topupMethod) {
       const lang = await resolveLang(await getUserId(chatId));
-      const method: TopupMethod = String(topupMethod) === "cryptobot" ? "cryptobot" : String(topupMethod) === "card" ? "card" : "crypto";
+      const saved = String(topupMethod);
+      const method: TopupMethod =
+        saved === "cryptobot"
+          ? "cryptobot"
+          : saved === "card"
+            ? "card"
+            : saved === "lava"
+              ? "lava"
+              : "crypto";
       const amt = parseFloat(String(text).replace(",", "."));
       await redis.del(`topup_usd_await:${chatId}`);
       const msg = await tgWithResponse("sendMessage", {
@@ -1117,7 +1265,8 @@ export async function POST(req: NextRequest) {
       });
       const newMsgId = msg?.result?.message_id;
       if (newMsgId) {
-        await handleTopupBalance(chatId, newMsgId, method, amt);
+        if (method === "lava") await screenLavaMethods(chatId, newMsgId, amt);
+        else await handleTopupBalance(chatId, newMsgId, method, amt);
       }
       return NextResponse.json({ ok: true });
     }
