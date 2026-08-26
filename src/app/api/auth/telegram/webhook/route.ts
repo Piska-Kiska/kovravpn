@@ -732,7 +732,7 @@ async function screenTopup(chatId: number, msgId: number) {
     [{ text: t("topup.m.cryptobot", lang) + ` · $${MIN_TOPUP_CRYPTOBOT_USD}+`, callback_data: "topup_m_cryptobot" }],
     [{ text: t("topup.m.crypto", lang) + ` · $${MIN_TOPUP_NOWPAY_USD}+`, callback_data: "topup_m_crypto" }],
     ...(lavaConfigured
-      ? [[{ text: `🌍 Card · PayPal · Apple Pay · $${LAVA_MIN_AMOUNT.USD}+`, callback_data: "topup_m_lava" }]]
+      ? [[{ text: t("topup.m.lava", lang) + ` · $${LAVA_MIN_AMOUNT.USD}+`, callback_data: "topup_m_lava" }]]
       : []),
     backBtn("account", lang),
   ]);
