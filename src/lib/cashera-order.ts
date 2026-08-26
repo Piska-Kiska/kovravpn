@@ -27,8 +27,20 @@ import { usdToRubMinor } from "@/lib/cashera-fx";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "kovravpn_bot";
 const PAYMENT_METHOD = process.env.CASHERA_PAYMENT_METHOD || "";
-const ORDER_TTL_SEC = 7 * 86400; // webhook verification window
-const TX_PTR_TTL_SEC = 72 * 60 * 60; // uuid→externalId ops pointer
+// ПОЧЕМУ ПОЛГОДА, А НЕ НЕДЕЛЯ.
+//
+// Здесь стояло 7 дней — «окно проверки вебхука», в расчёте на то, что счёт
+// оплачивают сразу. 26.08.2026 пришла оплата на 100 ₽ по счёту, выставленному
+// раньше этого срока: запись истекла, вебхуку стало не с чем сверять сумму и
+// некому зачислять, и деньги повисли с тревогой «NOT credited».
+//
+// Срок жизни записи — это не окно ожидания, а срок, в течение которого мы
+// вообще способны опознать платёж. Запись весит полторы сотни байт, и держать
+// её полгода дешевле одного разбора вручную. Указатель uuid → externalId живёт
+// столько же: он нужен ровно тогда, когда что-то пошло не так, то есть позже
+// всех остальных сроков.
+const ORDER_TTL_SEC = 180 * 86400; // см. комментарий ниже
+const TX_PTR_TTL_SEC = 180 * 86400; // uuid → externalId, живёт столько же
 
 export type CardPurchase =
   | { type: "plan"; kind: PlanKind; term: Term }
