@@ -34,6 +34,7 @@ import { syncAllExpiry } from "@/lib/balance";
 import { grantReferralReward } from "@/lib/referrals";
 import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
 import {
+  LAVA_UTM_SOURCE,
   LavaError,
   getInvoice,
   isContractId,
@@ -182,6 +183,26 @@ export async function POST(req: NextRequest) {
     }
     console.error("[lava-webhook] invoice fetch failed:", err);
     return retry("upstream_unavailable");
+  }
+
+
+  // Событие чужого проекта.
+  //
+  // Все три бренда могут жить в одном кабинете lava.top, а адрес вебхука там
+  // один на кабинет — управления вебхуками в их API нет ни одного метода.
+  // Значит сюда прилетает и то, что куплено у соседей. Отличаем по метке
+  // источника ИЗ ОТВЕТА ИХ API: тело события подделывается, ответ — нет.
+  //
+  // Тихие 200 и никаких тревог: чужая оплата не наша забота, а «оплачен счёт
+  // без заказа» на каждую соседскую продажу — это сообщение, которое админ
+  // научится не читать.
+  const utmSource = invoice.clientUtm?.utm_source;
+  if (
+    typeof utmSource === "string" &&
+    utmSource !== "" &&
+    utmSource !== LAVA_UTM_SOURCE
+  ) {
+    return NextResponse.json({ ok: true, ignored: "another project" });
   }
 
   let orderId: string | null;

@@ -71,6 +71,17 @@ function envValue(name: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+/**
+ * Чей это контракт. Уезжает в `utm_source` и возвращается в ответе их API.
+ *
+ * Нужна не для аналитики. Три наших бренда могут жить в ОДНОМ кабинете
+ * lava.top, а адрес вебхука в их API не настраивается вовсе — он один на
+ * кабинет. Значит на один адрес прилетают события всех трёх, и отличить своё
+ * от чужого можно только меткой. Раньше во всех трёх копиях стояло
+ * «proxysvpn-store», унаследованное при переносе: события были неразличимы.
+ */
+export const LAVA_UTM_SOURCE = "kovravpn";
+
 const API_BASE = "https://gate.lava.top";
 const TIMEOUT_MS = 20_000;
 
@@ -168,7 +179,10 @@ export interface LavaInvoice {
     readonly fee?: number;
   };
   readonly buyer?: { readonly email?: string };
-  readonly clientUtm?: { readonly utm_content?: string | null };
+  readonly clientUtm?: {
+    readonly utm_content?: string | null;
+    readonly utm_source?: string | null;
+  };
 }
 
 export class LavaError extends Error {
@@ -298,7 +312,7 @@ export async function createInvoice(
     // путь — указатель в базе; это запасной, на случай если запись указателя
     // не пережила выката.
     clientUtm: {
-      utm_source: "proxysvpn-store",
+      utm_source: LAVA_UTM_SOURCE,
       utm_medium: "checkout",
       utm_content: input.orderId,
     },
