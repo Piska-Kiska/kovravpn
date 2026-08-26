@@ -109,6 +109,29 @@ export async function POST(req: NextRequest) {
   const auth = verifyWebhookAuth(req.headers);
   if (auth === "bad") {
     console.warn("[lava-webhook] rejected: bad credentials");
+    // Разъехавшийся секрет — тихая катастрофа: событий не будет ни одного, все
+    // оплаты повиснут невыданными, и увидеть это можно только в журнале
+    // функции, куда никто не смотрит без повода. Поэтому тревога.
+    //
+    // Не чаще раза в час: по этому адресу стучат и сканеры, и превращать их в
+    // поток сообщений нельзя — иначе первое настоящее потеряется среди них.
+    try {
+      if (await reserveDedupKey("lava_auth_alert", 3600)) {
+        await sendTelegram(
+          ADMIN_TG_ID,
+          [
+            `🔐 <b>lava.top: событие отвергнуто по учётным данным</b>`,
+            ``,
+            `Заголовок вебхука не сошёлся с LAVA_WEBHOOK_API_KEY.`,
+            `Если это лава, а не сканер — <b>ни одна оплата сейчас не доходит</b>.`,
+            ``,
+            `Сверить секрет в кабинете и в переменных. Следующее такое сообщение — не раньше чем через час.`,
+          ].join("\n"),
+        );
+      }
+    } catch {
+      /* тревога не должна мешать ответу */
+    }
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (auth === "unconfigured") {
