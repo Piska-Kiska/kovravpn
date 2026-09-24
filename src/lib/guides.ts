@@ -18,6 +18,7 @@ export type GuideTag =
   | "Proxies"
   | "Censorship"
   | "Setup"
+  | "Troubleshooting"
   | "Comparisons";
 
 export interface GuideMeta {
@@ -572,6 +573,180 @@ export const GUIDES: readonly GuideMeta[] = [
       "cheaper than expressvpn",
     ],
   },
+  {
+    slug: "how-to-set-up-vpn-on-android",
+    title: "How to Set Up a VPN on Android: VLESS Reality with Happ (2026)",
+    description:
+      "Set up a VPN on Android with Happ: import a VLESS Reality subscription, turn on Always-on VPN, and stop battery, Private DNS and Data Saver drops.",
+    teaser:
+      "Import the link, accept one system prompt, then switch on Android's own kill switch and stop battery savers from closing the tunnel.",
+    tag: "Setup",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 10,
+    tldr: "To set up a VPN on Android, install Happ from Google Play, import the subscription link created for this phone by pasting it or scanning its QR code, then connect and accept Android's VPN request. Turn on Always-on VPN and Block connections without VPN, and set Happ's battery usage to Unrestricted so Android does not close the tunnel.",
+    keywords: [
+      "how to set up vpn on android",
+      "vless reality android",
+      "happ android subscription",
+      "vpn on android tv",
+      "android always-on vpn",
+      "android vpn kill switch",
+      "happ android tv setup",
+    ],
+  },
+  {
+    slug: "how-to-set-up-vpn-on-windows",
+    title: "How to Set Up a VPN on Windows 11 and 10: TUN vs System Proxy",
+    description:
+      "Set up a VLESS Reality VPN on Windows 11 or 10 with Happ: official installer, subscription import, TUN vs system proxy, and the leftover-proxy fix.",
+    teaser:
+      "Why your browser goes through the VPN while your game does not, and how to fix a PC with no internet after the client crashes.",
+    tag: "Setup",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 8,
+    tldr: "To set up a VPN on Windows 11 or 10, install Happ from its official GitHub releases, paste the subscription link created for this PC, and choose a mode. TUN sends every app through the VPN, including games and command-line tools, while system proxy mainly covers browsers. Then check IP, DNS, IPv6 and WebRTC with a leak test.",
+    keywords: [
+      "how to set up vpn on windows 11",
+      "vless reality windows",
+      "happ windows setup",
+      "tun mode vs system proxy",
+      "vpn setup windows 10",
+      "no internet after closing vpn windows",
+      "happ tun mode",
+    ],
+  },
+  {
+    slug: "how-to-set-up-vpn-on-mac",
+    title: "How to Set Up a VPN on a Mac: VLESS Reality Clients in 2026",
+    description:
+      "Set up a VLESS Reality VPN on macOS with Happ: App Store or DMG build, subscription import, the VPN prompt, iCloud Private Relay and vanished clients.",
+    teaser:
+      "Two builds of the same client, the macOS prompts you will see, and which often-recommended apps are no longer in the App Store.",
+    tag: "Setup",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 7,
+    tldr: "To set up a VPN on a Mac, install Happ from the Mac App Store on macOS 15 or later, or Happ's DMG from its official GitHub releases on macOS 13 or 14. Import the subscription link created for this Mac, allow the VPN configuration, switch off iCloud Private Relay, then check IP, DNS and IPv6 with a leak test.",
+    keywords: [
+      "how to set up vpn on mac",
+      "vless client mac",
+      "vless reality macos",
+      "happ macos",
+      "happ mac app store",
+      "foxray alternative mac",
+      "icloud private relay vpn",
+    ],
+  },
+  {
+    slug: "vpn-subscription-link-explained",
+    title: "What Is a VPN Subscription Link? How It Works, How to Guard It",
+    description:
+      "What a VPN subscription link contains, how it updates itself, why it must stay private, and how one-link-per-device binding and reset work on Kovra.",
+    teaser:
+      "What your app actually downloads from that long URL, why it refreshes itself, and why each link belongs to one device.",
+    tag: "Setup",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 9,
+    tldr: "A VPN subscription link is a private URL your app downloads its server list from and re-checks automatically, so new locations and plan changes arrive without re-pasting anything. It needs no login and carries your account token, so treat it like a password. On Kovra each link works on one device; create a separate link per device.",
+    keywords: [
+      "vpn subscription link",
+      "v2ray subscription link",
+      "vless subscription url",
+      "one device per link",
+      "happ subscription link",
+      "reset device binding vpn",
+      "is my vpn subscription link private",
+    ],
+  },
+  {
+    slug: "vpn-connected-but-no-internet",
+    title: "VPN Connected but No Internet? Fixes for VLESS Reality Apps",
+    description:
+      "VPN shows connected but nothing loads? An ordered checklist for VLESS REALITY apps such as Happ: notice entries, refresh, clock, DNS, other VPNs, Wi-Fi.",
+    teaser:
+      "An ordered checklist that finds the cause in minutes, starting with the entry name most people never read.",
+    tag: "Troubleshooting",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 9,
+    tldr: "When a VPN says connected but nothing loads, first read the name of the entry you are on: a notice such as 'No active plan' carries no traffic. Then refresh the subscription, try another location and another network, set the clock to automatic, close other VPN or security apps, reset custom DNS, and check for a Wi-Fi login page.",
+    keywords: [
+      "vpn connected but no internet",
+      "vless connected but no internet",
+      "happ connected but no internet",
+      "v2rayng connected no internet",
+      "vpn connected no internet fix",
+      "vpn connected but not working",
+    ],
+  },
+  {
+    slug: "crypto-payment-not-credited",
+    title: "Paid for a VPN in Crypto but It's Not Active? How to Fix It",
+    description:
+      "Crypto payment for a VPN not credited? Find your TxID, check it on a block explorer, and sort out pending, underpaid, wrong-network or expired invoices.",
+    teaser:
+      "Pending, underpaid, wrong network or expired: how to tell which from your transaction hash, and what to send support.",
+    tag: "Troubleshooting",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 9,
+    tldr: "If you paid for a VPN in crypto and it is not active, the transfer is usually still confirming, arrived short after an exchange fee, went out on the wrong network, or was sent late. Look up your transaction hash on a block explorer, don't pay twice, and send support the TxID. Never share your seed phrase.",
+    keywords: [
+      "crypto payment not credited",
+      "nowpayments partially paid",
+      "paid vpn with usdt not activated",
+      "sent usdt on wrong network",
+      "crypto payment pending vpn",
+      "vpn payment txid",
+    ],
+  },
+  {
+    slug: "vpn-in-turkey",
+    title: "Using a VPN in Turkey in 2026: What's Legal and What's Blocked",
+    description:
+      "Personal VPN use is legal in Turkey, but VPN sites, eSIM stores and social apps are blocked or throttled. What to set up before you fly, with dated sources.",
+    teaser:
+      "What the law says, what gets blocked or throttled, and the install-first checklist for travellers, expats and Turks abroad, with every figure dated.",
+    tag: "Censorship",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 9,
+    tldr: "Yes, personal VPN use is legal in Turkey, but the state blocks many VPN providers' websites, many VPN servers and, since July 2025, most travel-eSIM stores, and it throttles social media during major events. Install, pay for and test your VPN and eSIM before you arrive, and connect to a location outside Turkey. Nothing guarantees access.",
+    keywords: [
+      "vpn in turkey",
+      "is vpn legal in turkey",
+      "vpn blocked in turkey",
+      "turkey vpn 2026",
+      "esim blocked turkey",
+      "turkey social media throttling",
+      "turkish ip address vpn",
+    ],
+  },
+  {
+    slug: "vpn-not-working-on-hotel-wifi",
+    title: "VPN Not Working on Hotel or Airport Wi-Fi? Fix Captive Portals",
+    description:
+      "Hotel, airport and plane Wi-Fi often hold you at a login page before traffic leaves. How to get past it with a VPN, plus UDP blocks, MAC rotation and fallbacks.",
+    teaser:
+      "The login page your VPN is hiding, the settings that keep it away, and what to try when the network itself blocks the tunnel.",
+    tag: "Troubleshooting",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    minutes: 8,
+    tldr: "Many hotel and airport networks hold each new device at a login page before any traffic can leave, and a VPN can hide that page. Pause the VPN, open a plain-HTTP page such as neverssl.com to finish the login, then reconnect. If it still fails, the network may block the traffic itself, and a phone hotspot is the fallback.",
+    keywords: [
+      "vpn not working on hotel wifi",
+      "hotel wifi login page not showing",
+      "airport wifi vpn not connecting",
+      "captive portal vpn",
+      "vpn on airplane wifi",
+      "hotel wifi vpn",
+      "wifi login page not appearing",
+    ],
+  },
 ] as const;
 
 export function getGuide(slug: string): GuideMeta {
@@ -607,6 +782,7 @@ export const TAG_ORDER: readonly GuideTag[] = [
   "Censorship",
   "Comparisons",
   "Setup",
+  "Troubleshooting",
 ] as const;
 
 /** Guides grouped by tag in TAG_ORDER, empty buckets dropped. */

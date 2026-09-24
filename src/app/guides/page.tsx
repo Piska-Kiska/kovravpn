@@ -49,6 +49,7 @@ const GROUP_LEAD: Record<string, string> = {
   Censorship: "What still connects on filtered, throttled and probed networks.",
   Comparisons: "Honest looks at the providers people search for by name.",
   Setup: "Getting connected, per platform, without the guesswork.",
+  Troubleshooting: "Fixes for the problems people actually hit: no internet, login pages, payments.",
 };
 
 export default function GuidesPage() {

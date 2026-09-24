@@ -87,6 +87,24 @@ export const KEYWORD_LINKS: readonly KeywordLink[] = [
   { term: "expressvpn alternative", slug: "expressvpn-alternative" },
   { term: "how to set up a vpn on iphone", slug: "how-to-set-up-vpn-on-iphone" },
   { term: "ios vpn setup", slug: "how-to-set-up-vpn-on-iphone" },
+
+  // Setup and troubleshooting (25.09.2026)
+  { term: "set up a vpn on android", slug: "how-to-set-up-vpn-on-android" },
+  { term: "vless client for android", slug: "how-to-set-up-vpn-on-android" },
+  { term: "set up a vpn on windows", slug: "how-to-set-up-vpn-on-windows" },
+  { term: "vless client for windows", slug: "how-to-set-up-vpn-on-windows" },
+  { term: "set up a vpn on a mac", slug: "how-to-set-up-vpn-on-mac" },
+  { term: "vless client for macos", slug: "how-to-set-up-vpn-on-mac" },
+  { term: "vpn subscription link", slug: "vpn-subscription-link-explained" },
+  { term: "one device per link", slug: "vpn-subscription-link-explained" },
+  { term: "vpn connected but no internet", slug: "vpn-connected-but-no-internet" },
+  { term: "vpn connected but not working", slug: "vpn-connected-but-no-internet" },
+  { term: "crypto payment not credited", slug: "crypto-payment-not-credited" },
+  { term: "paid in crypto but not activated", slug: "crypto-payment-not-credited" },
+  { term: "vpn in turkey", slug: "vpn-in-turkey" },
+  { term: "is a vpn legal in turkey", slug: "vpn-in-turkey" },
+  { term: "vpn not working on hotel wifi", slug: "vpn-not-working-on-hotel-wifi" },
+  { term: "vpn and captive portals", slug: "vpn-not-working-on-hotel-wifi" },
 ] as const;
 
 /**
