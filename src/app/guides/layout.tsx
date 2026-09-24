@@ -6,6 +6,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./guides.css";
+import KovraWordmark from "@/components/KovraWordmark";
 
 export const metadata: Metadata = {
   openGraph: { locale: "en_US" },
@@ -21,9 +22,7 @@ export default function GuidesLayout({
       <header className="gd-head">
         <div className="gd-wrap gd-head-in">
           <Link href="/" className="gd-brand">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="" width={26} height={26} />
-            Kovra<span className="gd-dot">.</span>
+            <KovraWordmark height={24} />
           </Link>
           <nav className="gd-head-nav" aria-label="Guides">
             <Link href="/guides">Guides</Link>
@@ -41,9 +40,7 @@ export default function GuidesLayout({
       <footer className="gd-foot">
         <div className="gd-wrap gd-foot-in">
           <Link href="/" className="gd-brand" style={{ fontSize: 15 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="" width={22} height={22} />
-            Kovra<span className="gd-dot">.</span>
+            <KovraWordmark height={19} />
           </Link>
           <nav className="gd-foot-links" aria-label="Footer">
             <Link href="/guides">Guides</Link>

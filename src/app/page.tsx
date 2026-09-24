@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import Reveal from "@/components/fx/Reveal";
 import DigitRoll from "@/components/fx/DigitRoll";
 import "./home.css";
+import KovraWordmark from "@/components/KovraWordmark";
 
 type Lang = "en" | "ru" | "es" | "de" | "fr";
 type Theme = "dark" | "light";
@@ -372,8 +373,7 @@ export default function Page() {
       <header className={`kv-hd${scrolled ? " on" : ""}`}>
         <div className="kv-wrap kv-hd-in">
           <a className="kv-brand" href="#top">
-            <img src="/icon-192.png" alt="" width={26} height={26} />
-            Kovra<span className="kv-dot">.</span>
+            <KovraWordmark height={24} />
           </a>
           <nav className="kv-nav" aria-label="Sections">
             <a href="#features">{t.nav_features}</a>
@@ -601,8 +601,7 @@ export default function Page() {
       <footer className="kv-foot">
         <div className="kv-wrap kv-foot-in">
           <a className="kv-brand" href="#top" style={{ fontSize: 17 }}>
-            <img src="/icon-192.png" alt="" width={24} height={24} />
-            Kovra<span className="kv-dot">.</span>
+            <KovraWordmark height={20} />
           </a>
           <nav className="kv-foot-links" aria-label="Footer">
             <a href="#features">{t.nav_features}</a>

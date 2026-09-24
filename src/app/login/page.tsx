@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Eye, EyeOff, ArrowLeft, Mail, Send, Sun, Moon } from "lucide-react";
 import LangSwitcher from "@/components/LangSwitcher";
 import { trackEvent } from "@/lib/attribution";
+import KovraWordmark from "@/components/KovraWordmark";
 
 type AuthMethod = "email" | "telegram";
 type Theme = "dark" | "light";
@@ -279,8 +280,7 @@ export default function LoginPage() {
         <nav className="kvr-nav">
           <div className="kvr-nav-in">
             <Link href="/" className="kvr-brand">
-              <img src="/icon-192.png" alt="" />
-              <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
+              <KovraWordmark height={22} />
             </Link>
             <div className="kvr-nav-right">
               <KvrToggles theme={theme} setTheme={setTheme} />
@@ -294,8 +294,7 @@ export default function LoginPage() {
 
         <div className="kvr-card">
           <div className="kvr-logo">
-            <img src="/icon-192.png" alt="" />
-            <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
+            <KovraWordmark height={30} />
           </div>
           <h1 className="kvr-h1" data-i18n="login.title">Sign in</h1>
           <p className="kvr-sub" data-i18n="login.subtitle">Manage your subscription and settings</p>

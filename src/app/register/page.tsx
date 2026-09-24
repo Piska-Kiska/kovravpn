@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Eye, EyeOff, ArrowLeft, Mail, Send, MailCheck, Sun, Moon } from "lucide-react";
 import LangSwitcher from "@/components/LangSwitcher";
 import { trackEvent } from "@/lib/attribution";
+import KovraWordmark from "@/components/KovraWordmark";
 
 function KvrToggles({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
   const toggleTheme = () => {
@@ -319,8 +320,7 @@ export default function RegisterPage() {
         <nav className="kvr-nav">
           <div className="kvr-nav-in">
             <Link href="/" className="kvr-brand">
-              <img src="/icon-192.png" alt="" />
-              <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
+              <KovraWordmark height={22} />
             </Link>
             <div className="kvr-nav-right">
               <KvrToggles theme={theme} setTheme={setTheme} />
@@ -335,8 +335,7 @@ export default function RegisterPage() {
         {/* Card */}
         <div className="kvr-card">
           <div className="kvr-logo">
-            <img src="/icon-192.png" alt="" />
-            <span data-i18n="common.brand">Kovra</span><span className="kvr-dot">.</span>
+            <KovraWordmark height={30} />
           </div>
           <h1 className="kvr-h1" data-i18n="register.title">Create an account</h1>
           <p className="kvr-sub" data-i18n="register.subtitle">Crypto or card. Ready in a minute.</p>
