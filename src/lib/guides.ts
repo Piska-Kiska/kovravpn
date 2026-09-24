@@ -519,7 +519,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "Skip the App Store roulette. A subscription link, one client app, and the toggles that decide whether it stays connected.",
     tag: "Setup",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-09-25",
     minutes: 7,
     tldr:
       "Install a client that supports modern protocols, paste the subscription link your provider gives you, allow the VPN configuration prompt once, and connect. On iOS the two settings that matter afterwards are Connect On Demand, which reconnects automatically, and iCloud Private Relay, which should be off to avoid double-tunnelling Safari.",

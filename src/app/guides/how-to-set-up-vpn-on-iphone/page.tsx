@@ -30,7 +30,7 @@ const HOW_TO = buildHowToSchema({
     },
     {
       name: "Install a client that supports modern protocols",
-      text: "Install an iOS client such as Happ, V2RayTun or Streisand from the App Store. Native iOS VPN settings do not support VLESS or Reality.",
+      text: "Install an iOS client such as Happ or Streisand from the App Store. Native iOS VPN settings do not support VLESS or Reality.",
     },
     {
       name: "Add the subscription",
@@ -90,9 +90,13 @@ export default function Page() {
       <p>
         Providers using modern protocols issue a <em>subscription URL</em>: a
         link containing your server list, keys and parameters, which any
-        compatible client can import. It is the portable format — the same
-        link works on iOS, Android, macOS and Windows, so you configure once
-        and paste everywhere.
+        compatible client on iOS, Android, macOS or Windows can import. Some
+        providers, Kovra included, issue one link per device, so a second
+        phone or a laptop gets its own link rather than a copy of this one.{" "}
+        <Link href="/guides/vpn-subscription-link-explained">
+          How subscription links work
+        </Link>
+        .
       </p>
       <p>
         If you are still choosing a provider, the criteria worth weighing are
@@ -109,11 +113,13 @@ export default function Page() {
 
       <h2>Step 2: install a client</h2>
       <p>
-        On iOS the well-maintained options are <strong>Happ</strong>,{" "}
-        <strong>V2RayTun</strong> and <strong>Streisand</strong>. All three
-        are free, import subscription links, and support VLESS with Reality
-        alongside older protocols. Any of them is fine; providers usually
-        name one because they have tested it against their own servers.
+        On iOS the well-maintained options are <strong>Happ</strong> and{" "}
+        <strong>Streisand</strong>, and <strong>INCY</strong> also imports
+        standard subscription links. They support VLESS with Reality
+        alongside older protocols; providers usually name one because they
+        have tested it against their own servers. <strong>V2RayTun</strong>,
+        still recommended by older guides, was not listed in the US, UK,
+        German or Dutch App Store when we checked on 25 September 2026.
       </p>
       <p>
         Ignore the App Store&apos;s &quot;top free VPN&quot; results while
