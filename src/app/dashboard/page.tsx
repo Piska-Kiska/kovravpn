@@ -1,137 +1,85 @@
 // src/app/dashboard/page.tsx
+//
+// The personal dashboard. This file owns all state, data loading and the
+// request handlers (URLs, payloads, trackEvent calls and redirects are
+// unchanged); the views in src/components/dashboard/* are presentational.
+//
+// Views (hash-routed, see useDashView): #devices (home), #plan, #rewards,
+// #account (#help scrolls to the Help panel).
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { QrToggle } from "@/components/QrToggle";
-import {
-  Home, LogOut, Copy, Check, Download, Shield, CircleAlert,
-  ExternalLink, Loader2, AlertTriangle, Trash2, Plus, Gift,
-  Globe, ChevronDown, Calendar, Layers, RotateCcw,
-} from "lucide-react";
-import LinkAccounts from "@/components/LinkAccounts";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { trackEvent, stripQueryParam } from "@/lib/attribution";
-import { useDashLang, DASH_LANGS, type DashLang } from "@/lib/dash-i18n";
-import { lavaMethodChoices, type LavaCurrency, type LavaMethodId } from "@/lib/lava-methods";
-import { chargeIn, formatCharge } from "@/lib/lava-price";
+import { useDashLang } from "@/lib/dash-i18n";
+import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
+import { Button, CabinetRoot, ConfirmDialog, Notice, cx, readJson, useDocumentTitle } from "@/components/cabinet";
+import { fmt } from "@/lib/cabinet-lang";
+import { copyText } from "@/lib/clipboard";
+import { useShellT } from "@/lib/i18n-shell";
+import { DEVICE_DEFS, isDeviceId, type DeviceId } from "@/lib/dashboard/devices";
+import { dashError } from "@/lib/dashboard/errors";
+import { daysLeft, fmtDate, heroState } from "@/lib/dashboard/format";
+import type { PayRoute } from "@/lib/dashboard/pay-methods";
+import type { AccountData, PlanKind, Pricing, Profile, ReferralData, SubItem, Term } from "@/lib/dashboard/types";
+import { AccountView, type UserInfo } from "@/components/dashboard/AccountView";
+import { AppsSection } from "@/components/dashboard/AppsSection";
+import { BottomNav } from "@/components/dashboard/BottomNav";
+import { DashHeader } from "@/components/dashboard/DashHeader";
+import { DashSkeleton } from "@/components/dashboard/DashSkeleton";
+import { DevicesSection } from "@/components/dashboard/DevicesSection";
+import { ExtraSlotDialog } from "@/components/dashboard/ExtraSlotDialog";
+import { PaymentReturnNotice } from "@/components/dashboard/PaymentReturnNotice";
+import { PlanView } from "@/components/dashboard/PlanView";
+import { RewardsView, type PromoMsg } from "@/components/dashboard/RewardsView";
+import { StatusHero } from "@/components/dashboard/StatusHero";
+import { FirstVisitProvider } from "@/components/dashboard/shared";
+import { useDashView, type DashView } from "@/components/dashboard/useDashView";
+import "./dashboard.css";
 
-type Tab = "home" | "help";
+/** After ?paid=1, a subscription created this long before the page opened counts as the payment. */
+const PAID_RECENT_MS = 30 * 60 * 1000;
+/** sessionStorage key: the plan as it was when the user left for a payment page. */
+const PAID_BASE_KEY = "kovra_paid_base";
+/** A stored baseline older than this is ignored (a payment abandoned long ago). */
+const PAID_BASE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-interface Profile { uuid: string; clientEmail?: string; vlessUrl: string; createdAt: number; deviceType?: string; subToken?: string; }
-interface SubItem { id: string; kind: "plan1" | "plan3" | "device" | "referral"; slots: number; createdAt: number; expiresAt: number; }
-interface PlanPrice { term: number; total: number; perMonth: number; refMonthly: number; }
-interface Pricing {
-  plan1: Record<string, PlanPrice>;
-  plan3: Record<string, PlanPrice>;
-  plan1Slots: number; plan3Slots: number;
-  deviceAddonPrice: number; deviceAddonDays: number;
-  /** Настроена ли линия lava.top. Пусто у старого ответа — считаем «нет». */
-  lavaEnabled?: boolean;
-}
-interface AccountData {
-  plan: string;
-  activeSlots: number;
-  hasActive: boolean;
-  maxExpiry: number;
-  nextExpiry: number;
-  daysRemaining: number;
-  devices: number;
-  subs: SubItem[];
-  features?: { happEncrypted?: boolean };
-}
-interface ReferralData { code: string; link: string; botLink: string; total: number; rewarded: number; pending: number; }
+type PaidBaseline = { maxExpiry: number; activeSlots: number };
 
-const DEVICE_DEFS: Record<string, { name: string; emoji: string; happ: string; v2ray: string }> = {
-  android: { name: "Android", emoji: "🤖", happ: "https://play.google.com/store/apps/details?id=com.happproxy", v2ray: "https://play.google.com/store/apps/details?id=com.v2raytun.android" },
-  iphone: { name: "iPhone", emoji: "🍎", happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215", v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951" },
-  mac: { name: "Mac", emoji: "💻", happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215", v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951" },
-  windows: { name: "Windows", emoji: "🪟", happ: "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe", v2ray: "https://storage.v2raytun.com/v2RayTun_Setup.exe" },
-  tv: { name: "TV", emoji: "📺", happ: "https://play.google.com/store/apps/details?id=com.happproxy", v2ray: "https://play.google.com/store/apps/details?id=com.v2raytun.android" },
-};
-const DEVICE_ORDER = ["android", "iphone", "mac", "windows", "tv"] as const;
-
-// Renewal-mode labels (localized to the same languages as dash-i18n).
-const RENEW_TITLE: Record<string, string> = {
-  en: "Renew your plan", ru: "Продление подписки", es: "Renovar tu plan", de: "Plan verlängern", fr: "Renouveler le forfait",
-};
-const RENEW_BTN: Record<string, string> = {
-  en: "Renew plan", ru: "Продлить подписку", es: "Renovar plan", de: "Plan verlängern", fr: "Renouveler le forfait",
-};
-const RENEW_CURRENT: Record<string, string> = {
-  en: "Current plan · active until", ru: "Текущий план · активен до", es: "Plan actual · activo hasta", de: "Aktueller Plan · aktiv bis", fr: "Forfait actuel · actif jusqu'au",
-};
-const RENEW_NOTE: Record<string, string> = {
-  en: "Extends your current plan (adds time, not devices). To add a device, use Add device below.",
-  ru: "Продлевает текущий план (добавляет время, не устройства). Чтобы добавить устройство — кнопка «Добавить устройство» ниже.",
-  es: "Extiende tu plan actual (añade tiempo, no dispositivos). Para añadir un dispositivo, usa Añadir dispositivo abajo.",
-  de: "Verlängert deinen aktuellen Plan (mehr Zeit, keine Geräte). Für ein weiteres Gerät nutze unten Gerät hinzufügen.",
-  fr: "Prolonge votre forfait actuel (ajoute du temps, pas d'appareils). Pour ajouter un appareil, utilisez Ajouter un appareil ci-dessous.",
-};
-
-const CARD1_BTN: Record<string, string> = {
-  en: "Pay with card · method 1", ru: "Оплатить картой · метод 1", es: "Pagar con tarjeta · método 1", de: "Mit Karte zahlen · Methode 1", fr: "Payer par carte · méthode 1",
-};
-const CARD2_BTN: Record<string, string> = {
-  en: "Pay with card · method 2", ru: "Оплатить картой · метод 2", es: "Pagar con tarjeta · método 2", de: "Mit Karte zahlen · Methode 2", fr: "Payer par carte · méthode 2",
-};
-const CARD_NOTE: Record<string, string> = {
-  en: "Card payments are processed by our payment partner (statement shows “skillstep”); the amount is converted to EUR.",
-  ru: "Оплата картой идёт через платёжного партнёра (в списании будет «skillstep»); сумма конвертируется в EUR.",
-  es: "Los pagos con tarjeta se procesan a través de nuestro socio de pagos (en el extracto aparece «skillstep»); el importe se convierte a EUR.",
-  de: "Kartenzahlungen laufen über unseren Zahlungspartner (Abrechnung zeigt „skillstep“); der Betrag wird in EUR umgerechnet.",
-  fr: "Les paiements par carte passent par notre partenaire de paiement (le relevé indique «skillstep»); le montant est converti en EUR.",
-};
-
-/**
- * Способы lava.top на кнопках.
- *
- * Bancontact сюда НЕ входит намеренно: он один требует имя покупателя в
- * запросе, а спрашивать имя ради одного бельгийского способа значит удлинить
- * форму всем остальным.
- */
-const LAVA_LABEL: Partial<Record<LavaMethodId, string>> = {
-  card: "💳 Card",
-  paypal: "🅿️ PayPal",
-  applepay: "🍎 Apple Pay",
-  pix: "🇧🇷 Pix",
-  sepa: "🇪🇺 SEPA",
-  ideal: "🇳🇱 iDEAL",
-  mbway: "🇵🇹 MB WAY",
-};
-
-const LAVA_NOTE: Record<string, string> = {
-  en: "International methods — a Russian card will not work here.",
-  ru: "Зарубежные способы — российская карта здесь не подойдёт.",
-  es: "Métodos internacionales: una tarjeta rusa no funcionará aquí.",
-  de: "Internationale Methoden — eine russische Karte funktioniert hier nicht.",
-  fr: "Méthodes internationales — une carte russe ne fonctionnera pas ici.",
-};
-
-/**
- * Какие способы показать для этой суммы.
- *
- * Фильтр по нижнему порогу делает сам каталог: лава счета ниже $5 и €5.5 не
- * выставляет, и показанная кнопка довела бы человека до отказа уже после
- * нажатия. Поэтому на месячном тарифе за $5 евровые способы честно исчезают.
- */
-function lavaChips(priceUsd: number | undefined, enabled: boolean | undefined) {
-  // Линия без ключей не показывается вовсе: иначе каждое нажатие возвращало бы
-  // отказ, и покупатель решил бы, что сломан платёж, а не выключена настройка.
-  if (enabled !== true) return [];
-  if (typeof priceUsd !== "number" || !Number.isFinite(priceUsd)) return [];
-  return lavaMethodChoices("USD", (c) => chargeIn(priceUsd, c)).filter(
-    (c) => LAVA_LABEL[c.id] !== undefined,
-  );
-}
-
-function fmtDate(ms: number, lang: string): string {
-  if (!ms) return "—";
+/** Remembers the plan before leaving for a payment page, so a renewal (which
+ *  extends an existing subscription and keeps its createdAt) is recognised on
+ *  return even when the webhook landed before the first load. */
+function savePaidBaseline(base: PaidBaseline | null): void {
   try {
-    return new Date(ms).toLocaleDateString(lang === "en" ? "en-US" : lang, { year: "numeric", month: "short", day: "numeric" });
+    // Unknown plan (account not loaded): drop any older baseline rather than keep a wrong one.
+    if (base === null) sessionStorage.removeItem(PAID_BASE_KEY);
+    else sessionStorage.setItem(PAID_BASE_KEY, JSON.stringify({ ...base, at: Date.now() }));
   } catch {
-    return new Date(ms).toISOString().slice(0, 10);
+    // Storage blocked: the first load after the return serves as the baseline.
   }
 }
 
+/** Reads and clears the stored baseline; null when missing, stale or malformed. */
+function takePaidBaseline(): PaidBaseline | null {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(PAID_BASE_KEY);
+    sessionStorage.removeItem(PAID_BASE_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (typeof v !== "object" || v === null) return null;
+    const { maxExpiry, activeSlots, at } = v as Record<string, unknown>;
+    if (typeof maxExpiry !== "number" || !Number.isFinite(maxExpiry)) return null;
+    if (typeof activeSlots !== "number" || !Number.isFinite(activeSlots)) return null;
+    if (typeof at !== "number" || !(Date.now() - at < PAID_BASE_MAX_AGE_MS)) return null;
+    return { maxExpiry, activeSlots };
+  } catch {
+    return null;
+  }
+}
 
 // ── Dev-only mock (design preview without Redis): NEXT_PUBLIC_DASH_MOCK=1 ──
 const MOCK = process.env.NEXT_PUBLIC_DASH_MOCK === "1" && process.env.NODE_ENV !== "production";
@@ -147,6 +95,8 @@ const MOCK_PRICING: Pricing = {
   plan1: { "1": { term: 1, total: 5, perMonth: 5, refMonthly: 5 }, "6": { term: 6, total: 22.5, perMonth: 3.75, refMonthly: 5 }, "12": { term: 12, total: 33, perMonth: 2.75, refMonthly: 5 } },
   plan3: { "1": { term: 1, total: 11.99, perMonth: 11.99, refMonthly: 11.99 }, "6": { term: 6, total: 53.94, perMonth: 8.99, refMonthly: 11.99 }, "12": { term: 12, total: 79.08, perMonth: 6.59, refMonthly: 11.99 } },
   plan1Slots: 1, plan3Slots: 3, deviceAddonPrice: 5, deviceAddonDays: 30,
+  // show the full method catalog in the preview (lava.top configured)
+  lavaEnabled: true,
 };
 const MOCK_PROFILES: Profile[] = [
   { uuid: "6f9c2d54-demo-4a1b-9c1e-aaaaaaaaaaaa", clientEmail: "vpn_web_demo_1", vlessUrl: "vless://demo@nl.kovravpn.com:443?security=reality&sni=example.com#Kovra-NL", createdAt: MOCK_NOW - 20 * 864e5, deviceType: "iphone", subToken: "demoToken1" },
@@ -154,20 +104,75 @@ const MOCK_PROFILES: Profile[] = [
 ];
 const MOCK_REFERRAL: ReferralData = { code: "45288149", link: "https://kovravpn.com/register?ref=45288149", botLink: "https://t.me/kovravpn_bot?start=45288149", total: 3, rewarded: 1, pending: 2 };
 
+/**
+ * Dev-only variants for the design preview (?mockState=…, read only when
+ * MOCK is on): new|none = no plan and no devices; expiring = 5 days left;
+ * expired = plan ended 3 days ago; full = 3 of 3 devices; fresh = active
+ * plan without devices.
+ */
+function mockData(state: string | null): { account: AccountData; profiles: Profile[] } {
+  const sub = MOCK_ACCOUNT.subs[0];
+  switch (state) {
+    case "new":
+    case "none":
+      return {
+        account: { plan: "free", activeSlots: 0, hasActive: false, maxExpiry: 0, nextExpiry: 0, daysRemaining: 0, devices: 0, subs: [], features: { happEncrypted: true } },
+        profiles: [],
+      };
+    case "expiring": {
+      const exp = Date.now() + 5 * 864e5;
+      return { account: { ...MOCK_ACCOUNT, maxExpiry: exp, nextExpiry: exp, daysRemaining: 5, subs: [{ ...sub, expiresAt: exp }] }, profiles: MOCK_PROFILES };
+    }
+    case "expired": {
+      const exp = Date.now() - 3 * 864e5;
+      return {
+        account: { ...MOCK_ACCOUNT, plan: "free", activeSlots: 0, hasActive: false, maxExpiry: exp, nextExpiry: 0, daysRemaining: 0, subs: [{ ...sub, expiresAt: exp }] },
+        profiles: MOCK_PROFILES,
+      };
+    }
+    case "fresh":
+      return { account: { ...MOCK_ACCOUNT, devices: 0 }, profiles: [] };
+    case "full":
+      return {
+        account: { ...MOCK_ACCOUNT, devices: 3 },
+        profiles: [
+          ...MOCK_PROFILES,
+          { uuid: "9d3f4a21-demo-4c3d-8e5f-cccccccccccc", clientEmail: "vpn_web_demo_3", vlessUrl: "vless://demo@uk.kovravpn.com:443?security=reality&sni=example.com#Kovra-UK", createdAt: MOCK_NOW - 2 * 864e5, deviceType: "mac", subToken: "demoToken3" },
+        ],
+      };
+    default:
+      return { account: MOCK_ACCOUNT, profiles: MOCK_PROFILES };
+  }
+}
+
+/** Mounts once per view switch: rise-in on the first visit, a quick fade after. */
+function ViewFrame({ view, firstVisit, onVisit, children }: { view: DashView; firstVisit: boolean; onVisit(v: DashView): void; children: ReactNode }) {
+  const [first] = useState(firstVisit);
+  useEffect(() => {
+    onVisit(view);
+  }, [view, onVisit]);
+  return (
+    <FirstVisitProvider value={first}>
+      <div className={cx("kc-view", `kc-view--${view}`, !first && "kc-enter")}>{children}</div>
+    </FirstVisitProvider>
+  );
+}
+
 export default function DashboardPage() {
-  const { lang, setLang, t } = useDashLang();
-  const [tab, setTab] = useState<Tab>("home");
-  const [langOpen, setLangOpen] = useState(false);
+  const { lang, t } = useDashLang();
+  const shell = useShellT();
+  useDocumentTitle(fmt("{t} | Kovra", { t: t.page_title }));
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [userInfo, setUserInfo] = useState<{ authMethod: string; email?: string; telegramId?: string } | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [account, setAccount] = useState<AccountData | null>(null);
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // purchase UI
-  const [planKind, setPlanKind] = useState<"plan1" | "plan3">("plan3");
-  const [term, setTerm] = useState<1 | 6 | 12>(12);
+  const [planKind, setPlanKind] = useState<PlanKind>("plan3");
+  const [term, setTerm] = useState<Term>(12);
   const [buying, setBuying] = useState(false);
   const [buyingDevice, setBuyingDevice] = useState(false);
   const [buyingCard, setBuyingCard] = useState(false);
@@ -177,24 +182,49 @@ export default function DashboardPage() {
   // несколько, и крутиться должен только нажатый.
   const [buyingLava, setBuyingLava] = useState<string | null>(null);
   const [buyingCardDevice, setBuyingCardDevice] = useState(false);
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false);
 
   // device create
   const [creating, setCreating] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [lastCreatedDevice, setLastCreatedDevice] = useState<string | null>(null);
+  const [pendingDevice, setPendingDevice] = useState<DeviceId | null>(null);
 
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
-  const [promoMsg, setPromoMsg] = useState<string | null>(null);
+  const [promoMsg, setPromoMsg] = useState<PromoMsg | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [resetDoneId, setResetDoneId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ uuid: string; name: string } | null>(null);
+
+  // errors, one per section
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [slotError, setSlotError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [deviceError, setDeviceError] = useState<Record<string, string>>({});
+
   const [referral, setReferral] = useState<ReferralData | null>(null);
-  const [refCopied, setRefCopied] = useState(false);
   const [cryptoPending, setCryptoPending] = useState(false);
+  const [paidBaseline, setPaidBaseline] = useState<PaidBaseline | null>(null);
+  // When the dashboard opened: a subscription created within 30 minutes before
+  // it counts as the payment the user is returning from.
+  const [mountTs] = useState(() => Date.now());
+  const [visited, setVisited] = useState<ReadonlySet<DashView>>(() => new Set<DashView>());
+  const devicesHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  /** Server error -> UI text; `fallback` when the response carries no error. */
+  const errText = (raw: unknown, status: number, fallback: string) => dashError(raw, status, lang, t, fallback);
+  const setDeviceErr = (uuid: string, msg: string | null) =>
+    setDeviceError((prev) => {
+      const next = { ...prev };
+      if (msg) next[uuid] = msg;
+      else delete next[uuid];
+      return next;
+    });
 
   // return-from-payment detection
   useEffect(() => {
@@ -203,6 +233,8 @@ export default function DashboardPage() {
     if (p.get("paid") === "1") {
       trackEvent("payment_initiated", { type: "plan", method: "crypto_return" });
       setCryptoPending(true);
+      const stored = takePaidBaseline();
+      if (stored) setPaidBaseline(stored);
       stripQueryParam("paid");
     }
   }, []);
@@ -225,17 +257,22 @@ export default function DashboardPage() {
       .catch(() => { window.location.href = "/login"; });
   }, []);
 
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+
   const fetchAccount = useCallback(async () => {
     if (!userId) return;
     if (MOCK) {
-      setAccount(MOCK_ACCOUNT);
+      const m = mockData(new URLSearchParams(window.location.search).get("mockState"));
+      setAccount(m.account);
       setPricing(MOCK_PRICING);
-      setProfiles(MOCK_PROFILES);
+      setProfiles(m.profiles);
+      setLoadError(false);
       setLoading(false);
       return;
     }
     try {
       const r = await fetch("/api/account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
+      if (!r.ok) { setLoadError(true); return; }
       const d = await r.json();
       if (d.account) {
         setAccount({
@@ -253,10 +290,10 @@ export default function DashboardPage() {
       if (d.pricing) setPricing(d.pricing);
       // attach profiles via a parallel field
       setProfiles(d.profiles || []);
-    } catch { /* ignore */ } finally { setLoading(false); }
+      setLoadError(false);
+    } catch { setLoadError(true); } finally { setLoading(false); }
   }, [userId]);
 
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   useEffect(() => { if (userId) fetchAccount(); }, [userId, fetchAccount]);
 
   useEffect(() => {
@@ -274,77 +311,101 @@ export default function DashboardPage() {
     if (ak) setPlanKind(ak as "plan1" | "plan3");
   }, [account]);
 
+  // ?paid=1: done once a purchased subscription from the last 30 minutes is on the
+  // account (card webhooks usually land before the redirect back), or once the
+  // plan differs from the baseline: the one saved before leaving for the payment
+  // page (a renewal keeps its createdAt), else the first load here; until then, poll.
+  if (cryptoPending && account && paidBaseline === null) {
+    setPaidBaseline({ maxExpiry: account.maxExpiry, activeSlots: account.activeSlots });
+  }
+  const recentPaid =
+    cryptoPending && account !== null && account.subs.some((x) => x.kind !== "referral" && x.createdAt > mountTs - PAID_RECENT_MS);
+  const paidDone =
+    recentPaid ||
+    (cryptoPending && paidBaseline !== null && account !== null &&
+      (account.maxExpiry !== paidBaseline.maxExpiry || account.activeSlots !== paidBaseline.activeSlots));
+
+  useEffect(() => {
+    if (MOCK || !cryptoPending || paidDone || !userId) return;
+    const started = Date.now();
+    const id = window.setInterval(() => {
+      if (Date.now() - started > 30 * 60 * 1000) { window.clearInterval(id); return; }
+      void fetchAccount();
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, [cryptoPending, paidDone, userId, fetchAccount]);
+
   const handleBuyPlan = async () => {
-    setBuying(true); setError(null);
+    setBuying(true); setPlanError(null);
     try {
       const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "card" }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "platega", kind: planKind, term });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuying(false); }
+      } else setPlanError(errText(d.error, r.status, t.err_pay));
+    } catch { setPlanError(t.err_conn); } finally { setBuying(false); }
   };
 
   const handleBuyDevice = async () => {
-    setBuyingDevice(true); setError(null);
+    setBuyingDevice(true); setSlotError(null);
     try {
       const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "card" }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "platega" });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuyingDevice(false); }
+      } else setSlotError(errText(d.error, r.status, t.err_pay));
+    } catch { setSlotError(t.err_conn); } finally { setBuyingDevice(false); }
   };
 
   const handleBuyPlanCard = async () => {
-    setBuyingCard(true); setError(null);
+    setBuyingCard(true); setPlanError(null);
     try {
       const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "cashera", kind: planKind, term });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuyingCard(false); }
+      } else setPlanError(errText(d.error, r.status, t.err_pay));
+    } catch { setPlanError(t.err_conn); } finally { setBuyingCard(false); }
   };
 
   const handleBuyDeviceCard = async () => {
-    setBuyingCardDevice(true); setError(null);
+    setBuyingCardDevice(true); setSlotError(null);
     try {
       const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device" }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "cashera" });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuyingCardDevice(false); }
+      } else setSlotError(errText(d.error, r.status, t.err_pay));
+    } catch { setSlotError(t.err_conn); } finally { setBuyingCardDevice(false); }
   };
 
   // Alternative crypto rail (NOWPayments) — kept as the third option.
   const handleBuyPlanAlt = async () => {
-    setBuyingAlt(true); setError(null);
+    setBuyingAlt(true); setPlanError(null);
     try {
       const r = await fetch("/api/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "crypto", provider: "nowpayments", kind: planKind, term });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuyingAlt(false); }
+      } else setPlanError(errText(d.error, r.status, t.err_pay));
+    } catch { setPlanError(t.err_conn); } finally { setBuyingAlt(false); }
   };
 
   const handleBuyDeviceAlt = async () => {
-    setBuyingAltDevice(true); setError(null);
+    setBuyingAltDevice(true); setSlotError(null);
     try {
       const r = await fetch("/api/subscribe/device", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "crypto", provider: "nowpayments" });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
-    } catch { setError(t.err_conn); } finally { setBuyingAltDevice(false); }
+      } else setSlotError(errText(d.error, r.status, t.err_pay));
+    } catch { setSlotError(t.err_conn); } finally { setBuyingAltDevice(false); }
   };
 
   // lava.top — единственный способ заплатить из-за рубежа не криптовалютой.
@@ -356,6 +417,7 @@ export default function DashboardPage() {
     currency: LavaCurrency,
     tag: string,
   ) => {
+    const setError = tag.startsWith("device:") ? setSlotError : setPlanError;
     setBuyingLava(tag); setError(null);
     try {
       const r = await fetch("/api/subscribe/lava", {
@@ -367,431 +429,315 @@ export default function DashboardPage() {
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { ...body, method: id, currency, provider: "lava" });
         window.location.href = d.paymentUrl;
-      } else setError(d.error || t.err_pay);
+      } else setError(errText(d.error, r.status, t.err_pay));
     } catch { setError(t.err_conn); } finally { setBuyingLava(null); }
   };
 
+  // Runs after the user confirms in the reset dialog.
   const handleResetHwid = async (uuid: string) => {
-    if (!confirm(t.reset_hwid_confirm)) return;
-    setResettingId(uuid); setError(null);
+    setResettingId(uuid); setDeviceErr(uuid, null);
     try {
       if (MOCK) { await new Promise((r) => setTimeout(r, 500)); }
       else {
         const r = await fetch("/api/vpn/reset-hwid", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uuid }) });
         const d = await r.json();
-        if (!d.success) { setError(d.error || t.err_conn); return; }
+        if (!d.success) { setDeviceErr(uuid, errText(d.error, r.status, t.err_conn)); return; }
       }
       trackEvent("reset_hwid", { uuid });
       setResetDoneId(uuid);
       setTimeout(() => setResetDoneId((cur) => (cur === uuid ? null : cur)), 4000);
-    } catch { setError(t.err_conn); } finally { setResettingId(null); }
+    } catch { setDeviceErr(uuid, t.err_conn); } finally { setResettingId(null); }
   };
 
   const handleCreate = async (device?: string) => {
     if (!device) { setShowDevicePicker(true); return; }
     setShowDevicePicker(false);
-    setCreating(true); setError(null); setLastCreatedDevice(null);
+    setCreating(true); setCreateError(null); setLastCreatedDevice(null);
     try {
       const r = await fetch("/api/vpn/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, deviceType: device }) });
       const d = await r.json();
       if (d.success) { setLastCreatedDevice(device); await fetchAccount(); }
-      else setError(d.error);
-    } catch { setError(t.err_conn); } finally { setCreating(false); }
+      else setCreateError(errText(d.error, r.status, t.err_generic));
+    } catch { setCreateError(t.err_conn); } finally { setCreating(false); }
   };
 
-  const handleDelete = async (uuid: string) => {
-    if (!confirm(t.confirm_delete)) return;
-    setDeletingId(uuid);
-    try { await fetch("/api/vpn/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, uuid }) }); await fetchAccount(); } catch { /* ignore */ } finally { setDeletingId(null); }
+  // Runs after the user confirms in the delete dialog. Returns true on success.
+  const handleDelete = async (uuid: string): Promise<boolean> => {
+    setDeletingId(uuid); setDeviceErr(uuid, null);
+    let ok = false;
+    try {
+      const r = await fetch("/api/vpn/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, uuid }) });
+      const d = await readJson(r);
+      if (!r.ok || typeof d.error === "string") setDeviceErr(uuid, errText(d.error, r.status, t.err_generic));
+      else ok = true;
+      await fetchAccount();
+    } catch { setDeviceErr(uuid, t.err_conn); } finally { setDeletingId(null); }
+    return ok;
   };
 
-  const copyLink = (url: string, uuid: string) => { navigator.clipboard.writeText(url); setCopiedId(uuid); setTimeout(() => setCopiedId(null), 2000); };
+  const copyLink = async (url: string, uuid: string) => {
+    const ok = await copyText(url);
+    if (!ok) return;
+    setCopiedId(uuid);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleLogout = async () => {
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
     window.location.href = "/login";
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-nm-text-secondary" /></div>;
+  const handlePromo = async () => {
+    setPromoLoading(true); setPromoMsg(null);
+    try {
+      const r = await fetch("/api/promo/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: promoCode }) });
+      const d = await r.json();
+      if (d.success) { setPromoMsg({ kind: "ok", text: t.promo_applied }); setPromoCode(""); await fetchAccount(); }
+      else setPromoMsg({ kind: "err", text: errText(d.error, r.status, t.err_generic) });
+    } catch { setPromoMsg({ kind: "err", text: t.err_conn }); } finally { setPromoLoading(false); }
+  };
 
+  const refreshUser = () => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => { if (d.authenticated) setUserInfo({ authMethod: d.authMethod, email: d.email, telegramId: d.telegramId }); })
+      .catch(() => {});
+  };
+
+  // ── derived ──
   const slots = account?.activeSlots || 0;
   const canCreate = profiles.length < 100 && profiles.length < slots;
-  const subLabel = (k: SubItem["kind"]) => k === "plan3" ? t.sub_plan3 : k === "plan1" ? t.sub_plan1 : k === "device" ? t.sub_device : t.sub_referral;
+  const happEnabled = account?.features?.happEncrypted ?? false;
 
   const nowTs = Date.now();
-  const activePlanKind: "plan1" | "plan3" | null =
+  const activePlanKind: PlanKind | null =
     (account?.subs || []).some((x) => x.kind === "plan3" && x.expiresAt > nowTs) ? "plan3"
     : (account?.subs || []).some((x) => x.kind === "plan1" && x.expiresAt > nowTs) ? "plan1"
     : null;
   const isRenewal = activePlanKind !== null;
-  const effectiveKind: "plan1" | "plan3" = isRenewal && activePlanKind ? activePlanKind : planKind;
-  const price1 = pricing?.plan1?.[String(term)];
-  const price3 = pricing?.plan3?.[String(term)];
-  const selPrice = effectiveKind === "plan3" ? price3 : price1;
+  const effectiveKind: PlanKind = isRenewal && activePlanKind ? activePlanKind : planKind;
+  const lastPlan: SubItem | undefined = (account?.subs || [])
+    .filter((s) => s.kind === "plan1" || s.kind === "plan3")
+    .sort((a, b) => b.expiresAt - a.expiresAt)[0];
+  const labelKind = activePlanKind ?? lastPlan?.kind ?? null;
+  const planLabel = labelKind === "plan3" ? t.sub_plan3 : labelKind === "plan1" ? t.sub_plan1 : null;
+
+  const hState = heroState(account, nowTs);
+  const heroGold = hState !== "active";
 
   const devLabel = (i: number) => {
     const ty = profiles[i]?.deviceType || "";
-    const base = DEVICE_DEFS[ty]?.name || "Device";
+    const base = isDeviceId(ty) ? t[DEVICE_DEFS[ty].nameKey] : t.dev_fallback;
     const same = profiles.filter((p) => (p.deviceType || "") === ty);
     return same.length > 1 ? `${base} ${profiles.slice(0, i).filter((p) => (p.deviceType || "") === ty).length + 1}` : base;
   };
+  const subUrlOf = (p: Profile) =>
+    p.subToken ? (happEnabled ? `https://kovravpn.com/p/${p.subToken}` : `https://kovravpn.com/api/sub/${p.subToken}`) : "";
+
+  const payBusy = buying || buyingCard || buyingAlt || buyingDevice || buyingCardDevice || buyingAltDevice || buyingLava !== null;
+
+  const rememberPaidBaseline = () =>
+    savePaidBaseline(account ? { maxExpiry: account.maxExpiry, activeSlots: account.activeSlots } : null);
+  const payPlan = (route: PayRoute) => {
+    rememberPaidBaseline();
+    switch (route.kind) {
+      case "platega": return void handleBuyPlan();
+      case "cashera": return void handleBuyPlanCard();
+      case "nowpayments": return void handleBuyPlanAlt();
+      case "lava": return void handleBuyLava({ what: "plan", kind: effectiveKind, term }, route.id, route.currency, `plan:${route.id}`);
+    }
+  };
+  const paySlot = (route: PayRoute) => {
+    rememberPaidBaseline();
+    switch (route.kind) {
+      case "platega": return void handleBuyDevice();
+      case "cashera": return void handleBuyDeviceCard();
+      case "nowpayments": return void handleBuyDeviceAlt();
+      case "lava": return void handleBuyLava({ what: "device" }, route.id, route.currency, `device:${route.id}`);
+    }
+  };
+  const planLoading = (route: PayRoute) =>
+    route.kind === "platega" ? buying : route.kind === "cashera" ? buyingCard : route.kind === "nowpayments" ? buyingAlt : buyingLava === `plan:${route.id}`;
+  const slotLoading = (route: PayRoute) =>
+    route.kind === "platega" ? buyingDevice : route.kind === "cashera" ? buyingCardDevice : route.kind === "nowpayments" ? buyingAltDevice : buyingLava === `device:${route.id}`;
+
+  const fallbackView: DashView | null = loading ? null : loadError && !account ? "devices" : account?.hasActive || profiles.length > 0 ? "devices" : "plan";
+  const { view, navigate } = useDashView(!loading, fallbackView);
+  const onVisit = useCallback((v: DashView) => setVisited((prev) => (prev.has(v) ? prev : new Set(prev).add(v))), []);
+
+  const identity = userInfo?.email
+    ? { label: userInfo.email, initial: userInfo.email.trim().charAt(0).toUpperCase() || null }
+    : userInfo?.telegramId
+      ? { label: fmt(t.tg_id, { id: userInfo.telegramId }), initial: null }
+      : null;
+
+  const openSlotDialog = () => { setSlotError(null); setSlotDialogOpen(true); };
+
+  let content: ReactNode = null;
+  if (view === "devices") {
+    content = (
+      <>
+        <StatusHero
+          t={t}
+          lang={lang}
+          state={hState}
+          planLabel={planLabel}
+          days={account ? daysLeft(account, nowTs) : 0}
+          date={fmtDate(account?.maxExpiry ?? 0, lang)}
+          used={profiles.length}
+          total={slots}
+          onNavigate={navigate}
+        />
+        <DevicesSection
+          t={t}
+          lang={lang}
+          index={1}
+          profiles={profiles}
+          slots={slots}
+          canCreate={canCreate}
+          happEncrypted={happEnabled}
+          showPicker={showDevicePicker}
+          creating={creating}
+          pendingDevice={pendingDevice}
+          lastCreatedDevice={lastCreatedDevice}
+          goldSetup={!heroGold}
+          resetDoneId={resetDoneId}
+          deviceError={deviceError}
+          createError={createError}
+          copiedId={copiedId}
+          headingRef={devicesHeadingRef}
+          devLabel={devLabel}
+          subUrlOf={subUrlOf}
+          onStartSetup={() => void handleCreate()}
+          onPick={(id) => { setPendingDevice(id); void handleCreate(id); }}
+          onCancelPick={() => setShowDevicePicker(false)}
+          onRequestReset={(uuid) => setConfirmReset(uuid)}
+          onRequestDelete={(uuid) => setConfirmDelete({ uuid, name: devLabel(profiles.findIndex((p) => p.uuid === uuid)) })}
+          onDismissDeviceError={(uuid) => setDeviceErr(uuid, null)}
+          onDismissCreateError={() => setCreateError(null)}
+          onCopyLink={(url, uuid) => void copyLink(url, uuid)}
+          onSetupDone={() => setLastCreatedDevice(null)}
+          onBuySlot={openSlotDialog}
+        />
+        <AppsSection t={t} index={2} />
+      </>
+    );
+  } else if (view === "plan") {
+    content = (
+      <PlanView
+        t={t}
+        lang={lang}
+        pricing={pricing}
+        account={account}
+        isRenewal={isRenewal}
+        effectiveKind={effectiveKind}
+        planKind={planKind}
+        term={term}
+        onPlanKind={setPlanKind}
+        onTerm={setTerm}
+        busy={payBusy}
+        isLoading={planLoading}
+        onPay={payPlan}
+        planError={planError}
+        onDismissPlanError={() => setPlanError(null)}
+        onBuySlot={openSlotDialog}
+      />
+    );
+  } else if (view === "rewards") {
+    content = (
+      <RewardsView
+        t={t}
+        referral={referral}
+        promoCode={promoCode}
+        onPromoCode={(v) => { setPromoCode(v.toUpperCase()); setPromoMsg(null); }}
+        promoLoading={promoLoading}
+        promoMsg={promoMsg}
+        onApplyPromo={() => void handlePromo()}
+      />
+    );
+  } else if (view === "account") {
+    content = <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} />;
+  }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="nm-sidebar w-[60px] md:w-[72px] flex flex-col items-center py-5 gap-1 shrink-0 sticky top-0 h-screen">
-        <div className="w-10 h-10 rounded-2xl overflow-hidden mb-6 flex items-center justify-center bg-nm-accent/10">
-          <img src="/icon-192.png" alt="Kovra" className="w-9 h-9 object-contain" />
+    <CabinetRoot variant="dash">
+      <DashHeader t={t} view={view} identity={identity} onNavigate={navigate} onLogout={() => void handleLogout()} />
+      <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
+        <div className="kc-dash-wrap">
+          {cryptoPending ? (
+            <PaymentReturnNotice t={t} done={paidDone} dismissLabel={shell.dismiss} onDismiss={() => setCryptoPending(false)} />
+          ) : null}
+          {loadError ? (
+            <Notice
+              tone="error"
+              className="kc-load-error"
+              action={
+                <Button variant="ghost" size="sm" onClick={() => void fetchAccount()}>
+                  {shell.retry}
+                </Button>
+              }
+            >
+              {t.load_failed}
+            </Notice>
+          ) : null}
+          {loading || !view ? (
+            <DashSkeleton label={t.loading_account} />
+          ) : loadError && !account ? null : (
+            <ViewFrame key={view} view={view} firstVisit={!visited.has(view)} onVisit={onVisit}>
+              {content}
+            </ViewFrame>
+          )}
         </div>
-        <nav className="flex-1 flex flex-col items-center gap-1">
-          {([{ icon: Home, id: "home" as Tab }, { icon: CircleAlert, id: "help" as Tab }]).map((item) => (
-            <button key={item.id} onClick={() => setTab(item.id)} className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${tab === item.id ? "bg-nm-accent/15 text-nm-accent" : "text-nm-text-secondary hover:text-nm-text"}`}><item.icon className="w-5 h-5" /></button>
-          ))}
-        </nav>
-        <button onClick={handleLogout} title={t.logout} className="w-10 h-10 rounded-2xl flex items-center justify-center text-nm-text-secondary hover:text-red-400 transition cursor-pointer"><LogOut className="w-5 h-5" /></button>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-3">
-          <h1 className="text-xl md:text-2xl font-bold text-nm-text truncate">{tab === "home" ? t.dash_title : t.help_title}</h1>
-          <div className="relative">
-            <button onClick={() => setLangOpen((v) => !v)} className="nm-btn px-3 py-2 text-xs font-medium text-nm-text inline-flex items-center gap-1.5 cursor-pointer">
-              <Globe className="w-3.5 h-3.5 text-nm-accent" />{lang.toUpperCase()}<ChevronDown className="w-3 h-3" />
-            </button>
-            {langOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
-                <div className="absolute right-0 mt-1 z-50 bg-nm-surface border border-nm-border rounded-xl overflow-hidden min-w-[140px] shadow-xl">
-                  {DASH_LANGS.map((l) => (
-                    <button key={l.code} onClick={() => { setLang(l.code as DashLang); setLangOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs cursor-pointer transition-colors ${lang === l.code ? "text-nm-accent bg-white/5" : "text-nm-text hover:bg-white/5"}`}>
-                      {l.native}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {tab === "home" && (
-          <div className="space-y-4">
-            {/* Overview */}
-            <div className="grid grid-cols-3 gap-2 md:gap-3">
-              <div className="nm-raised p-3 md:p-4"><span className="text-[10px] md:text-xs text-nm-text-secondary">{t.active_devices}</span><div className="flex items-center gap-1.5 mt-1.5"><Layers className="w-3.5 h-3.5 text-nm-accent" /><span className="font-bold text-nm-text text-xs md:text-sm">{profiles.length}/{slots}</span></div></div>
-              <div className="nm-raised p-3 md:p-4"><span className="text-[10px] md:text-xs text-nm-text-secondary">{t.status}</span><div className="flex items-center gap-1.5 mt-1.5"><div className={`w-2 h-2 rounded-full ${account?.hasActive ? "bg-green-400 animate-pulse" : "bg-nm-text-secondary"}`} /><span className="font-bold text-nm-text text-xs md:text-sm">{account?.hasActive ? t.status_active : t.status_none}</span></div></div>
-              <div className="nm-raised p-3 md:p-4"><span className="text-[10px] md:text-xs text-nm-text-secondary">{t.expires}</span><div className="flex items-center gap-1.5 mt-1.5"><Calendar className="w-3.5 h-3.5 text-nm-accent" /><span className="font-bold text-nm-text text-[11px] md:text-sm">{account?.hasActive ? fmtDate(account.maxExpiry, lang) : "—"}</span></div></div>
-            </div>
-
-            {cryptoPending && (
-              <div className="nm-pressed p-4 rounded-2xl flex items-start gap-2">
-                <Loader2 className="w-4 h-4 text-nm-accent animate-spin shrink-0 mt-0.5" />
-                <span className="text-xs text-nm-text-secondary">{t.pending_crypto}</span>
-              </div>
-            )}
-
-            {/* Plan purchase (always available — buy or extend) */}
-            {pricing && (
-              <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-3">{isRenewal ? (RENEW_TITLE[lang] ?? RENEW_TITLE.en) : t.choose_plan}</h3>
-
-                {/* Renewal: locked tier card (cannot re-buy a different/new plan) */}
-                {isRenewal && (
-                  <div className="p-3 rounded-xl nm-pressed-sm mb-3">
-                    <div className="text-base font-bold text-nm-text">{effectiveKind === "plan3" ? t.plan_3dev : t.plan_1dev}</div>
-                    <div className="text-sm mt-0.5 text-nm-text-secondary">{(RENEW_CURRENT[lang] ?? RENEW_CURRENT.en)} {fmtDate(account!.maxExpiry, lang)}</div>
-                  </div>
-                )}
-
-                {/* plan kind toggle — new buyers only */}
-                {!isRenewal && (
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {(["plan3", "plan1"] as const).map((k) => {
-                    const active = planKind === k;
-                    const label = k === "plan3" ? t.plan_3dev : t.plan_1dev;
-                    const pm = (k === "plan3" ? pricing.plan3 : pricing.plan1)[String(term)];
-                    return (
-                      <button key={k} onClick={() => setPlanKind(k)}
-                        className={`p-3 rounded-xl text-center transition-all cursor-pointer ${active ? "nm-btn-accent" : "nm-pressed-sm"}`}>
-                        <div className={`text-base font-bold ${active ? "" : "text-nm-text"}`}>{label}</div>
-                        <div className={`text-sm mt-0.5 ${active ? "opacity-80" : "text-nm-text-secondary"}`}>${pm?.perMonth.toFixed(2)}{t.per_mo}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-                )}
-
-                {/* term selector */}
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {([1, 6, 12] as const).map((tm) => {
-                    const active = term === tm;
-                    const label = tm === 1 ? t.term_1 : tm === 6 ? t.term_6 : t.term_12;
-                    const pr = (effectiveKind === "plan3" ? pricing.plan3 : pricing.plan1)[String(tm)];
-                    const disc = pr ? Math.round((1 - pr.perMonth / pr.refMonthly) * 100) : 0;
-                    return (
-                      <button key={tm} onClick={() => setTerm(tm)}
-                        className={`relative p-2.5 rounded-xl text-center transition-all cursor-pointer ${active ? "nm-btn-accent" : "nm-pressed-sm"}`}>
-                        {tm === 12 && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-nm-accent text-black whitespace-nowrap">{t.best_value}</span>}
-                        <div className={`text-base font-bold ${active ? "" : "text-nm-text"}`}>{label}</div>
-                        {disc > 0 && <div className={`text-xs mt-0.5 ${active ? "opacity-80" : "text-nm-accent"}`}>-{disc}%</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* total + pay */}
-                <div className="flex items-baseline justify-between mb-3 px-1">
-                  <span className="text-sm text-nm-text-secondary">{t.total_now}</span>
-                  <span className="text-3xl font-bold text-nm-text">${selPrice?.total.toFixed(2)}</span>
-                </div>
-                <button disabled={buying} onClick={handleBuyPlan}
-                  className="nm-btn-accent w-full py-3.5 font-semibold text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {isRenewal ? (RENEW_BTN[lang] ?? RENEW_BTN.en) : (CARD1_BTN[lang] ?? CARD1_BTN.en)}</>}
-                </button>
-                <button disabled={buyingCard} onClick={handleBuyPlanCard}
-                  className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buyingCard ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD2_BTN[lang] ?? CARD2_BTN.en}</>}
-                </button>
-                <button disabled={buyingAlt} onClick={handleBuyPlanAlt}
-                  className="nm-btn w-full py-3 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buyingAlt ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {t.pay_crypto}</>}
-                </button>
-                {lavaChips(selPrice?.total, pricing?.lavaEnabled).length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[11px] text-nm-text-secondary text-center mb-1.5 opacity-80">
-                      {LAVA_NOTE[lang] ?? LAVA_NOTE.en}
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {lavaChips(selPrice?.total, pricing?.lavaEnabled).map((c) => (
-                        <button key={c.id} disabled={buyingLava !== null}
-                          onClick={() => handleBuyLava({ what: "plan", kind: effectiveKind, term }, c.id, c.currency, `plan:${c.id}`)}
-                          className="nm-btn px-3 py-2 text-xs font-medium text-nm-text flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
-                          {buyingLava === `plan:${c.id}`
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <>{LAVA_LABEL[c.id]} · {formatCharge(selPrice?.total as number, c.currency)}</>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <p className="text-xs text-nm-text-secondary text-center mt-2">{isRenewal ? (RENEW_NOTE[lang] ?? RENEW_NOTE.en) : t.renews_note}</p>
-                <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
-              </div>
-            )}
-
-            {/* Active subscriptions */}
-            {account && account.subs.length > 0 && (
-              <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-3">{t.your_subs}</h3>
-                <div className="space-y-2">
-                  {account.subs.map((s) => (
-                    <div key={s.id} className="nm-pressed-sm p-3 rounded-xl flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-3.5 h-3.5 text-nm-accent shrink-0" />
-                        <span className="text-xs text-nm-text">{subLabel(s.kind)}</span>
-                      </div>
-                      <span className="text-[11px] text-nm-text-secondary">{t.active_until} {fmtDate(s.expiresAt, lang)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add device add-on */}
-            {pricing && (
-              <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-1">{t.add_device}</h3>
-                <p className="text-xs text-nm-text-secondary mb-3">{t.add_device_note}</p>
-                <button disabled={buyingDevice} onClick={handleBuyDevice}
-                  className="nm-btn w-full py-2.5 text-sm font-medium text-nm-accent flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buyingDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4" />{t.buy_device}</>}
-                </button>
-                <button disabled={buyingCardDevice} onClick={handleBuyDeviceCard}
-                  className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buyingCardDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>💳 {CARD2_BTN[lang] ?? CARD2_BTN.en}</>}
-                </button>
-                <button disabled={buyingAltDevice} onClick={handleBuyDeviceAlt}
-                  className="nm-btn w-full py-2.5 mt-2 text-sm font-medium text-nm-text-secondary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-                  {buyingAltDevice ? <Loader2 className="w-4 h-4 animate-spin" /> : <>🪙 {t.pay_crypto}</>}
-                </button>
-                {lavaChips(pricing?.deviceAddonPrice, pricing?.lavaEnabled).length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[11px] text-nm-text-secondary text-center mb-1.5 opacity-80">
-                      {LAVA_NOTE[lang] ?? LAVA_NOTE.en}
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {lavaChips(pricing?.deviceAddonPrice, pricing?.lavaEnabled).map((c) => (
-                        <button key={c.id} disabled={buyingLava !== null}
-                          onClick={() => handleBuyLava({ what: "device" }, c.id, c.currency, `device:${c.id}`)}
-                          className="nm-btn px-3 py-2 text-xs font-medium text-nm-text flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
-                          {buyingLava === `device:${c.id}`
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <>{LAVA_LABEL[c.id]} · {formatCharge(pricing?.deviceAddonPrice as number, c.currency)}</>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <p className="text-[11px] text-nm-text-secondary text-center mt-1 opacity-80">{CARD_NOTE[lang] ?? CARD_NOTE.en}</p>
-              </div>
-            )}
-
-            {/* Devices */}
-            {profiles.map((p, i) => {
-              const happEnabled = account?.features?.happEncrypted ?? false;
-              const subUrl = p.subToken ? (happEnabled ? `https://kovravpn.com/p/${p.subToken}` : `https://kovravpn.com/api/sub/${p.subToken}`) : "";
-              return (
-                <div key={p.uuid} className="nm-raised p-4 md:p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2"><div className="nm-circle-pressed w-7 h-7 flex items-center justify-center"><Shield className="w-3.5 h-3.5 text-nm-accent" /></div><span className="font-bold text-nm-text text-sm">{devLabel(i)}</span></div>
-                    <button onClick={() => handleDelete(p.uuid)} disabled={deletingId === p.uuid} className="nm-btn px-2.5 py-1.5 text-xs text-red-400 inline-flex items-center gap-1 cursor-pointer disabled:opacity-50">{deletingId === p.uuid ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}{t.delete}</button>
-                  </div>
-                  <p className="text-[10px] text-nm-text-secondary mb-2">{t.device_link_note}</p>
-                  <div className="nm-pressed p-2.5 rounded-2xl flex items-center gap-2">
-                    <code className="flex-1 text-[10px] md:text-[11px] text-nm-accent truncate font-mono min-w-0">{subUrl || "—"}</code>
-                    <button onClick={() => subUrl && copyLink(subUrl, p.uuid)} disabled={!subUrl} className="nm-btn w-8 h-8 flex items-center justify-center shrink-0 disabled:opacity-50">{copiedId === p.uuid ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5 text-nm-text-secondary" />}</button>
-                  </div>
-                  {subUrl && <QrToggle url={subUrl} />}
-                  <button onClick={() => handleResetHwid(p.uuid)} disabled={resettingId === p.uuid} className="nm-btn w-full py-2 mt-2 text-xs font-medium text-nm-text-secondary inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50">
-                    {resettingId === p.uuid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : resetDoneId === p.uuid ? <Check className="w-3.5 h-3.5 text-green-500" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                    {resetDoneId === p.uuid ? t.reset_hwid_done : t.reset_hwid}
-                  </button>
-                  <p className="text-[10px] text-nm-text-secondary mt-1.5 leading-snug">{t.reset_hwid_note}</p>
-                </div>
-              );
-            })}
-
-            {/* Create device */}
-            {canCreate && !showDevicePicker && (
-              <button onClick={() => handleCreate()} disabled={creating} className="nm-btn-accent w-full py-3.5 font-semibold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-                {creating ? <><Loader2 className="w-5 h-5 animate-spin" />{t.creating}</> : <><Plus className="w-5 h-5" />{profiles.length === 0 ? t.connect : t.add_one}</>}
-              </button>
-            )}
-
-            {showDevicePicker && (
-              <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-3">📱 {t.pick_device}</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEVICE_ORDER.map((id) => {
-                    const d = DEVICE_DEFS[id];
-                    return (
-                      <button key={id} onClick={() => handleCreate(id)} disabled={creating}
-                        className="nm-btn py-3 px-3 text-sm text-nm-text flex items-center gap-2 cursor-pointer disabled:opacity-50">
-                        <span>{d.emoji}</span>{d.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button onClick={() => setShowDevicePicker(false)} className="text-xs text-nm-text-secondary mt-3 cursor-pointer">{t.cancel}</button>
-              </div>
-            )}
-
-            {/* Downloads after creation */}
-            {lastCreatedDevice && DEVICE_DEFS[lastCreatedDevice] && (
-              <div className="nm-raised p-4 md:p-5">
-                <p className="text-sm text-nm-text mb-3">📥 {t.download_app_for} <b>{DEVICE_DEFS[lastCreatedDevice].name}</b>:</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <a href={DEVICE_DEFS[lastCreatedDevice].happ} target="_blank" rel="noopener noreferrer" className="nm-btn-accent py-3 px-4 text-sm font-medium text-center">Happ</a>
-                  <a href={DEVICE_DEFS[lastCreatedDevice].v2ray} target="_blank" rel="noopener noreferrer" className="nm-btn py-3 px-4 text-sm font-medium text-nm-accent text-center">V2RayTun</a>
-                </div>
-                <p className="text-xs text-nm-text-secondary mt-2 text-center">{t.copy_vless_note}</p>
-                <button onClick={() => setLastCreatedDevice(null)} className="text-xs text-nm-text-secondary mt-2 cursor-pointer block mx-auto">{t.hide}</button>
-              </div>
-            )}
-
-            {/* Need slot */}
-            {!canCreate && profiles.length >= slots && profiles.length < 100 && (
-              <div className="nm-pressed p-5 text-center rounded-2xl">
-                <p className="text-sm text-nm-text-secondary mb-1">{t.need_slot}</p>
-                <p className="text-xs text-nm-text-secondary">{t.need_slot_note}</p>
-              </div>
-            )}
-            {profiles.length >= 100 && (
-              <div className="nm-pressed p-5 text-center rounded-2xl"><p className="text-sm text-nm-text-secondary">{t.max_devices}</p></div>
-            )}
-
-            {error && <div className="nm-pressed-sm p-3 rounded-xl flex items-center gap-2 justify-center text-sm text-red-400"><AlertTriangle className="w-4 h-4 shrink-0" />{error}</div>}
-
-            {/* Promo */}
-            <div className="nm-raised p-4 md:p-5">
-              <h3 className="font-bold text-nm-text text-sm mb-3">🎟 {t.promo_title}</h3>
-              <div className="flex gap-2">
-                <input type="text" placeholder={t.promo_ph} value={promoCode} onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoMsg(null); }}
-                  className="nm-pressed-sm px-3 py-2 text-xs text-nm-text bg-transparent outline-none flex-1" maxLength={32} />
-                <button disabled={promoLoading || !promoCode} onClick={async () => {
-                  setPromoLoading(true); setPromoMsg(null);
-                  try {
-                    const r = await fetch("/api/promo/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: promoCode }) });
-                    const d = await r.json();
-                    if (d.success) { setPromoMsg(`✅ ${t.promo_applied}`); setPromoCode(""); await fetchAccount(); }
-                    else setPromoMsg(`❌ ${d.error}`);
-                  } catch { setPromoMsg("❌ " + t.err_conn); } finally { setPromoLoading(false); }
-                }} className="nm-btn-accent px-4 py-2 text-xs font-medium cursor-pointer disabled:opacity-50">
-                  {promoLoading ? "..." : t.promo_ok}
-                </button>
-              </div>
-              {promoMsg && <p className={`text-xs mt-2 ${promoMsg.startsWith("✅") ? "text-green-400" : "text-red-400"}`}>{promoMsg}</p>}
-            </div>
-
-            {/* Downloads */}
-            <div className="nm-raised p-4 md:p-5">
-              <div className="flex items-center justify-between mb-3"><h3 className="font-bold text-nm-text text-sm">Happ</h3><a href="https://www.happ.su/main" target="_blank" rel="noopener noreferrer" className="text-xs text-nm-accent hover:underline">{t.downloads_all} →</a></div>
-              <div className="grid grid-cols-2 gap-2">
-                <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.windows}</a>
-                <a href="https://play.google.com/store/apps/details?id=com.happproxy" target="_blank" rel="noopener noreferrer" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.android}</a>
-                <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" target="_blank" rel="noopener noreferrer" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.ios_mac}</a>
-              </div>
-              <div className="flex items-center justify-between mt-4 mb-3"><h3 className="font-bold text-nm-text text-sm">V2RayTun</h3><a href="https://v2raytun.com" target="_blank" rel="noopener noreferrer" className="text-xs text-nm-accent hover:underline">{t.downloads_site} →</a></div>
-              <div className="grid grid-cols-2 gap-2">
-                <a href="https://storage.v2raytun.com/v2RayTun_Setup.exe" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.windows}</a>
-                <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android" target="_blank" rel="noopener noreferrer" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.android_tv}</a>
-                <a href="https://apps.apple.com/us/app/v2raytun/id6476628951" target="_blank" rel="noopener noreferrer" className="nm-btn py-2.5 px-3 text-sm text-nm-text flex items-center gap-2"><Download className="w-4 h-4 text-nm-text-secondary shrink-0" />{t.ios_mac}</a>
-              </div>
-            </div>
-
-            {/* Account linking */}
-            {userId && userInfo && (
-              <LinkAccounts userId={userId} authMethod={userInfo.authMethod} email={userInfo.email} telegramId={userInfo.telegramId}
-                onUpdate={() => { fetch("/api/auth/me").then((r) => r.json()).then((d) => { if (d.authenticated) setUserInfo({ authMethod: d.authMethod, email: d.email, telegramId: d.telegramId }); }); }} />
-            )}
-
-            {/* Referral */}
-            {referral && (
-              <div className="nm-raised p-4 md:p-5">
-                <h3 className="font-bold text-nm-text text-sm mb-3 flex items-center gap-2"><Gift className="w-4 h-4 text-nm-accent" />{t.ref_title}</h3>
-                <p className="text-xs text-nm-text-secondary mb-3">{t.ref_note}</p>
-                <div className="nm-pressed p-3 rounded-2xl mb-3 cursor-pointer select-none"
-                  onClick={() => { navigator.clipboard.writeText(referral.link); setRefCopied(true); setTimeout(() => setRefCopied(false), 2000); }}>
-                  <p className="text-[10px] text-nm-text-secondary mb-1">{refCopied ? t.ref_copied : t.ref_click_copy}</p>
-                  <code className="text-xs text-nm-text break-all">{referral.link}</code>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="nm-pressed-sm p-2 rounded-xl"><p className="text-lg font-bold text-nm-text">{referral.total}</p><p className="text-[10px] text-nm-text-secondary">{t.ref_invited}</p></div>
-                  <div className="nm-pressed-sm p-2 rounded-xl"><p className="text-lg font-bold text-nm-text">{referral.rewarded}</p><p className="text-[10px] text-nm-text-secondary">{t.ref_paid}</p></div>
-                  <div className="nm-pressed-sm p-2 rounded-xl"><p className="text-lg font-bold text-nm-accent">{referral.rewarded * 14}</p><p className="text-[10px] text-nm-text-secondary">{t.ref_days_earned}</p></div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "help" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="nm-raised p-6 flex flex-col">
-              <h3 className="font-bold text-nm-text mb-2">{t.guide}</h3>
-              <p className="text-sm text-nm-text-secondary mb-4 flex-1">{t.guide_note}</p>
-              <a href="/guide" target="_blank" rel="noopener noreferrer" className="nm-btn-accent w-full py-3 text-sm font-medium flex items-center justify-center gap-2">{t.open}<ExternalLink className="w-4 h-4" /></a>
-            </div>
-            <div className="nm-raised p-6 flex flex-col">
-              <h3 className="font-bold text-nm-text mb-2">{t.support}</h3>
-              <p className="text-sm text-nm-text-secondary mb-4 flex-1">{t.support_note}</p>
-              <a href="https://t.me/KovraVPN_bot" target="_blank" rel="noopener noreferrer" className="nm-btn w-full py-3 text-sm font-medium text-nm-text flex items-center justify-center gap-2">{t.write}<ExternalLink className="w-4 h-4" /></a>
-            </div>
-          </div>
-        )}
       </main>
-    </div>
+      <BottomNav t={t} view={view} onNavigate={navigate} />
+
+      <ConfirmDialog
+        open={confirmReset !== null}
+        title={t.reset_title}
+        body={t.reset_hwid_note}
+        confirmLabel={t.reset_confirm}
+        cancelLabel={t.cancel}
+        busy={resettingId !== null}
+        onConfirm={async () => {
+          if (!confirmReset) return;
+          await handleResetHwid(confirmReset);
+          setConfirmReset(null);
+        }}
+        onCancel={() => setConfirmReset(null)}
+      />
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        tone="danger"
+        title={fmt(t.delete_title, { name: confirmDelete?.name ?? t.dev_fallback })}
+        body={t.delete_body}
+        confirmLabel={t.delete_device}
+        cancelLabel={t.cancel}
+        busy={deletingId !== null}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          const ok = await handleDelete(confirmDelete.uuid);
+          setConfirmDelete(null);
+          // The card (and its menu button) is gone: land on the section heading.
+          if (ok) window.setTimeout(() => devicesHeadingRef.current?.focus({ preventScroll: true }), 60);
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
+      {pricing ? (
+        <ExtraSlotDialog
+          open={slotDialogOpen}
+          onClose={() => setSlotDialogOpen(false)}
+          t={t}
+          lang={lang}
+          price={pricing.deviceAddonPrice}
+          days={pricing.deviceAddonDays}
+          lavaEnabled={pricing.lavaEnabled}
+          busy={payBusy}
+          isLoading={slotLoading}
+          onPay={paySlot}
+          error={slotError}
+          onDismissError={() => setSlotError(null)}
+        />
+      ) : null}
+    </CabinetRoot>
   );
 }

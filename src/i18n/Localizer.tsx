@@ -8,15 +8,22 @@ import {
   detectLang,
   LANG_CHANGE_EVENT,
 } from "./runtime";
+import { isCabinetPath, resolveCabinetLang } from "./resolve";
 
 /**
  * Mount once at the document root (in `RootLayout`). Walks the DOM,
  * applies the active-language dictionary, and re-applies on language
  * change events fired by `setLang()`.
  *
- * Uses `useEffect` (not `useLayoutEffect`) — we accept a brief RU flash
- * for EN users in exchange for SSR rendering RU markup that Yandex/
- * Google index correctly. RU users (95%+) see no flash.
+ * Uses `useEffect` (not `useLayoutEffect`): pages that server-render RU
+ * markup accept a brief RU flash for visitors in other languages in
+ * exchange for SSR markup that Yandex/Google index correctly.
+ *
+ * Cabinet pages (/login, /register, /dashboard) render every string from
+ * typed React dictionaries, so there the Localizer only keeps <html lang>
+ * and data-lang in sync with resolveCabinetLang() and never walks the DOM.
+ * The path is checked on every call because this component is mounted once
+ * in the root layout and survives client-side navigation.
  */
 export default function Localizer() {
   useEffect(() => {
@@ -38,6 +45,10 @@ export default function Localizer() {
     // the other.
     let pendingRaf: number | null = null;
     let currentLang = detectLang();
+    // True while currentLang came from the cabinet resolver rather than an
+    // explicit switch; a later non-cabinet page then re-detects with its
+    // own (original) rules instead of inheriting the cabinet result.
+    let langFromCabinet = isCabinetPath(window.location.pathname);
 
     const OBSERVER_OPTS: MutationObserverInit = {
       childList: true,
@@ -51,7 +62,19 @@ export default function Localizer() {
      * a single apply call use a consistent target. The observer is
      * paused for the duration of the writes.
      */
-    const apply = (lang: typeof currentLang) => {
+    const apply = (requested: typeof currentLang) => {
+      if (isCabinetPath(window.location.pathname)) {
+        const cabinetLang = resolveCabinetLang();
+        document.documentElement.setAttribute("lang", cabinetLang);
+        document.documentElement.setAttribute("data-lang", cabinetLang);
+        return;
+      }
+      let lang = requested;
+      if (langFromCabinet) {
+        lang = detectLang();
+        currentLang = lang;
+        langFromCabinet = false;
+      }
       document.documentElement.setAttribute("lang", lang);
       document.documentElement.setAttribute("data-lang", lang);
       observer?.disconnect();
@@ -87,21 +110,22 @@ export default function Localizer() {
       // a different write order on iOS Safari.
       const detail = (e as CustomEvent<{ lang: typeof currentLang }>).detail;
       currentLang = detail?.lang ?? detectLang();
+      langFromCabinet = false;
       scheduleApply();
     };
 
     const onPopState = () => {
       // Back/forward navigation: re-read URL.
       currentLang = detectLang();
+      langFromCabinet = isCabinetPath(window.location.pathname);
       scheduleApply();
     };
 
     window.addEventListener(LANG_CHANGE_EVENT, onLangChange);
     window.addEventListener("popstate", onPopState);
 
-    // React re-renders subtrees with fresh DOM nodes (toggling between
-    // Почта/Telegram on /login, advancing to the verification step on
-    // /register, opening an accordion, etc.). New nodes carry
+    // React re-renders subtrees with fresh DOM nodes (opening an
+    // accordion, switching a guide tab, etc.). New nodes carry
     // data-i18n attributes but the initial Localizer walk has already
     // run, so without an observer they would stay in Russian until
     // the user switched language again. The observer just schedules
@@ -109,6 +133,8 @@ export default function Localizer() {
     // pending flag needed because cancelAnimationFrame guarantees at
     // most one queued apply at a time.
     observer = new MutationObserver((mutations) => {
+      // Cabinet pages carry no data-i18n markup: skip the DOM walks.
+      if (isCabinetPath(window.location.pathname)) return;
       const hasNewNodes = mutations.some((m) => m.addedNodes.length > 0);
       if (!hasNewNodes) return;
       scheduleApply();

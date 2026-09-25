@@ -325,9 +325,6 @@ textarea.nm-pressed-sm:focus {
 .klang-item.is-active{color:var(--k-text)}
 @media(max-width:640px){.klang-btn{padding:0 11px}.klang-menu{min-width:160px}}
 
-/* override kvr-root reset on login/register */
-.klang .klang-btn{padding:0 12px}
-.klang .klang-menu .klang-item{padding:9px 12px}
 
 /* ═══════════════════════════════════════════════════════
    Kovra v3 — "Privacy. Perfected." brand layer
@@ -685,4 +682,26 @@ textarea.nm-pressed-sm:focus {
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── Brand accent + thread (cabinet redesign 2026-09) ── */
+:root, [data-theme="dark"] {
+  --k-accent: #C6A983;          /* wordmark dot; fills everywhere, text only in dark */
+  --k-accent-hi: #D4BB93;       /* CTA hover */
+  --k-accent-ink: #C6A983;      /* gold text / focus ring (9.1:1 on #050506) */
+  --k-accent-line: rgba(198,169,131,.38);
+  --k-accent-wash: rgba(198,169,131,.10);
+  --k-on-accent: #141210;       /* text on gold, 8.3:1 */
+  --k-thread: 198,169,131;      /* ThreadCanvas rgb triplet */
+  --k-thread-alpha: 1;
+}
+[data-theme="light"] {
+  --k-accent: #C6A983;          /* fills only: 2.2:1 on white, NEVER text */
+  --k-accent-hi: #BC9E76;
+  --k-accent-ink: #7D6038;      /* gold text / focus ring: 5.8:1 on #fff, 5.3:1 on #f5f5f7 */
+  --k-accent-line: rgba(125,96,56,.35);
+  --k-accent-wash: rgba(198,169,131,.16);
+  --k-on-accent: #141210;
+  --k-thread: 125,96,56;
+  --k-thread-alpha: .75;
 }
