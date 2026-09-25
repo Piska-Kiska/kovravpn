@@ -225,8 +225,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f1f3f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a1d23" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#050506" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -242,17 +242,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
+        {/* Theme boot (src/lib/theme.ts): preference = stored "light" | "dark",
+            otherwise "system". Sets the resolved theme before first paint. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.setAttribute('data-theme','dark')}else{document.documentElement.setAttribute('data-theme','light')}}catch(e){}})()`,
+            __html: `(function(){try{var d=document.documentElement,t=null;try{t=localStorage.getItem('theme')}catch(e){}var p=(t==='light'||t==='dark')?t:'system';var r=p==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;d.setAttribute('data-theme',r);d.setAttribute('data-theme-pref',p);d.style.colorScheme=r;}catch(e){}})()`,
           }}
         />
-        {/* Boot the language attribute synchronously so the SSR-rendered
-            RU markup gets a correct <html lang> early. The actual text
-            swap happens in the Localizer client component below. */}
+        {/* Language boot. Cabinet pages (/login, /register, /dashboard)
+            resolve ?lang, a real saved choice, then navigator.languages
+            (keep in sync with src/i18n/resolve.ts) and hide the English SSR
+            markup until React re-renders in that language. Every other page
+            keeps the original RU/EN logic; the Localizer swaps its text. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var u=new URL(location.href);var fromUrl=u.searchParams.get('lang');var saved=localStorage.getItem('lang');var l=(fromUrl==='en'||fromUrl==='ru')?fromUrl:((saved==='en'||saved==='ru')?saved:'ru');document.documentElement.setAttribute('lang',l);document.documentElement.setAttribute('data-lang',l)}catch(e){}})()`,
+            __html: `(function(){try{var d=document.documentElement,S=['en','ru','es','de','fr'],l=null;if(/^\\/(login|register|dashboard)(\\/|$)/.test(location.pathname)){var q=new URL(location.href).searchParams.get('lang'),s=null,x=null;try{s=localStorage.getItem('kovra_lang');x=localStorage.getItem('kovra_lang_explicit')}catch(e){}if(S.indexOf(q)>=0)l=q;else if(S.indexOf(s)>=0&&(s!=='en'||x==='1'))l=s;else{var n=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||''];for(var i=0;i<n.length&&!l;i++){var c=String(n[i]).trim().toLowerCase().split(/[-_]/)[0];if(S.indexOf(c)>=0)l=c;}}if(!l)l='en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}else{var u=new URL(location.href),fromUrl=u.searchParams.get('lang'),saved=localStorage.getItem('lang');l=(fromUrl==='en'||fromUrl==='ru')?fromUrl:((saved==='en'||saved==='ru')?saved:'ru');}d.setAttribute('lang',l);d.setAttribute('data-lang',l);}catch(e){}})()`,
           }}
         />
       </head>

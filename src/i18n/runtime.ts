@@ -19,8 +19,11 @@
 // es/de/fr blocks carry en text for those keys).
 
 import type { Lang } from "./dict";
+import { isCabinetPath, resolveCabinetLang } from "./resolve";
 
 export const STORAGE_KEY = "kovra_lang"; // unified with landing + dashboard
+/** "1" once the visitor picked a language in a switcher (see src/i18n/resolve.ts). */
+export const LANG_EXPLICIT_KEY = "kovra_lang_explicit";
 export const LANG_CHANGE_EVENT = "i18n:lang-change";
 
 const SUPPORTED: Lang[] = ["ru", "en", "es", "de", "fr"];
@@ -29,9 +32,14 @@ function isLang(v: string | null | undefined): v is Lang {
   return !!v && (SUPPORTED as string[]).includes(v);
 }
 
-/** Read current language preference. Safe to call on the client only. */
+/**
+ * Read current language preference. Safe to call on the client only.
+ * Cabinet pages (/login, /register, /dashboard) resolve through
+ * resolveCabinetLang(); every other page keeps the original logic below.
+ */
 export function detectLang(): Lang {
   if (typeof window === "undefined") return "ru";
+  if (isCabinetPath(window.location.pathname)) return resolveCabinetLang();
   try {
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("lang");
@@ -53,6 +61,13 @@ export function setLang(lang: Lang): void {
     window.localStorage.setItem(STORAGE_KEY, lang);
   } catch {
     // localStorage may be unavailable (private mode quota, embed sandbox).
+  }
+  try {
+    // Marks the stored value as a real choice: the landing writes a bare
+    // "en" on every visit, which the cabinet must not treat as one.
+    window.localStorage.setItem(LANG_EXPLICIT_KEY, "1");
+  } catch {
+    // Same as above.
   }
   document.documentElement.setAttribute("lang", lang);
   document.documentElement.setAttribute("data-lang", lang);
