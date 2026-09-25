@@ -312,20 +312,6 @@ textarea.nm-pressed-sm:focus {
 }
 
 
-/* === unified language switcher (klang) — v3, matches landing kv-ctrl === */
-.klang{position:relative}
-.klang-btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:999px;cursor:pointer;font-family:var(--k-mono);font-weight:500;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--k-text-2);background:transparent;border:1px solid var(--k-border);box-shadow:none;transition:border-color .25s,color .25s}
-.klang-btn:hover{border-color:var(--k-border-hover);color:var(--k-text)}
-.klang-btn .klang-glb{color:currentColor}
-.klang-btn .klang-car{opacity:.7;transition:transform .2s}
-.klang-btn.is-open .klang-car{transform:rotate(180deg)}
-.klang-menu{position:absolute;top:44px;right:0;min-width:168px;padding:6px;border-radius:14px;background:var(--k-surface);border:1px solid var(--k-border);box-shadow:var(--k-shadow);z-index:90;display:flex;flex-direction:column;gap:2px}
-.klang-item{text-align:left;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:500;font-family:var(--k-font);color:var(--k-text-2);background:transparent;border:none;transition:background .15s,color .15s}
-.klang-item:hover{background:var(--k-surface-2);color:var(--k-text)}
-.klang-item.is-active{color:var(--k-text)}
-@media(max-width:640px){.klang-btn{padding:0 11px}.klang-menu{min-width:160px}}
-
-
 /* ═══════════════════════════════════════════════════════
    Kovra v3 — "Privacy. Perfected." brand layer
    Apple-keynote minimal: total black, giant metallic type,

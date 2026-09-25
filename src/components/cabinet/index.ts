@@ -10,7 +10,6 @@ export { CopyField, type CopyFieldProps } from "./CopyField";
 export { CodeCard, type CodeCardProps } from "./CodeCard";
 export { Menu, type MenuProps, type MenuItem, type MenuItemKind, type MenuTriggerProps } from "./Menu";
 export { LangMenu, type LangMenuProps } from "./LangMenu";
-export { ThemeMenu, THEME_OPTIONS, type ThemeMenuProps } from "./ThemeMenu";
 export { Dialog, ConfirmDialog, type DialogProps, type ConfirmDialogProps } from "./Dialog";
 export { AuthShell, type AuthShellProps } from "./AuthShell";
 export { TelegramAuth, type TelegramAuthProps } from "./TelegramAuth";

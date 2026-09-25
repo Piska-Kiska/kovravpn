@@ -1,8 +1,9 @@
 // src/app/guide/page.tsx
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Copy, Download, Smartphone, Monitor, Apple, CheckCircle2 } from "lucide-react";
-import Logo from "@/components/Logo";
+import { Copy, Download, Smartphone, Monitor, Apple, CheckCircle2 } from "lucide-react";
+import { BackGlyph } from "@/components/chrome/glyphs";
+import { SiteHeader } from "@/components/chrome/SiteHeader";
 import NavToggles from "@/components/NavToggles";
 import { buildHowToSchema, buildFaqPageSchema, buildBreadcrumbSchema, jsonLd } from "@/lib/structured-data";
 import { FAQ_GUIDE } from "@/lib/faq-items";
@@ -174,35 +175,17 @@ export default function GuidePage() {
         }}
       />
 
-      {/* ── Nav with inline toggles ──────────────────── */}
-      <nav className="container mx-auto px-4 md:px-6 pt-6 mb-4">
-        <div className="nm-raised-sm px-3 md:px-5 py-3 flex items-center justify-between gap-2 min-w-0">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="nm-circle w-9 h-9 flex items-center justify-center">
-              <Logo size={18} className="text-nm-accent" />
-            </div>
-            <span
-              className="hidden sm:inline font-semibold text-nm-text tracking-tight"
-              data-i18n="common.brand"
-            >
-              Kovra
-            </span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <NavToggles />
-            <Link
-              href="/dashboard"
-              className="nm-btn inline-flex items-center gap-1.5 px-3 md:px-4 py-2 text-xs md:text-sm text-nm-text-secondary"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span data-i18n="common.back">Назад</span>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      {/* ── Header: shared chrome ───────────────────── */}
+      <SiteHeader>
+        <NavToggles />
+        <Link href="/dashboard" className="kh-link">
+          <BackGlyph className="kh-link-glyph" />
+          <span className="kh-link-text" data-i18n="common.back">Назад</span>
+        </Link>
+      </SiteHeader>
 
       {/* ── Hero ──────────────────────────────────── */}
-      <section className="container mx-auto px-6 pt-8 pb-12 text-center">
+      <section className="container mx-auto px-6 pt-12 pb-12 text-center">
         <h1
           className="text-3xl md:text-4xl font-bold text-nm-text mb-3"
           data-i18n="guide.title"

@@ -1,0 +1,203 @@
+/* src/app/chrome.css
+ *
+ * Header chrome shared by every page: the preferences capsule
+ * (language | theme), the account monogram and their popovers.
+ * Imported once in src/app/layout.tsx (NOT via CabinetRoot): the landing,
+ * /guides and the legal pages are outside .kc.
+ *
+ * Gold rule: at rest the only gold is the wordmark dot and the monogram's
+ * full stop. Gold appears on interaction only where something is open
+ * (the capsule / monogram rim) or chosen (the full stop after a label).
+ */
+
+:root, [data-theme="dark"] {
+  --kh-fg: #f5f5f7; --kh-fg-2: #86868b; --kh-fg-3: #6e6e73;
+  --kh-rim: rgba(255,255,255,.12); --kh-rim-hi: rgba(255,255,255,.22); --kh-thread: rgba(198,169,131,.62);
+  --kh-sep: rgba(255,255,255,.12); --kh-hover: rgba(255,255,255,.07); --kh-press: rgba(255,255,255,.11);
+  --kh-pop-bg: #0e0e10; --kh-pop-rim: rgba(255,255,255,.09); --kh-pop-rule: rgba(255,255,255,.07);
+  --kh-pop-shadow: 0 28px 64px -24px rgba(0,0,0,.85), 0 2px 8px rgba(0,0,0,.35);
+  --kh-row-hover: rgba(255,255,255,.055); --kh-sw-rim: rgba(255,255,255,.14);
+  --kh-dot: #C6A983; --kh-focus: #C6A983;
+  --kh-ok: #4ADE80; --kh-warn: #E9B872; --kh-danger: #FF8A80;
+}
+[data-theme="light"] {
+  --kh-fg: #1d1d1f; --kh-fg-2: #636366; --kh-fg-3: #7c7c80;
+  --kh-rim: rgba(0,0,0,.12); --kh-rim-hi: rgba(0,0,0,.22); --kh-thread: rgba(125,96,56,.55);
+  --kh-sep: rgba(0,0,0,.12); --kh-hover: rgba(0,0,0,.045); --kh-press: rgba(0,0,0,.08);
+  --kh-pop-bg: #ffffff; --kh-pop-rim: rgba(0,0,0,.09); --kh-pop-rule: rgba(0,0,0,.07);
+  --kh-pop-shadow: 0 28px 64px -28px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.05);
+  --kh-row-hover: rgba(0,0,0,.04); --kh-sw-rim: rgba(0,0,0,.14);
+  --kh-dot: #C6A983; --kh-focus: #7D6038;
+  --kh-ok: #15803D; --kh-warn: #8A5300; --kh-danger: #B42318;
+}
+
+/* Theme switch lands in one frame on every page (moved here from cabinet.css). */
+html.kc-no-anim *, html.kc-no-anim *::before, html.kc-no-anim *::after { transition: none !important; }
+
+
+/* Right-hand group of a header. On phones the popovers hang from its right edge (= the page gutter). */
+.kh-bar { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.kh-anchor { position: relative; display: inline-flex; flex: none; }
+
+/* ── Capsule: [LANG ⌄ | THEME] ─────────────────────────────── */
+.kh-prefs {
+  position: relative; display: inline-flex; align-items: center; flex: none;
+  height: 36px; padding: 2px; border: 1px solid var(--kh-rim); border-radius: 999px;
+  transition: border-color 240ms var(--k-ease);
+}
+.kh-prefs .kh-anchor { position: static; }            /* both popovers hang from the capsule's right edge */
+@media (hover: hover) { .kh-prefs:hover { border-color: var(--kh-rim-hi); } }
+.kh-prefs:has(.kh-seg[aria-expanded="true"]) { border-color: var(--kh-thread); }
+.kh-seg {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  height: 30px; margin: 0; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--kh-fg-2); font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms var(--k-ease), color 160ms var(--k-ease);
+}
+.kh-seg::before { content: ""; position: absolute; inset: -7px -2px; border-radius: 999px; }   /* 44px tall hit area */
+@media (hover: hover) { .kh-seg:hover { background: var(--kh-hover); color: var(--kh-fg); } }
+.kh-seg:active { background: var(--kh-press); color: var(--kh-fg); }
+.kh-seg[aria-expanded="true"] { background: var(--kh-hover); color: var(--kh-fg); }
+.kh-prefs .kh-seg:focus-visible { outline: 2px solid var(--kh-focus); outline-offset: -2px; border-radius: 999px; }
+.kh-seg--lang { gap: 6px; padding: 0 9px 0 11px; }
+.kh-code { font: 500 12px/1 var(--k-mono); letter-spacing: .14em; margin-right: -.14em; font-variant-numeric: tabular-nums; }
+.kh-code[data-pending] { visibility: hidden; }        /* runtime pages: hidden until the real language is known (width is constant) */
+.kh-chev { display: block; flex: none; width: 10px; height: 10px; color: var(--kh-fg-3); transition: transform 240ms var(--k-ease), color 160ms var(--k-ease); }
+.kh-seg[aria-expanded="true"] .kh-chev { transform: rotate(180deg); color: var(--kh-fg-2); }
+.kh-seg--theme { width: 30px; }
+.kh-sep { flex: none; width: 1px; height: 14px; margin: 0 2px; background: var(--kh-sep); }
+
+/* The theme trigger renders all three glyphs; <html data-theme-pref> (set before first paint) picks one. */
+.kh-glyphs { display: inline-flex; }
+.kh-g { display: none; width: 16px; height: 16px; }
+html:not([data-theme-pref="light"]):not([data-theme-pref="dark"]) .kh-g--system,
+html[data-theme-pref="light"] .kh-g--light,
+html[data-theme-pref="dark"] .kh-g--dark { display: block; }
+.kh-glyphs[data-swap] .kh-g, .kh-code[data-swap] { animation: kh-swap 160ms var(--k-ease); }
+@keyframes kh-swap { from { opacity: 0; transform: scale(.8); } }
+
+/* ── Monogram "d." ─────────────────────────────────────────── */
+.kh-me {
+  position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 36px; height: 36px; margin: 0; padding: 0; border: 1px solid var(--kh-rim); border-radius: 50%;
+  background: transparent; color: var(--kh-fg); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms var(--k-ease), border-color 240ms var(--k-ease);
+}
+.kh-me::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }             /* 44 x 44 */
+@media (hover: hover) { .kh-me:hover { background: var(--kh-hover); border-color: var(--kh-rim-hi); } }
+.kh-me:active { background: var(--kh-press); }
+.kh-me[aria-expanded="true"] { background: var(--kh-hover); border-color: var(--kh-thread); }
+.kh-anchor .kh-me:focus-visible { outline: 2px solid var(--kh-focus); outline-offset: 2px; border-radius: 50%; }
+.kh-mark { display: inline-flex; align-items: baseline; gap: 1.5px; font: 600 16px/1 var(--k-font); letter-spacing: -.03em; transform: translate(1px, -.5px); animation: kh-mark-in 160ms var(--k-ease); }   /* fades in once the identity arrives */
+@keyframes kh-mark-in { from { opacity: 0; transform: translate(1px, -.5px) scale(.8); } }
+.kh-mark-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--kh-dot); }
+.kh-me svg { display: block; width: 16px; height: 16px; }
+
+/* ── Popovers ──────────────────────────────────────────────── */
+.kh-pop {
+  position: absolute; z-index: 60; top: calc(100% + 10px); right: 0;
+  min-width: 232px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 96px); overflow: auto;
+  padding: 6px; border: 1px solid var(--kh-pop-rim); border-radius: 12px;
+  background: var(--kh-pop-bg); color: var(--kh-fg); box-shadow: var(--kh-pop-shadow);
+  text-align: left; transform-origin: top right; animation: kh-pop-in 200ms var(--k-ease);
+}
+@keyframes kh-pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.kh-pop--theme { min-width: 0; width: max-content; }
+.kh-pop--me { min-width: 256px; }
+.kh-pop-label { margin: 0; padding: 9px 12px 11px; font: 500 12px/1 var(--k-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--kh-fg-2); }
+.kh-pop-rule { height: 1px; margin: 0 -6px 6px; background: var(--kh-pop-rule); }
+.kh-pop-note { max-width: 220px; margin: 0; padding: 0 12px 10px; font: 400 13px/1.35 var(--k-font); color: var(--kh-fg-2); text-wrap: balance; }   /* 220 = the 232px menu minus its padding: a long note wraps instead of widening the menu */
+.kh-pop-rule--mid { margin: 6px -6px; }
+/* The chosen item ends with the wordmark's full stop. */
+.kh-dot { display: inline-block; flex: none; width: 5px; height: 5px; margin-left: 2px; border-radius: 50%; background: var(--kh-dot); vertical-align: baseline; animation: kh-dot-in 240ms var(--k-ease); }
+@keyframes kh-dot-in { from { opacity: 0; transform: scale(.3); } }
+
+/* language rows: [Native name.] ........ [CODE] */
+.kh-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;
+  min-height: 44px; margin: 0; padding: 0 12px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--kh-fg); font: 400 15px/1.2 var(--k-font); letter-spacing: -.01em; text-align: left; cursor: pointer;
+  transition: background-color 160ms var(--k-ease);
+}
+.kh-pop .kh-opt:focus-visible, .kh-pop .kh-tile:focus-visible, .kh-pop .kh-row:focus-visible { outline: 2px solid var(--kh-focus); outline-offset: -2px; border-radius: 8px; }   /* beats the landing's .k-page button:focus-visible (0,2,1) */
+.kh-opt[aria-checked="true"] { font-weight: 500; }
+.kh-opt-code { flex: none; font: 500 12px/1 var(--k-mono); letter-spacing: .14em; margin-right: -.14em; color: var(--kh-fg-2); }
+.kh-opt[aria-checked="true"] .kh-opt-code { color: var(--kh-fg); }
+
+/* theme tiles: live page swatches */
+.kh-tiles { display: grid; grid-template-columns: repeat(3, 76px); gap: 4px; padding-top: 2px; }
+.kh-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 9px; margin: 0; padding: 8px 0 9px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--kh-fg-2); font: 500 13px/1.2 var(--k-font); cursor: pointer;
+  transition: background-color 160ms var(--k-ease), color 160ms var(--k-ease);
+}
+.kh-tile svg { display: block; width: 60px; height: 42px; border-radius: 7px; transition: box-shadow 160ms var(--k-ease); }
+.kh-tile[aria-checked="true"] { color: var(--kh-fg); }
+.kh-tile[aria-checked="true"] svg { box-shadow: 0 0 0 2px var(--kh-pop-bg), 0 0 0 3.5px var(--kh-fg); }
+.kh-tile-label { position: relative; }
+.kh-tile-label .kh-dot { margin-right: -7px; }   /* on the baseline like the language rows; -(5px dot + 2px gap) keeps the label centred */
+
+/* account */
+.kh-who { padding: 10px 12px 12px; }
+.kh-who .kh-pop-label { padding: 0; }
+.kh-who-mail { margin: 7px 0 0; font: 500 15px/1.35 var(--k-font); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.kh-who-status { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; font: 400 13px/1.3 var(--k-font); color: var(--kh-fg-2); font-variant-numeric: tabular-nums; }
+.kh-who-status i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--kh-ok); }
+.kh-who-status[data-tone="warn"] i { background: var(--kh-warn); }
+.kh-who-status[data-tone="danger"] i { background: var(--kh-danger); }
+.kh-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 0; padding: 0 12px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--kh-fg); font: 500 15px/1.2 var(--k-font); letter-spacing: -.01em;
+  text-align: left; text-decoration: none; cursor: pointer; transition: background-color 160ms var(--k-ease);
+}
+.kh-row svg { flex: none; width: 16px; height: 16px; color: var(--kh-fg-2); transition: color 160ms var(--k-ease); }
+
+/* Row highlight = focus, and only focus. useMenuButton moves focus with the
+   mouse (and back to the menu when it leaves the items) and opens a clicked
+   menu with nothing focused, so exactly one row is ever lit, whether the
+   pointer or the keyboard put it there. The keyboard also gets the ring. */
+.kh-pop [role="menu"]:focus { outline: none; }
+.kh-opt:focus, .kh-row:focus { outline: none; background: var(--kh-row-hover); }
+.kh-tile:focus { outline: none; background: var(--kh-row-hover); color: var(--kh-fg); }
+.kh-row:focus svg { color: var(--kh-fg); }
+.kh-row--danger, .kh-row--danger svg, .kh-row--danger:focus svg { color: var(--kh-danger); }
+
+/* quiet text link next to the capsule (legal pages: "Back") */
+.kh-link { display: inline-flex; align-items: center; flex: none; height: 36px; padding: 0 8px; color: var(--kh-fg-2); font: 400 14px/1 var(--k-font); text-decoration: none; white-space: nowrap; transition: color 160ms var(--k-ease); }
+.kh-link:hover { color: var(--kh-fg); }
+.kh-link:focus-visible { outline: 2px solid var(--kh-focus); outline-offset: 2px; border-radius: 6px; }
+.kh-link-glyph { display: block; flex: none; width: 16px; height: 16px; margin-right: 6px; }
+
+/* ── Plain page header (SiteHeader: /guide, /privacy, /terms) ──
+   The geometry of the /guides header (.gd-head), without its blur. */
+.kh-head { position: sticky; top: 0; z-index: 50; background: var(--k-bg); border-bottom: 1px solid var(--k-border); }
+.kh-head-in { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+.kh-head-brand { display: inline-flex; flex: none; color: var(--k-text); }
+.kh-head-brand:focus-visible { outline: 2px solid var(--kh-focus); outline-offset: 4px; border-radius: 4px; }
+.kh-head .kh-link:last-child { margin-right: -8px; }   /* the text, not its hit area, meets the gutter */
+/* Small phones: the link keeps its arrow; the words stay for screen readers
+   (RU "На главную" does not fit beside the wordmark and the capsule below 375px). */
+@media (max-width: 374px) {
+  .kh-head .kh-link { padding: 0 10px; }
+  .kh-head .kh-link:last-child { margin-right: -10px; }
+  .kh-head .kh-link-glyph { margin-right: 0; }
+  .kh-head .kh-link-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+/* ── Phones: menus hang from the header gutter ─────────────── */
+@media (max-width: 767px) {
+  .kh-bar .kh-prefs, .kh-bar .kh-anchor { position: static; }
+  .kh-bar .kh-pop { right: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kh-prefs, .kh-seg, .kh-chev, .kh-me, .kh-opt, .kh-tile, .kh-tile svg, .kh-row, .kh-row svg, .kh-link { transition: none !important; }
+  .kh-pop, .kh-glyphs[data-swap] .kh-g, .kh-code[data-swap], .kh-dot, .kh-mark { animation: none !important; }
+  .kh-seg[aria-expanded="true"] .kh-chev { transform: none; }
+}
+@media (forced-colors: active) {
+  .kh-prefs, .kh-me { border-color: CanvasText; }
+  .kh-sep, .kh-pop-rule { background: CanvasText; }
+  .kh-dot, .kh-mark-dot { background: Highlight; forced-color-adjust: none; }
+}

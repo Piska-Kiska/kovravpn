@@ -39,10 +39,18 @@
 }
 .gd-brand img { border-radius: 7px; }
 .gd-brand .gd-dot { color: var(--k-gold); }
-.gd-head-nav { display: flex; align-items: center; gap: 18px; }
+.gd-head-nav, .gd-head-nav.kh-bar { display: flex; align-items: center; gap: 18px; }   /* (0,2,0): beats .kh-bar's gap whatever the CSS order */
 .gd-head-nav a { color: var(--k-text-2); font-size: 14px; transition: color .2s; }
 .gd-head-nav a:hover { color: var(--k-text); }
-.gd-head .k-btn { padding: 9px 18px; font-size: 13.5px; }
+.gd-head .k-btn { height: 36px; padding: 0 18px; font-size: 14px; }
+.gd-head-nav .kh-prefs { margin-right: -8px; }   /* 10px to the CTA, like the landing */
+@media (max-width: 760px) {
+  .gd-head-nav > a:not(.k-btn) { display: none; }
+}
+@media (max-width: 359px) {
+  .gd-head .k-btn { display: none; }   /* as on the landing: wordmark + capsule only */
+  .gd-head-nav .kh-prefs { margin-right: 0; }
+}
 
 /* ── Listing ────────────────────────────────────────── */
 .gd-hero { padding: 72px 0 40px; }

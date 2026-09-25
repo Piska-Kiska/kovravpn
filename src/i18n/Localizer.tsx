@@ -63,6 +63,14 @@ export default function Localizer() {
      * paused for the duration of the writes.
      */
     const apply = (requested: typeof currentLang) => {
+      // /guides is server-rendered English only and has no data-i18n markup:
+      // keep <html lang> English whatever language is saved, so a screen
+      // reader does not read the English text with another language's voice.
+      if (/^\/guides(\/|$)/.test(window.location.pathname)) {
+        document.documentElement.setAttribute("lang", "en");
+        document.documentElement.setAttribute("data-lang", "en");
+        return;
+      }
       if (isCabinetPath(window.location.pathname)) {
         const cabinetLang = resolveCabinetLang();
         document.documentElement.setAttribute("lang", cabinetLang);

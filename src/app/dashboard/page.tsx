@@ -13,7 +13,8 @@ import { trackEvent, stripQueryParam } from "@/lib/attribution";
 import { useDashLang } from "@/lib/dash-i18n";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
 import { Button, CabinetRoot, ConfirmDialog, Notice, cx, readJson, useDocumentTitle } from "@/components/cabinet";
-import { fmt } from "@/lib/cabinet-lang";
+import { statusTone, type AccountStatus, type Identity } from "@/components/chrome";
+import { fmt, plural } from "@/lib/cabinet-lang";
 import { copyText } from "@/lib/clipboard";
 import { useShellT } from "@/lib/i18n-shell";
 import { DEVICE_DEFS, isDeviceId, type DeviceId } from "@/lib/dashboard/devices";
@@ -565,11 +566,24 @@ export default function DashboardPage() {
   const { view, navigate } = useDashView(!loading, fallbackView);
   const onVisit = useCallback((v: DashView) => setVisited((prev) => (prev.has(v) ? prev : new Set(prev).add(v))), []);
 
-  const identity = userInfo?.email
+  const identity: Identity | null = userInfo?.email
     ? { label: userInfo.email, initial: userInfo.email.trim().charAt(0).toUpperCase() || null }
     : userInfo?.telegramId
       ? { label: fmt(t.tg_id, { id: userInfo.telegramId }), initial: null }
       : null;
+
+  // Plan line of the header account menu (no line while loading or without a plan).
+  const accountDays = account ? daysLeft(account, nowTs) : 0;
+  const accountTone = loading || !account ? null : statusTone(hState);
+  const accountStatus: AccountStatus | null = accountTone
+    ? {
+        tone: accountTone,
+        text:
+          accountTone === "danger"
+            ? fmt(t.expired_on, { date: fmtDate(account?.maxExpiry ?? 0, lang) })
+            : `${accountDays} ${plural(lang, accountDays, t.days_left_unit)}`,
+      }
+    : null;
 
   const openSlotDialog = () => { setSlotError(null); setSlotDialogOpen(true); };
 
@@ -661,7 +675,7 @@ export default function DashboardPage() {
 
   return (
     <CabinetRoot variant="dash">
-      <DashHeader t={t} view={view} identity={identity} onNavigate={navigate} onLogout={() => void handleLogout()} />
+      <DashHeader t={t} view={view} identity={identity} status={accountStatus} onNavigate={navigate} onLogout={() => void handleLogout()} />
       <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
         <div className="kc-dash-wrap">
           {cryptoPending ? (

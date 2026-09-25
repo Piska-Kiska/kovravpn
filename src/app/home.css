@@ -5,6 +5,9 @@
 html { scroll-padding-top: 96px; }
 
 .kv { overflow-x: clip; }
+/* set by the boot script (src/app/layout.tsx) for a saved non-English
+   language until the landing has re-rendered in it (page.tsx; 1.2s safety net) */
+.kc-lang-pending .k-page { opacity: 0; }
 .kv a { color: inherit; text-decoration: none; }
 
 .kv-wrap {
@@ -58,65 +61,18 @@ html { scroll-padding-top: 96px; }
   transition: color 0.25s ease;
 }
 .kv-nav a:hover { color: var(--k-text); }
-.kv-hd-right { display: flex; align-items: center; gap: 8px; }
+.kv-hd-right { display: flex; align-items: center; gap: 10px; }
 .kv-signin {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px;
   color: var(--k-text-2);
   font-size: 14px;
-  padding: 0 10px;
   transition: color 0.25s ease;
 }
 .kv-signin:hover { color: var(--k-text); }
-.kv-hd .k-btn { padding: 9px 20px; font-size: 14px; }
-
-.kv-ctrl {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 36px;
-  min-width: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--k-border);
-  background: transparent;
-  color: var(--k-text-2);
-  font-family: var(--k-mono);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-  transition: border-color 0.25s ease, color 0.25s ease;
-}
-.kv-ctrl:hover { border-color: var(--k-border-hover); color: var(--k-text); }
-.kv-ctrl.icon { padding: 0; width: 36px; }
-.kv-menu-hold { position: relative; }
-.kv-menu {
-  position: absolute;
-  top: 44px;
-  right: 0;
-  min-width: 168px;
-  padding: 6px;
-  border-radius: 14px;
-  background: var(--k-surface);
-  border: 1px solid var(--k-border);
-  box-shadow: var(--k-shadow);
-  display: flex;
-  flex-direction: column;
-}
-.kv-menu button {
-  text-align: left;
-  padding: 9px 12px;
-  border: 0;
-  background: none;
-  border-radius: 9px;
-  color: var(--k-text-2);
-  font-family: var(--k-font);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.kv-menu button:hover { background: var(--k-surface-2); color: var(--k-text); }
-.kv-menu button.on { color: var(--k-text); font-weight: 500; }
+.kv-hd .k-btn { height: 36px; padding: 0 18px; font-size: 14px; }
 
 /* ── Hero ────────────────────────────────────────────── */
 .kv-hero {
@@ -568,7 +524,8 @@ html { scroll-padding-top: 96px; }
 }
 @media (max-width: 760px) {
   .kv-wrap { padding: 0 20px; }
-  .kv-nav, .kv-signin { display: none; }
+  .kv-hd-in { gap: 12px; }
+  .kv-signin { display: none; }
   .kv-hero { padding: 150px 0 84px; }
   .kv-hero-cta .k-btn { width: 100%; }
   .kv-bento { gap: 14px; }
@@ -604,6 +561,15 @@ html { scroll-padding-top: 96px; }
       padding-right: max(20px, env(safe-area-inset-right));
     }
   }
+}
+/* the centred section nav collides with the right-hand group below 1024px
+   (longest: ru/fr); tablets keep wordmark, capsule, Sign in and the CTA */
+@media (max-width: 1023px) {
+  .kv-nav { display: none; }
+}
+/* below the 360px target the header CTA goes (the hero keeps its own) */
+@media (max-width: 359px) {
+  .kv-hd .k-btn { display: none; }
 }
 /* small phones */
 @media (max-width: 400px) {

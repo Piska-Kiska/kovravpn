@@ -2,17 +2,20 @@
 // src/app/page.tsx — Kovra landing v3 "Privacy. Perfected."
 // Apple-keynote minimal: total black, giant metallic display type,
 // bento feature grid, a single warm gold glow (the orb).
-// i18n (EN/RU/ES/DE/FR) via the page dictionary below; dark/light theme
-// via <html data-theme> (shared with the rest of the site). Backend untouched.
+// i18n (EN/RU/ES/DE/FR) via the page dictionary below; language and theme
+// (system / light / dark) through the shared header capsule
+// (src/components/chrome). Backend untouched.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Reveal from "@/components/fx/Reveal";
 import DigitRoll from "@/components/fx/DigitRoll";
 import "./home.css";
 import KovraWordmark from "@/components/KovraWordmark";
+import { PrefsCapsule, ThemeSync } from "@/components/chrome";
+import type { Lang } from "@/i18n/dict";
+import { isLang } from "@/i18n/resolve";
+import { setLang as persistLang } from "@/i18n/runtime";
 
-type Lang = "en" | "ru" | "es" | "de" | "fr";
-type Theme = "dark" | "light";
 type TermId = "m1" | "m6" | "m12";
 type Term = { id: TermId; mo: string; total: string; ref: string | null; n: number; disc: number; per: "mo" | "p6" | "yr" };
 
@@ -36,14 +39,6 @@ const LEVELS: { terms: Term[]; devKey: "plan_devices" | "plan_devices1"; featKey
 ];
 
 const PLATFORMS = "iOS · Android · Windows · macOS · TV";
-
-const LANGS: Record<Lang, { code: string; native: string }> = {
-  en: { code: "EN", native: "English" },
-  ru: { code: "RU", native: "Русский" },
-  es: { code: "ES", native: "Español" },
-  de: { code: "DE", native: "Deutsch" },
-  fr: { code: "FR", native: "Français" },
-};
 
 const dict: Record<Lang, Record<string, string>> = {
   en: {
@@ -83,7 +78,6 @@ const dict: Record<Lang, Record<string, string>> = {
     faq_q4: "Can I cancel anytime?", faq_a4: "Yes. There's no lock-in - your access simply stops when your balance runs out and you choose not to top up.",
     band_h2: "Take back your privacy.", band_p: "From $6.59 a month for up to 3 devices. No logs, no throttling, no contracts.", band_btn: "Get Kovra",
     foot_terms: "Terms", foot_privacy: "Privacy", copyright: "© 2026 Kovra",
-    a11y_theme: "Toggle theme", a11y_lang: "Choose language",
   },
   ru: {
     nav_features: "Возможности", nav_pricing: "Цена", nav_faq: "Вопросы", nav_guides: "Гайды",
@@ -122,7 +116,6 @@ const dict: Record<Lang, Record<string, string>> = {
     faq_q4: "Можно отменить в любой момент?", faq_a4: "Да. Никаких привязок - доступ просто прекращается, когда баланс заканчивается и ты решаешь не пополнять.",
     band_h2: "Верни себе приватность.", band_p: "От $6.59 в месяц за 3 устройства. Без логов, без замедления, без договоров.", band_btn: "Подключить",
     foot_terms: "Условия", foot_privacy: "Конфиденциальность", copyright: "© 2026 Kovra",
-    a11y_theme: "Переключить тему", a11y_lang: "Выбрать язык",
   },
   es: {
     nav_features: "Funciones", nav_pricing: "Precio", nav_faq: "Preguntas", nav_guides: "Guías",
@@ -161,7 +154,6 @@ const dict: Record<Lang, Record<string, string>> = {
     faq_q4: "¿Puedo cancelar cuando quiera?", faq_a4: "Sí. Sin permanencia - tu acceso simplemente se detiene cuando se agota el saldo y decides no recargar.",
     band_h2: "Recupera tu privacidad.", band_p: "Desde $6.59 al mes para 3 dispositivos. Sin registros, sin limitaciones, sin contratos.", band_btn: "Obtén Kovra",
     foot_terms: "Términos", foot_privacy: "Privacidad", copyright: "© 2026 Kovra",
-    a11y_theme: "Cambiar tema", a11y_lang: "Elegir idioma",
   },
   de: {
     nav_features: "Funktionen", nav_pricing: "Preis", nav_faq: "FAQ", nav_guides: "Guides",
@@ -200,7 +192,6 @@ const dict: Record<Lang, Record<string, string>> = {
     faq_q4: "Kann ich jederzeit kündigen?", faq_a4: "Ja. Keine Bindung - dein Zugang endet einfach, wenn das Guthaben aufgebraucht ist und du nicht auflädst.",
     band_h2: "Hol dir deine Privatsphäre zurück.", band_p: "Ab $6.59 im Monat für 3 Geräte. Keine Logs, keine Drosselung, keine Verträge.", band_btn: "Kovra holen",
     foot_terms: "AGB", foot_privacy: "Datenschutz", copyright: "© 2026 Kovra",
-    a11y_theme: "Farbschema wechseln", a11y_lang: "Sprache wählen",
   },
   fr: {
     nav_features: "Fonctions", nav_pricing: "Tarif", nav_faq: "FAQ", nav_guides: "Guides",
@@ -239,20 +230,10 @@ const dict: Record<Lang, Record<string, string>> = {
     faq_q4: "Puis-je annuler à tout moment ?", faq_a4: "Oui. Aucun engagement - votre accès s'arrête simplement quand le solde est épuisé et que vous choisissez de ne pas recharger.",
     band_h2: "Reprenez votre confidentialité.", band_p: "Dès 6.59 $/mois pour 3 appareils. Sans journaux, sans bridage, sans contrat.", band_btn: "Obtenir Kovra",
     foot_terms: "Conditions", foot_privacy: "Confidentialité", copyright: "© 2026 Kovra",
-    a11y_theme: "Changer de thème", a11y_lang: "Choisir la langue",
   },
 };
 
 /* ── stroke icons (1.5px, monochrome) ─────────────────── */
-const IGlobe = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c2.6 2.8 2.6 15.2 0 18c-2.6-2.8-2.6-15.2 0-18z" /></svg>
-);
-const ISun = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7" /></svg>
-);
-const IMoon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.6 6.6 0 0 0 10 10z" /></svg>
-);
 const ICheck = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
 );
@@ -293,9 +274,6 @@ function FaqItem({ q, a, defaultOpen = false }: { q: string; a: string; defaultO
 
 export default function Page() {
   const [lang, setLang] = useState<Lang>("en");
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [langOpen, setLangOpen] = useState(false);
-  const langRef = useRef<HTMLDivElement>(null);
   const [level, setLevel] = useState<0 | 1>(0);
   const [term3, setTerm3] = useState<TermId>("m12");
   const [term1, setTerm1] = useState<TermId>("m12");
@@ -305,26 +283,30 @@ export default function Page() {
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       try {
-        const sl = localStorage.getItem("kovra_lang") as Lang | null;
-        if (sl && LANGS[sl]) setLang(sl);
+        const sl = localStorage.getItem("kovra_lang");
+        if (isLang(sl)) setLang(sl);
       } catch { /* ignore */ }
-      const cur = document.documentElement.getAttribute("data-theme");
-      if (cur === "light" || cur === "dark") setTheme(cur);
       setHeroIn(true);
     });
     return () => cancelAnimationFrame(id);
   }, []);
 
-  useEffect(() => { try { localStorage.setItem("kovra_lang", lang); } catch { /* ignore */ } }, [lang]);
+  // The boot script (src/app/layout.tsx) hides the page for a saved non-English
+  // language; setLang and setHeroIn land in the same frame, so once heroIn is
+  // true the page is already rendered in that language.
+  useEffect(() => {
+    if (heroIn) document.documentElement.classList.remove("kc-lang-pending");
+  }, [heroIn]);
 
-  const toggleTheme = () => {
-    setTheme((p) => {
-      const next: Theme = p === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      try { localStorage.setItem("theme", next); } catch { /* ignore */ }
-      return next;
-    });
-  };
+  // Persist the landing language. Until the boot above has read the saved one
+  // (heroIn flips in the same frame) only seed the default on a first visit,
+  // so the Localizer and the other pages read "en"; overwriting a saved
+  // choice with the default would lose it.
+  useEffect(() => {
+    try {
+      if (heroIn || !isLang(localStorage.getItem("kovra_lang"))) localStorage.setItem("kovra_lang", lang);
+    } catch { /* ignore */ }
+  }, [lang, heroIn]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -332,13 +314,6 @@ export default function Page() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  useEffect(() => {
-    if (!langOpen) return;
-    const onDown = (e: MouseEvent) => { if (langRef.current && !langRef.current.contains(e.target as Node)) setLangOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [langOpen]);
 
   const t = dict[lang];
   const steps = [
@@ -368,6 +343,7 @@ export default function Page() {
         <style>{`.k-rv,.k-stagger>*,.k-word>span{opacity:1 !important;transform:none !important}`}</style>
       </noscript>
       <div className="k-grain" aria-hidden="true" />
+      <ThemeSync />
 
       {/* ── Header ── */}
       <header className={`kv-hd${scrolled ? " on" : ""}`}>
@@ -381,37 +357,15 @@ export default function Page() {
             <a href="#faq">{t.nav_faq}</a>
             <a href="/guides">{t.nav_guides}</a>
           </nav>
-          <div className="kv-hd-right">
-            <div className="kv-menu-hold" ref={langRef}>
-              <button
-                className="kv-ctrl"
-                onClick={() => setLangOpen((o) => !o)}
-                aria-haspopup="listbox"
-                aria-expanded={langOpen}
-                aria-label={t.a11y_lang}
-              >
-                <IGlobe />
-                {LANGS[lang].code}
-              </button>
-              {langOpen && (
-                <div className="kv-menu" role="listbox" aria-label={t.a11y_lang}>
-                  {(Object.keys(LANGS) as Lang[]).map((code) => (
-                    <button
-                      key={code}
-                      role="option"
-                      aria-selected={code === lang}
-                      className={code === lang ? "on" : ""}
-                      onClick={() => { setLang(code); setLangOpen(false); }}
-                    >
-                      {LANGS[code].native}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button className="kv-ctrl icon" onClick={toggleTheme} aria-label={t.a11y_theme}>
-              {theme === "dark" ? <ISun /> : <IMoon />}
-            </button>
+          <div className="kv-hd-right kh-bar">
+            <PrefsCapsule
+              lang={lang}
+              onLang={(l) => {
+                setLang(l);
+                // an explicit choice: the cabinet honours it (English too) and <html lang> follows
+                persistLang(l);
+              }}
+            />
             <a className="kv-signin" href="/login">{t.nav_signin}</a>
             <a className="k-btn k-btn-gold" href="/register">{t.nav_get}</a>
           </div>

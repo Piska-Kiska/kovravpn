@@ -3,6 +3,7 @@
 // screen-reader state for free) with a sliding thumb.
 "use client";
 
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Icon } from "./Icon";
 import { cssVars, cx } from "./util";
@@ -11,6 +12,8 @@ export interface SegmentedOption<T extends string> {
   value: T;
   label: string;
   icon?: LucideIcon;
+  /** A ready glyph (decorative, 16px), rendered in place of `icon`. */
+  glyph?: ReactNode;
 }
 
 export interface SegmentedProps<T extends string> {
@@ -44,7 +47,7 @@ export function Segmented<T extends string>({ name, label, value, options, onCha
             checked={o.value === value}
             onChange={() => onChange(o.value)}
           />
-          {o.icon ? <Icon as={o.icon} size={16} /> : null}
+          {o.glyph ?? (o.icon ? <Icon as={o.icon} size={16} /> : null)}
           <span>{o.label}</span>
         </label>
       ))}

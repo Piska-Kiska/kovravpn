@@ -2,8 +2,8 @@
 // Layout of /login and /register (spec §8.1):
 // - >= 1024px: sticky brand panel (threads, claim, three proof rows) on the
 //   left, form column on the right, header controls top-right;
-// - < 1024px: header (wordmark, language, theme), one 400px column, proof
-//   strip under the footer.
+// - < 1024px: header (wordmark, language | theme capsule), one 400px
+//   column, proof strip under the footer.
 // On every step change after the first render focus moves to the new step:
 // to the element marked [data-autofocus] (the first code cell, so the phone
 // keyboard and one-time-code autofill are one tap closer), else to the h1.
@@ -14,13 +14,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, MonitorSmartphone, Receipt, ShieldCheck, type LucideIcon } from "lucide-react";
 import KovraWordmark from "@/components/KovraWordmark";
 import ThreadCanvas from "@/components/fx/ThreadCanvas";
-import { fmtNodes, useCabinetLang } from "@/lib/cabinet-lang";
+import { PrefsCapsule } from "@/components/chrome/PrefsCapsule";
+import { fmtNodes, setCabinetLang, useCabinetLang } from "@/lib/cabinet-lang";
 import { useAuthT, type AuthDict } from "@/lib/i18n-auth";
 import { useShellT } from "@/lib/i18n-shell";
 import { ButtonLink } from "./Button";
 import { Icon } from "./Icon";
-import { LangMenu } from "./LangMenu";
-import { ThemeMenu } from "./ThemeMenu";
 import { cssVars, cx } from "./util";
 
 export interface AuthShellProps {
@@ -122,9 +121,8 @@ export function AuthShell({ kicker, title, subtitle, badge, children, footer, st
             <Link href="/" className="kc-brand" aria-label={shell.home}>
               <KovraWordmark height={22} />
             </Link>
-            <div className="kc-header-tools">
-              <LangMenu />
-              <ThemeMenu />
+            <div className="kc-header-tools kh-bar">
+              <PrefsCapsule lang={lang} onLang={setCabinetLang} />
             </div>
           </header>
 

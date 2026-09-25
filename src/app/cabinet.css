@@ -69,18 +69,21 @@
 /* set by the boot script for non-English cabinet visits until React has
    re-rendered in that language (CabinetRoot removes it; 1.2s safety net) */
 .kc-lang-pending .kc-root { opacity: 0; }
-html.kc-no-anim *, html.kc-no-anim *::before, html.kc-no-anim *::after { transition: none !important; }
 
-/* resets use :where() so every component class below wins at (0,1,0) */
+/* resets use :where() so every component class below wins at (0,1,0).
+   The header chrome (.kh-bar, styled by src/app/chrome.css, which loads
+   BEFORE this file) is left out: at equal specificity these resets would
+   win over its classes by source order. */
 .kc *, .kc *::before, .kc *::after { box-sizing: border-box; }
 .kc ::selection { background: var(--k-accent); color: var(--k-on-accent); }
-.kc :where(a) { color: inherit; text-decoration: none; }
-.kc :where(button, input, select, textarea) { font: inherit; color: inherit; letter-spacing: inherit; }
+.kc :where(a):where(:not(.kh-bar *)) { color: inherit; text-decoration: none; }
+.kc :where(button, input, select, textarea):where(:not(.kh-bar *)) { font: inherit; color: inherit; letter-spacing: inherit; }
 .kc :where(button) { -webkit-tap-highlight-color: transparent; }
-.kc :where(h1, h2, h3, p, ul, ol) { margin: 0; }
+.kc :where(h1, h2, h3, p, ul, ol):where(:not(.kh-bar *)) { margin: 0; }
 .kc :focus-visible { outline: 2px solid var(--kc-focus); outline-offset: 2px; }
-/* headings and <main> receive focus programmatically (step and view changes) */
-.kc [tabindex="-1"]:focus { outline: none; }
+/* headings and <main> receive focus programmatically (step and view changes);
+   menu items of the header chrome keep their keyboard ring */
+.kc [tabindex="-1"]:where(:not(.kh-bar *)):focus { outline: none; }
 
 .kc-skip {
   position: absolute; z-index: 100; top: 8px; left: var(--kc-gutter);
@@ -194,19 +197,7 @@ html.kc-no-anim *, html.kc-no-anim *::before, html.kc-no-anim *::after { transit
 .kc-btn--icon.kc-btn--sm { width: var(--kc-control-sm); height: var(--kc-control-sm); }
 .kc-btn--icon.kc-btn--sm::before { inset: -2px; }
 
-/* header pill + round icon trigger (LangMenu, ThemeMenu, AccountMenu) */
-.kc-pill, .kc-roundbtn {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 40px; border: 1px solid var(--kc-line-strong); border-radius: var(--kc-r-pill);
-  background: transparent; color: var(--kc-text); cursor: pointer;
-  transition: background-color var(--kc-d2) var(--kc-ease), border-color var(--kc-d2) var(--kc-ease);
-}
-.kc-pill { padding: 0 12px; }
-.kc-roundbtn { width: 40px; padding: 0; }
-.kc-pill::before, .kc-roundbtn::before { content: ""; position: absolute; inset: -3px; border-radius: inherit; }
-.kc-pill:hover, .kc-roundbtn:hover, .kc-pill[aria-expanded="true"], .kc-roundbtn[aria-expanded="true"] { background: var(--kc-well); }
-.kc-pill .kc-pill-globe { color: var(--kc-text-2); }
-.kc-pill .kc-pill-code { font-family: var(--k-mono); font-size: 12px; font-weight: 500; letter-spacing: .14em; line-height: 1; min-width: 2.4ch; }
+/* chevron of the inline trigger (Account > Preferences) */
 .kc-chev { color: var(--kc-text-2); transition: transform var(--kc-d2) var(--kc-ease); }
 [aria-expanded="true"] > .kc-chev { transform: rotate(180deg); }
 
@@ -396,12 +387,16 @@ html.kc-no-anim *, html.kc-no-anim *::before, html.kc-no-anim *::after { transit
   transition: background-color var(--kc-d2) var(--kc-ease);
 }
 .kc-menu-item > svg { flex: none; color: var(--kc-text-2); }
-.kc-menu-item:hover, .kc-menu-item:focus-visible { background: var(--kc-well); }
+.kc-menu:focus { outline: none; }   /* a clicked menu opens focused itself (useMenuButton) */
+.kc-menu-item:focus { outline: none; background: var(--kc-well); }   /* the mouse moves focus: one highlight for pointer and keyboard */
 .kc-menu-item:focus-visible { outline: 2px solid var(--kc-focus); outline-offset: -2px; }
 .kc-menu-item--danger, .kc-menu-item--danger > svg { color: var(--kc-danger); }
 .kc-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kc-menu-meta { flex: none; font-family: var(--k-mono); font-size: 12px; font-weight: 500; letter-spacing: .14em; color: var(--kc-text-2); }
-.kc-menu-check { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--k-accent-ink); }
+/* a checked radio: medium weight and the wordmark's gold full stop after the label (no check icon) */
+.kc-menu-item[role="menuitemradio"] { font-weight: 400; }
+.kc-menu-item[aria-checked="true"] { font-weight: 500; }
+.kc-menu-dot { display: inline-block; width: 5px; height: 5px; margin-left: 2px; border-radius: 50%; background: var(--k-accent); vertical-align: baseline; }
 .kc-menu-sep { height: 1px; margin: 6px 4px; background: var(--kc-line); }
 .kc-menu-head { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 10px; min-width: 0; }
 .kc-menu-head-meta { font-size: 15px; font-weight: 500; color: var(--kc-text); overflow-wrap: anywhere; }
@@ -531,7 +526,7 @@ input:checked + .kc-radio-dot::after, .kc-radio-row:has(input:checked) .kc-radio
   display: inline-flex; align-items: center; min-height: var(--kc-hit); padding: 0 2px; margin-left: -2px;
   border-radius: var(--kc-r-xs); color: var(--kc-text);
 }
-.kc-header-tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kc-header-tools { display: flex; align-items: center; gap: 10px; min-width: 0; }
 
 /* ── 15. Auth layout (§8.1) ────────────────────────────────────────────── */
 .kc-auth-grid { display: flex; flex-direction: column; min-height: 100dvh; }

@@ -26,7 +26,7 @@ html:has(.kc-dash) {
 .kc-tabs, .kc-dash-account { display: none; }
 @media (min-width: 1024px) {
   .kc-tabs { display: flex; align-items: stretch; gap: 28px; height: 100%; }
-  .kc-dash-account { display: flex; margin-left: 4px; }
+  .kc-dash-account { display: flex; margin-left: 0; }
 }
 .kc-tab {
   position: relative; display: inline-flex; align-items: center; justify-content: center; height: 100%; min-width: 44px; padding: 0 2px;
@@ -40,15 +40,6 @@ html:has(.kc-dash) {
 }
 .kc-tab[aria-current="page"]::after { transform: scaleX(1); }
 .kc-tab:focus-visible { outline-offset: -14px; border-radius: var(--kc-r-sm); }
-
-.kc-avatar {
-  position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; margin: 0 2px; padding: 0;
-  border: 1px solid var(--kc-line-strong); border-radius: 50%; background: var(--kc-well); color: var(--kc-text);
-  font: 600 14px/1 var(--k-font); cursor: pointer;
-  transition: border-color var(--kc-d2) var(--kc-ease);
-}
-.kc-avatar::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
-.kc-avatar:hover, .kc-avatar[aria-expanded="true"] { border-color: var(--kc-text-3); }
 
 /* ── 2. Main column, views ─────────────────────────────────────────────── */
 .kc-dash-main {

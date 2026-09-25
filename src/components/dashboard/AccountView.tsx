@@ -5,7 +5,8 @@
 
 import { ArrowUpRight, BookOpen, LifeBuoy, LogOut, Send, type LucideIcon } from "lucide-react";
 import LinkAccounts from "@/components/LinkAccounts";
-import { Button, Icon, LangMenu, Segmented, THEME_OPTIONS, cx } from "@/components/cabinet";
+import { Button, Icon, LangMenu, Segmented, cx } from "@/components/cabinet";
+import { THEME_PREFS, ThemeGlyph } from "@/components/chrome";
 import { fmt } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
 import { useShellT } from "@/lib/i18n-shell";
@@ -81,7 +82,7 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
               <p className="kc-label" id="kc-pref-lang">
                 {shell.language}
               </p>
-              <LangMenu variant="inline" align="start" />
+              <LangMenu align="start" />
             </div>
             <hr className="kc-hair" />
             <div className="kc-pref">
@@ -91,7 +92,7 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
                 label={shell.theme}
                 value={pref}
                 block
-                options={THEME_OPTIONS.map((o) => ({ value: o.value, label: shell[o.key], icon: o.icon }))}
+                options={THEME_PREFS.map((o) => ({ value: o.value, label: shell[o.key], glyph: <ThemeGlyph pref={o.value} /> }))}
                 onChange={setPref}
               />
             </div>

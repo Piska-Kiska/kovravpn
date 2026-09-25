@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./guides.css";
 import KovraWordmark from "@/components/KovraWordmark";
+import { RuntimePrefs } from "@/components/chrome/RuntimePrefs";
 
 export const metadata: Metadata = {
   openGraph: { locale: "en_US" },
@@ -24,10 +25,13 @@ export default function GuidesLayout({
           <Link href="/" className="gd-brand">
             <KovraWordmark height={24} />
           </Link>
-          <nav className="gd-head-nav" aria-label="Guides">
+          <nav className="gd-head-nav kh-bar" aria-label="Guides">
             <Link href="/guides">Guides</Link>
-            <a href="/#pricing">Pricing</a>
+            <Link href="/#pricing">Pricing</Link>
             <Link href="/guide">Setup</Link>
+            {/* The guides are English-only: another language is saved and
+                opens the home page in it; the menu says so. */}
+            <RuntimePrefs fixedLang="en" leaveTo="/" langNote="Guides are in English. Other languages open the home page." />
             <a href="/register" className="k-btn k-btn-gold">
               Get Kovra
             </a>
@@ -44,8 +48,8 @@ export default function GuidesLayout({
           </Link>
           <nav className="gd-foot-links" aria-label="Footer">
             <Link href="/guides">Guides</Link>
-            <a href="/#pricing">Pricing</a>
-            <a href="/#faq">FAQ</a>
+            <Link href="/#pricing">Pricing</Link>
+            <Link href="/#faq">FAQ</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <a href="mailto:support@kovravpn.com">support@kovravpn.com</a>

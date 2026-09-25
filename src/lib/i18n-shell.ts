@@ -24,6 +24,8 @@ export interface ShellDict {
   theme_system: string;
   theme_light: string;
   theme_dark: string;
+  /** Accessible name of the header capsule (language | theme). */
+  prefs: string;
   copy: string;
   copied: string;
   copy_failed: string;
@@ -75,6 +77,7 @@ const en: ShellDict = {
   theme_system: "System",
   theme_light: "Light",
   theme_dark: "Dark",
+  prefs: "Preferences",
   copy: "Copy",
   copied: "Copied",
   copy_failed: "Couldn’t copy. Select the text and copy it manually.",
@@ -126,6 +129,7 @@ const ru: ShellDict = {
   theme_system: "Система",
   theme_light: "Светлая",
   theme_dark: "Тёмная",
+  prefs: "Настройки",
   copy: "Копировать",
   copied: "Скопировано",
   copy_failed: "Не удалось скопировать. Выделите текст и скопируйте вручную.",
@@ -177,6 +181,7 @@ const es: ShellDict = {
   theme_system: "Sistema",
   theme_light: "Claro",
   theme_dark: "Oscuro",
+  prefs: "Preferencias",
   copy: "Copiar",
   copied: "Copiado",
   copy_failed: "No se pudo copiar. Selecciona el texto y cópialo a mano.",
@@ -228,6 +233,7 @@ const de: ShellDict = {
   theme_system: "System",
   theme_light: "Hell",
   theme_dark: "Dunkel",
+  prefs: "Einstellungen",
   copy: "Kopieren",
   copied: "Kopiert",
   copy_failed: "Kopieren fehlgeschlagen. Markiere den Text und kopiere ihn manuell.",
@@ -279,6 +285,7 @@ const fr: ShellDict = {
   theme_system: "Système",
   theme_light: "Clair",
   theme_dark: "Sombre",
+  prefs: "Préférences",
   copy: "Copier",
   copied: "Copié",
   copy_failed: "Impossible de copier. Sélectionnez le texte et copiez-le manuellement.",

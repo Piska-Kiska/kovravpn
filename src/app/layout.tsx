@@ -10,6 +10,7 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
+import "./chrome.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
@@ -253,10 +254,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             resolve ?lang, a real saved choice, then navigator.languages
             (keep in sync with src/i18n/resolve.ts) and hide the English SSR
             markup until React re-renders in that language. Every other page
-            keeps the original RU/EN logic; the Localizer swaps its text. */}
+            keeps the original RU/EN logic; the Localizer swaps its text.
+            The landing (/) renders its saved kovra_lang (default English) and
+            is hidden the same way until it has re-rendered in that language
+            (src/app/page.tsx removes the class). /guides is English only. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var d=document.documentElement,S=['en','ru','es','de','fr'],l=null;if(/^\\/(login|register|dashboard)(\\/|$)/.test(location.pathname)){var q=new URL(location.href).searchParams.get('lang'),s=null,x=null;try{s=localStorage.getItem('kovra_lang');x=localStorage.getItem('kovra_lang_explicit')}catch(e){}if(S.indexOf(q)>=0)l=q;else if(S.indexOf(s)>=0&&(s!=='en'||x==='1'))l=s;else{var n=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||''];for(var i=0;i<n.length&&!l;i++){var c=String(n[i]).trim().toLowerCase().split(/[-_]/)[0];if(S.indexOf(c)>=0)l=c;}}if(!l)l='en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}else{var u=new URL(location.href),fromUrl=u.searchParams.get('lang'),saved=localStorage.getItem('lang');l=(fromUrl==='en'||fromUrl==='ru')?fromUrl:((saved==='en'||saved==='ru')?saved:'ru');}d.setAttribute('lang',l);d.setAttribute('data-lang',l);}catch(e){}})()`,
+            __html: `(function(){try{var d=document.documentElement,S=['en','ru','es','de','fr'],l=null;if(/^\\/(login|register|dashboard)(\\/|$)/.test(location.pathname)){var q=new URL(location.href).searchParams.get('lang'),s=null,x=null;try{s=localStorage.getItem('kovra_lang');x=localStorage.getItem('kovra_lang_explicit')}catch(e){}if(S.indexOf(q)>=0)l=q;else if(S.indexOf(s)>=0&&(s!=='en'||x==='1'))l=s;else{var n=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||''];for(var i=0;i<n.length&&!l;i++){var c=String(n[i]).trim().toLowerCase().split(/[-_]/)[0];if(S.indexOf(c)>=0)l=c;}}if(!l)l='en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}else{var u=new URL(location.href),fromUrl=u.searchParams.get('lang'),saved=localStorage.getItem('lang');l=(fromUrl==='en'||fromUrl==='ru')?fromUrl:((saved==='en'||saved==='ru')?saved:'ru');if(/^\\/guides(\\/|$)/.test(location.pathname))l='en';else if(location.pathname==='/'){var k=null;try{k=localStorage.getItem('kovra_lang')}catch(e){}l=S.indexOf(k)>=0?k:'en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}}d.setAttribute('lang',l);d.setAttribute('data-lang',l);}catch(e){}})()`,
           }}
         />
       </head>
