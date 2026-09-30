@@ -14,8 +14,7 @@
 import { listInbounds } from "./xpanel";
 import { sanitizeField } from "./xpanel-multi";
 import type { InboundEntry } from "./inbounds";
-
-const VPN_HOST = process.env.VPN_HOST ?? "panel.proxysvpn.com";
+import { requiredVpnHost } from "./vpn-host";
 
 export interface ConnectionParams {
   address: string;
@@ -108,7 +107,8 @@ async function resolveFromPanel(
       : "";
 
   return {
-    address: VPN_HOST,
+    // VPN_HOST, no default (KS-8, lib/vpn-host.ts).
+    address: requiredVpnHost("VPN_HOST"),
     port: inbound.port,
     serverName:
       Array.isArray(rs.serverNames) && rs.serverNames.length > 0

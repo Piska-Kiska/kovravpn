@@ -51,7 +51,8 @@ function Marquee({ reverse = false }: { reverse?: boolean }) {
 
 export default function PromoPage() {
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
+    // Russian only; the boot script sets <html lang="ru"> too (KP-08).
+    <div lang="ru" className="min-h-screen bg-black text-white overflow-hidden">
       {/* ── Top Marquee ──────────────────────────────── */}
       <Marquee />
 

@@ -21,6 +21,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { getBalanceCents } from "@/lib/bot-wallet";
 import { walletTopupConfig } from "@/lib/wallet-topup";
 import { deviceAccess } from "@/lib/device-capacity";
+import { withoutPanelSubId } from "@/lib/panel-sub-id";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,8 +56,10 @@ export async function POST(req: NextRequest) {
     const s = summarize(subs);
     // Which devices hold a slot (newest first); the rest are paused (KM-03).
     const access = deviceAccess(profiles, subs, Date.now());
+    // panelSubId is a credential for the panels' subscription port
+    // (lib/panel-sub-id.ts): it stays on the server.
     const profilesWithAccess = profiles.map((p, i) => ({
-      ...p,
+      ...withoutPanelSubId(p),
       access: access[i].state,
       accessUntil: access[i].until,
     }));

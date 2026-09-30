@@ -37,6 +37,7 @@ import {
   activeSlots,
 } from "./subscriptions";
 import { updateClientOnStaticPanels } from "./kovra-servers-sync";
+import { panelSubIdOf } from "./panel-sub-id";
 import { deviceAccess } from "./device-capacity";
 
 // ─── Legacy constants (still imported by name in some routes) ─────────
@@ -159,7 +160,7 @@ export async function syncAllExpiry(userId: string, overrides: Partial<SyncExpir
       if (a.state === "paused") paused += 1;
       const until = a.state === "active" ? a.until : now;
       try {
-        await deps.updateClient({ uuid: p.uuid, email: p.clientEmail, subId: p.clientEmail, expiryTimeMs: until });
+        await deps.updateClient({ uuid: p.uuid, email: p.clientEmail, subId: panelSubIdOf(p), expiryTimeMs: until });
       } catch (err) {
         console.error(`[syncExpiry] Failed to update ${p.uuid}:`, err);
       }

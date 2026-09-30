@@ -24,11 +24,14 @@ const OG_IMAGE = {
 export const metadata: Metadata = {
   title: TITLE,
   description: DESC,
-  alternates: { canonical: "/guide" },
+  // The server text is Russian; the English translation is applied on the
+  // client (src/i18n/resolve.ts pageLang), so the only indexed language is ru.
+  alternates: { canonical: "/guide", languages: { ru: "/guide" } },
   openGraph: {
     title: `${TITLE} | Kovra`,
     description: DESC,
     url: "/guide",
+    locale: "ru_RU",
     images: [OG_IMAGE],
   },
   twitter: {
@@ -153,7 +156,10 @@ const HOW_TO_MACOS = buildHowToSchema({
 
 export default function GuidePage() {
   return (
-    <div className="min-h-screen">
+    // The server text is Russian (what Yandex and Google index, see the
+    // schemas below); the Localizer switches it to the visitor's language
+    // and moves this lang with it (KP-08).
+    <div className="min-h-screen" data-lang-scope lang="ru">
       {/* HowTo / FAQ / Breadcrumb structured data — kept in RU. Server-
           rendered Russian markup is what Yandex/Google index, so the
           schemas mirror it. The visible page text swaps to EN client-
@@ -292,8 +298,8 @@ export default function GuidePage() {
                 <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
-            <p className="mt-2" data-i18n-html="guide.ios.s1b.html">Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://apps.apple.com/us/app/v2raytun/id6476628951" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
+            <p className="mt-2" data-i18n-html="guide.ios.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href="https://apps.apple.com/app/id6756943388" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
             </p>
           </Step>
           <Step num={2} titleI18nKey="guide.step.import" titleFallback="Импортируйте подписку">
@@ -351,8 +357,8 @@ export default function GuidePage() {
                 <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
-            <p className="mt-2" data-i18n-html="guide.mac.s1b.html">Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://apps.apple.com/us/app/v2raytun/id6476628951" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
+            <p className="mt-2" data-i18n-html="guide.mac.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href="https://apps.apple.com/app/id6756943388" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
             </p>
           </Step>
           <Step num={2} titleI18nKey="guide.step.import" titleFallback="Импортируйте подписку">

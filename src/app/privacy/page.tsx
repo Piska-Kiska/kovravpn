@@ -5,11 +5,17 @@ import { SiteHeader } from "@/components/chrome/SiteHeader";
 import NavToggles from "@/components/NavToggles";
 import LegalView from "@/components/LegalView";
 
+// English on the server; the page switches to the visitor's language on
+// the client (src/i18n/resolve.ts isVisitorLangPath, KP-08). The legal text
+// itself is src/i18n/legal.ts, in all five site languages.
 export const metadata = {
-  title: "Политика конфиденциальности — Kovra",
+  title: "Privacy Policy — Kovra",
   description:
-    "Какие данные собирает сервис Kovra, как они используются и защищаются.",
-  alternates: { canonical: "https://kovravpn.com/privacy" },
+    "What data Kovra collects, how it is used and how it is protected. Also available in Russian, Spanish, German and French.",
+  alternates: {
+    canonical: "https://kovravpn.com/privacy",
+    languages: { en: "https://kovravpn.com/privacy", "x-default": "https://kovravpn.com/privacy" },
+  },
   robots: { index: true, follow: true },
 };
 
@@ -20,7 +26,7 @@ export default function PrivacyPage() {
         <NavToggles />
         <Link href="/" className="kh-link">
           <BackGlyph className="kh-link-glyph" />
-          <span className="kh-link-text" data-i18n="common.back.home.short">На главную</span>
+          <span className="kh-link-text" data-i18n="common.back.home.short">Home</span>
         </Link>
       </SiteHeader>
 

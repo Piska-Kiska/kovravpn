@@ -1,0 +1,19 @@
+[
+  {
+    "key": "de",
+    "label": "Germany",
+    "flag": "🇩🇪",
+    "enabled": true,
+    "priority": 0,
+    "source": "static",
+    "address": "203.0.113.10",
+    "port": 8443,
+    "serverName": "example.com",
+    "publicKey": "<REALITY public key from the node>",
+    "shortId": "<REALITY shortId from the node>",
+    "spiderX": "/",
+    "fingerprint": "firefox",
+    "encryption": "none",
+    "flow": "xtls-rprx-vision"
+  }
+]

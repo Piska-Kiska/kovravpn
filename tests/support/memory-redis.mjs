@@ -1,8 +1,9 @@
 // tests/support/memory-redis.mjs
 //
 // An in-memory stand-in for the @upstash/redis calls the money and auth paths
-// make: get, mget, set (nx / xx / ex / px), del, incr, incrby, expire, ttl, and
-// the set commands sadd / srem / smembers / sismember / smismember. Anything
+// make: get, mget, set (nx / xx / ex / px), del, incr, incrby, expire, ttl,
+// scan (MATCH with `*` globs, all keys in one page), and the set commands
+// sadd / srem / smembers / sismember / smismember. Anything
 // else throws, like the default stub in load-ts.mjs, so a test cannot
 // silently depend on a call this file fakes wrongly.
 //
@@ -296,6 +297,14 @@ const impl = {
     const list = lists.get(key) ?? [];
     const end = stop < 0 ? list.length + stop : stop;
     return list.slice(start, end + 1);
+  },
+  async scan(cursor, opts = {}) {
+    const match = typeof opts.match === "string" ? opts.match : "*";
+    maybeFail("scan", match);
+    if (String(cursor) !== "0") throw new Error(`memory-redis: scan answers in one page, cursor ${cursor} is not one it gave`);
+    const re = new RegExp(`^${match.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
+    const keys = new Set([...store.keys(), ...sets.keys(), ...lists.keys()]);
+    return ["0", [...keys].filter((k) => re.test(k)).sort()];
   },
   multi() {
     const queue = [];

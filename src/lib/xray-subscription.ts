@@ -228,10 +228,18 @@ export async function buildAllProfilesForUuid(
   const hy2Entries = enabled.filter((e) => e.protocol === "hysteria2");
   const vlessEntries = enabled.filter((e) => e.protocol !== "hysteria2");
 
+  // One location that cannot be resolved (its panel is down, VPN_HOST is
+  // unset for a panel entry) is left out; it must not cost the user the
+  // whole feed, which a throw here did (500 for ?format=xray). The base64
+  // feed skips such an entry the same way (sub/[token]/route.ts).
   const resolved: Array<{ entry: InboundEntry; params: ConnectionParams }> = [];
   for (const entry of vlessEntries) {
-    const params = await resolveInbound(uuid, entry);
-    if (params) resolved.push({ entry, params });
+    try {
+      const params = await resolveInbound(uuid, entry);
+      if (params) resolved.push({ entry, params });
+    } catch (err) {
+      console.error(`[xray-sub] location skipped key=${entry.key}:`, err instanceof Error ? err.message : err);
+    }
   }
 
   const profiles: Array<XrayConfig | string> = [];

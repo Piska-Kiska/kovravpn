@@ -1,53 +1,133 @@
 // scripts/set-registry.ts
+//
+// Merges the inbound registry from a LOCAL, UNTRACKED data file into Redis
+// (`inbounds:registry`).
+//
+// The node addresses and their REALITY parameters used to live in this file
+// as a literal, and it overwrote the whole live registry with them on every
+// run. The repository is public, so that published the node addresses, and a
+// run from a stale checkout replaced the live locations with dead ones. Now:
+//   • the data comes from `registry.local.json` (git-ignored; the shape is in
+//     registry.example.json) or the file named by REGISTRY_FILE;
+//   • every entry is validated (scripts/lib/registry-file.ts);
+//   • the file is MERGED by key: new keys are added, a stored key the file
+//     does not mention is kept, never dropped;
+//   • a stored key is updated only when named in --update=<keys>, field by
+//     field (a stored field the file lacks stays); an update that changes
+//     where or how clients connect (address, port, REALITY keys, ...) also
+//     needs --allow-connection-change, since a stale local file would put a
+//     dead address back;
+//   • the output names changed fields, never their values, and never prints
+//     an address (the file holds them; compare there);
+//   • nothing is written without --write; with it, the previous value is
+//     saved to a git-ignored backup file first and the result is read back.
+//
+// Usage:
+//   npx tsx --env-file=.env.local scripts/set-registry.ts                     # dry run
+//   npx tsx --env-file=.env.local scripts/set-registry.ts --write             # add new keys
+//   ... scripts/set-registry.ts --update=de,uk --write                         # also update de, uk
+//   ... scripts/set-registry.ts --update=de --allow-connection-change --write  # new address for de
+//   REGISTRY_FILE=path npx tsx --env-file=.env.local scripts/set-registry.ts
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { redis } from "../src/lib/redis";
+import {
+  mergeRegistry,
+  parseRegistryFile,
+  parseStoredRegistry,
+  parseUpdateKeys,
+  writeRefusal,
+  type EntryDiff,
+  type RegistryEntry,
+} from "./lib/registry-file";
 
-const registry = [
-  {
-    key: "de", label: "Germany", flag: "🇩🇪", enabled: true, priority: 0,
-    source: "static", address: "178.20.209.40", port: 8443,
-    serverName: "yahoo.com",
-    publicKey: "-uD0vTL4K_PSOAF-uFOcVVxFi7GUD5K8gaPGf2Ng4R0",
-    shortId: "4347a2ae95bc4dd0", spiderX: "/", fingerprint: "firefox",
-    encryption: "none", flow: "xtls-rprx-vision",
-  },
-  {
-    key: "uk", label: "United Kingdom", flag: "🇬🇧", enabled: true, priority: 1,
-    source: "static", address: "62.60.155.34", port: 9443,
-    serverName: "yahoo.com",
-    publicKey: "t1SFPoUhF2NYAOKUKuZfysM--qt078UA_YaDPVxrHBg",
-    shortId: "8f845d626ab7f9fc", spiderX: "/", fingerprint: "firefox",
-    encryption: "none", flow: "xtls-rprx-vision",
-  },
-  {
-    key: "ams", label: "Netherlands", flag: "🇳🇱", enabled: true, priority: 2,
-    source: "static", address: "89.124.98.58", port: 9443,
-    serverName: "yahoo.com",
-    publicKey: "E7im0s2-72o6lHom7WwSb-HbQ5epolu-47lIOBQPXXk",
-    shortId: "bd9844626d876649", spiderX: "/", fingerprint: "firefox",
-    encryption: "none", flow: "xtls-rprx-vision",
-  },
-  {
-    key: "kz", label: "Kazakhstan", flag: "🇰🇿", enabled: true, priority: 3,
-    source: "static", address: "38.180.38.191", port: 8443,
-    serverName: "yahoo.com",
-    publicKey: "8a0-e-JwLi4sVYVz7fyngmPOl-R5kVeL1Hdas4JkCn4",
-    shortId: "70b033bd1f2c0141", spiderX: "/", fingerprint: "firefox",
-    encryption: "none", flow: "xtls-rprx-vision",
-  },
-  {
-    key: "us", label: "USA New York", flag: "🇺🇸", enabled: true, priority: 4,
-    source: "static", address: "38.180.25.172", port: 8443,
-    serverName: "yahoo.com",
-    publicKey: "g41mnJwKNi8E0PhDTTludBbB9AuBOwUUPsNgromoLFM",
-    shortId: "04962f04068a7025", spiderX: "/", fingerprint: "firefox",
-    encryption: "none", flow: "xtls-rprx-vision",
-  },
-];
+const REGISTRY_KEY = "inbounds:registry";
+const DEFAULT_FILE = "registry.local.json";
 
-async function main() {
-  await redis.set("inbounds:registry", JSON.stringify(registry));
-  const r = await redis.get("inbounds:registry");
-  const a = typeof r === "string" ? JSON.parse(r) : (r as any[]);
-  console.log(a.map((e: any) => `${e.key} ${e.flag} ${e.address}:${e.port} prio=${e.priority}`));
+/** One line per entry, without its address. */
+function describe(e: RegistryEntry): string {
+  const where = e.source === "static" ? `static ${e.protocol ?? "vless"} port ${e.port}` : `panel inbound ${e.inboundId}`;
+  return `${e.key} ${e.flag ?? ""} ${where} prio=${e.priority} enabled=${e.enabled}`;
 }
-main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
+
+function describeDiff(d: EntryDiff): string {
+  return `${d.key}: ${d.fields.join(", ")}${d.connection.length > 0 ? ` (connection: ${d.connection.join(", ")})` : ""}`;
+}
+
+function readDataFile(file: string): string {
+  try {
+    return readFileSync(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        `no data file: ${file}\n` +
+          `Copy registry.example.json to ${DEFAULT_FILE} and fill in the entries. ` +
+          `That file is git-ignored and never goes into the repository.`,
+      );
+    }
+    throw err;
+  }
+}
+
+const KNOWN_FLAGS = /^--(write|allow-connection-change|update=.*)$/;
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const unknown = args.filter((a) => !KNOWN_FLAGS.test(a));
+  if (unknown.length > 0) throw new Error(`unknown argument(s): ${unknown.join(" ")}`);
+  const write = args.includes("--write");
+  const allowConnectionChange = args.includes("--allow-connection-change");
+  const updateArg = args.find((a) => a.startsWith("--update="));
+  const file = resolve(process.env.REGISTRY_FILE || DEFAULT_FILE);
+
+  const incoming = parseRegistryFile(readDataFile(file), file);
+  const update = updateArg === undefined ? new Set<string>() : parseUpdateKeys(updateArg.slice("--update=".length), incoming);
+  const storedRaw: unknown = await redis.get(REGISTRY_KEY);
+  const current = parseStoredRegistry(storedRaw);
+  const plan = mergeRegistry(current, incoming, { update, allowConnectionChange });
+
+  console.log(`${file}: ${incoming.length} entries; ${REGISTRY_KEY}: ${current.length} entries`);
+  const byKey = new Map(plan.next.map((e) => [e.key, e]));
+  const line = (label: string, text: string) => console.log(`  ${label.padEnd(24)} ${text}`);
+  for (const key of plan.added) line("add", describe(byKey.get(key) as RegistryEntry));
+  for (const d of plan.updated) line("update", describeDiff(d));
+  for (const d of plan.blocked) line("BLOCKED (connection)", describeDiff(d));
+  for (const d of plan.held) line("differs, kept as stored", `${describeDiff(d)}  [--update=${d.key} to apply]`);
+  for (const key of plan.unchanged) line("same", describe(byKey.get(key) as RegistryEntry));
+  for (const key of plan.kept) line("keep (not in the file)", describe(byKey.get(key) as RegistryEntry));
+
+  const refusal = writeRefusal(plan);
+  if (refusal !== null) {
+    if (write) throw new Error(refusal);
+    console.log(`\n${refusal}`);
+  }
+  if (plan.added.length === 0 && plan.updated.length === 0) {
+    console.log("\nnothing to change");
+    return;
+  }
+  if (!write) {
+    console.log("\n--- dry run, Redis untouched; add --write to apply ---");
+    return;
+  }
+
+  // The backup name matches `registry*.local.json` in .gitignore.
+  const backup = resolve(`registry.backup-${new Date().toISOString().replace(/[:.]/g, "-")}.local.json`);
+  writeFileSync(backup, JSON.stringify(current, null, 2) + "\n", { mode: 0o600 });
+  console.log(`\nprevious registry saved to ${backup}`);
+
+  await redis.set(REGISTRY_KEY, JSON.stringify(plan.next));
+
+  const after = parseStoredRegistry(await redis.get(REGISTRY_KEY));
+  if (JSON.stringify(after) !== JSON.stringify(plan.next)) {
+    throw new Error(`read-back does not match what was written; restore from ${backup}`);
+  }
+  console.log(`written and read back: ${after.length} entries`);
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((e: unknown) => {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  });

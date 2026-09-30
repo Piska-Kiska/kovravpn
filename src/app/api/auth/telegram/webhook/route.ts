@@ -21,9 +21,12 @@ import {
   getUserLang,
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
+import { INCY_LINKS, V2RAYTUN_LINKS } from "@/lib/dashboard/apps";
+import { pageLang } from "@/i18n/resolve";
 import { deleteOwnProfile } from "@/lib/profile-delete";
 import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
+import { isReferralCode } from "@/lib/telegram-login";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
@@ -355,33 +358,47 @@ async function handleCreate(chatId: number, msgId: number) {
   ]);
 }
 
-const DEVICE_LINKS: Record<string, { name: string; happ: string; v2ray: string }> = {
+/**
+ * Where each device gets its apps: Happ first, then an alternative where one
+ * exists. The alternative is INCY on iPhone and Mac (V2RayTun's App Store app
+ * is gone: id6476628951 answers 404, KP-12) and V2RayTun where it still ships
+ * (Google Play, the developer's Windows installer). Apple TV has none: INCY
+ * has no tvOS build (its App Store record lists iPhone, iPad and iPod only),
+ * so only Happ for TV is offered.
+ */
+const DEVICE_LINKS: Record<string, { name: string; happ: string; alt?: { app: "INCY" | "V2RayTun"; url: string } }> = {
   android: {
     name: "Android",
     happ: "https://play.google.com/store/apps/details?id=com.happproxy",
-    v2ray: "https://play.google.com/store/apps/details?id=com.v2raytun.android",
+    alt: { app: "V2RayTun", url: V2RAYTUN_LINKS.android },
   },
   iphone: {
     name: "iPhone",
     happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
-    v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
+    alt: { app: "INCY", url: INCY_LINKS.apple },
   },
   mac: {
     name: "Mac",
     happ: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215",
-    v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
+    alt: { app: "INCY", url: INCY_LINKS.apple },
   },
   windows: {
     name: "Windows",
     happ: "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe",
-    v2ray: "https://storage.v2raytun.com/v2RayTun_Setup.exe",
+    alt: { app: "V2RayTun", url: V2RAYTUN_LINKS.windows },
   },
   tv: {
     name: "Apple TV",
     happ: "https://apps.apple.com/us/app/happ-proxy-utility-for-tv/id6748297274",
-    v2ray: "https://apps.apple.com/us/app/v2raytun/id6476628951",
   },
 };
+
+/** The download row of a device: Happ, and the alternative when the device has one. */
+function appButtons(devInfo: (typeof DEVICE_LINKS)[string], lang: BotLang): { text: string; url: string }[] {
+  const row = [{ text: t("btn.happ", lang), url: devInfo.happ }];
+  if (devInfo.alt) row.push({ text: t(devInfo.alt.app === "INCY" ? "btn.incy" : "btn.v2ray", lang), url: devInfo.alt.url });
+  return row;
+}
 
 async function handleCreateDevice(chatId: number, msgId: number, device: string) {
   const userId = await getUserId(chatId);
@@ -445,7 +462,7 @@ async function handleCreateDevice(chatId: number, msgId: number, device: string)
       ``,
       t("link.install", lang),
     ].join("\n"), [
-      [{ text: t("btn.happ", lang), url: devInfo.happ }, { text: t("btn.v2ray", lang), url: devInfo.v2ray }],
+      appButtons(devInfo, lang),
       [{ text: t("btn.devices", lang), callback_data: "profiles" }],
       [{ text: t("link.howto", lang), callback_data: "guide" }],
       backBtn("menu", lang),
@@ -484,7 +501,7 @@ async function handleLink(chatId: number, msgId: number, uuid: string) {
       t("link.install", lang),
     ].join("\n"),
     [
-      [{ text: t("btn.happ", lang), url: devInfo.happ }, { text: t("btn.v2ray", lang), url: devInfo.v2ray }],
+      appButtons(devInfo, lang),
       [{ text: t("link.howto", lang), callback_data: "guide" }],
       backBtn("profiles", lang),
     ],
@@ -548,15 +565,16 @@ async function screenGuide(chatId: number, msgId: number) {
     [
       { text: "🍎 iOS/macOS", url: "https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" },
     ],
+    [{ text: "── INCY ──", callback_data: "guide" }],
+    [
+      { text: "🍎 iOS/macOS", url: INCY_LINKS.apple },
+    ],
     [{ text: "── V2RayTun ──", callback_data: "guide" }],
     [
-      { text: "🪟 Windows", url: "https://storage.v2raytun.com/v2RayTun_Setup.exe" },
-      { text: "🤖 Android/TV", url: "https://play.google.com/store/apps/details?id=com.v2raytun.android" },
+      { text: "🪟 Windows", url: V2RAYTUN_LINKS.windows },
+      { text: "🤖 Android/TV", url: V2RAYTUN_LINKS.android },
     ],
-    [
-      { text: "🍎 iOS/macOS", url: "https://apps.apple.com/us/app/v2raytun/id6476628951" },
-    ],
-    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide` }],
+    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide?lang=${pageLang("/guide", lang)}` }],
     backBtn("menu", lang),
   ]);
 }
@@ -588,8 +606,8 @@ async function screenDocs(chatId: number, msgId: number) {
     ``,
     t("docs.text", lang),
   ].join("\n"), [
-    [{ text: t("docs.btn.terms", lang), url: `${SITE_URL}/terms` }],
-    [{ text: t("docs.btn.privacy", lang), url: `${SITE_URL}/privacy` }],
+    [{ text: t("docs.btn.terms", lang), url: `${SITE_URL}/terms?lang=${lang}` }],
+    [{ text: t("docs.btn.privacy", lang), url: `${SITE_URL}/privacy?lang=${lang}` }],
     backBtn("help", lang),
   ]);
 }
@@ -949,7 +967,10 @@ async function tryAuth(code: string, chatId: number): Promise<boolean> {
   if (!raw) return false;
   const d = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (d.verified) return false;
-  await redis.set(`auth:${code}`, JSON.stringify({ verified: true, telegramId: chatId }), { ex: 600 });
+  // Keep the referral code the site stored with the sign-in code
+  // (/register?ref=…): /verify applies it when it creates the account (KP-03).
+  const ref = isReferralCode(d.ref) ? { ref: d.ref } : {};
+  await redis.set(`auth:${code}`, JSON.stringify({ ...ref, verified: true, telegramId: chatId }), { ex: 600 });
   return true;
 }
 

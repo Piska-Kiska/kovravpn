@@ -1,8 +1,8 @@
 // src/lib/node-uuids.ts
 //
-// Reads what GET /api/internal/node-uuids answers from: every user's profiles
-// and subscriptions. The pure part (which lines, which date) is
-// node-uuids-body.ts.
+// Reads what GET /api/internal/node-uuids and POST /api/hy2/auth answer from:
+// every user's profiles and subscriptions. The pure part (which lines, which
+// date) is node-uuids-body.ts.
 //
 // ── Cost ────────────────────────────────────────────────
 // There is no index of profiles, so a rebuild walks them: SCAN `profiles:*`,
@@ -11,6 +11,10 @@
 // every 120 s would be ~4 300 rebuilds a day, so the pairs are kept in memory
 // for REBUILD_EVERY_MS per serverless instance: a new purchase reaches the
 // nodes within a minute plus the node's poll step.
+//
+// Hysteria2 asks on every connect, and connects come in bursts (a phone that
+// wakes up opens several at once), so callers that find the copy stale at the
+// same moment share ONE rebuild instead of each walking the keyspace.
 
 import { redis } from "./redis";
 import { accessPairs, type UserAccessRecord, type UuidPair } from "./node-uuids-body";
@@ -23,7 +27,16 @@ const MGET_CHUNK = 200;
 /** A runaway SCAN (millions of keys) must not keep a node request busy. */
 const MAX_USERS = 50_000;
 
-let cached: { at: number; pairs: UuidPair[]; malformed: number } | null = null;
+export interface NodeUuidPairsRead {
+  pairs: UuidPair[];
+  malformed: number;
+  /** When these pairs were read from Redis (a copy keeps the time of its rebuild). */
+  at: number;
+}
+
+let cached: NodeUuidPairsRead | null = null;
+/** The rebuild in progress, shared by every caller that arrives meanwhile. */
+let inflight: Promise<NodeUuidPairsRead> | null = null;
 
 /** Upstash returns stored JSON already parsed, or the raw string if it is not JSON. */
 function parseStored(value: unknown): unknown {
@@ -66,15 +79,7 @@ async function profileUserIds(): Promise<string[]> {
   return [...ids].sort();
 }
 
-/**
- * Every profile UUID with its access date, from Redis or from this instance's
- * copy younger than REBUILD_EVERY_MS. Throws when Redis cannot be read: the
- * endpoint then answers 503 and the node keeps what it has.
- */
-export async function readNodeUuidPairs(now: number = Date.now()): Promise<{ pairs: UuidPair[]; malformed: number }> {
-  if (cached && now - cached.at >= 0 && now - cached.at < REBUILD_EVERY_MS) {
-    return { pairs: cached.pairs, malformed: cached.malformed };
-  }
+async function rebuild(now: number): Promise<NodeUuidPairsRead> {
   const ids = await profileUserIds();
   const [profiles, subs] = await Promise.all([
     mgetChunked(ids.map((id) => `profiles:${id}`)),
@@ -85,6 +90,26 @@ export async function readNodeUuidPairs(now: number = Date.now()): Promise<{ pai
     subs: parseStored(subs[i]),
   }));
   const { pairs, malformed } = accessPairs(users, now);
-  cached = { at: now, pairs, malformed };
-  return { pairs, malformed };
+  cached = { pairs, malformed, at: now };
+  return cached;
+}
+
+/**
+ * Every profile UUID with its access date, from Redis or from this instance's
+ * copy younger than REBUILD_EVERY_MS. Concurrent callers share one rebuild.
+ * Throws when Redis cannot be read: the node endpoint then answers 503 and
+ * the node keeps what it has.
+ */
+export async function readNodeUuidPairs(now: number = Date.now()): Promise<NodeUuidPairsRead> {
+  if (cached && now - cached.at >= 0 && now - cached.at < REBUILD_EVERY_MS) {
+    return cached;
+  }
+  if (inflight) return inflight;
+  const run = rebuild(now);
+  inflight = run;
+  try {
+    return await run;
+  } finally {
+    if (inflight === run) inflight = null;
+  }
 }

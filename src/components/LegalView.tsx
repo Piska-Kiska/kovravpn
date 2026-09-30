@@ -49,7 +49,7 @@ export default function LegalView({ doc }: { doc: LegalDocId }) {
   const other: LegalDocId = doc === "terms" ? "privacy" : "terms";
 
   return (
-    <article className="space-y-8">
+    <article className="space-y-8" lang={lang}>
       <header className="space-y-2">
         <h1 className="font-heading text-3xl md:text-4xl font-bold text-nm-text tracking-tight">
           {d.title}

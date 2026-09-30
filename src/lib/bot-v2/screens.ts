@@ -23,6 +23,7 @@ import {
   happDownloads,
   miniAppPageUrl,
   setupGuideUrl,
+  legalUrl,
   shareUrl,
 } from "./links";
 import type { InlineButton, Keyboard, Screen } from "./telegram";
@@ -299,7 +300,7 @@ export function deviceScreen(v: AccountView, d: DeviceDetail, lang: BotLang, not
     kb.push([url("📥 Android TV", dl.androidTv ?? ""), url("📥 Apple TV", dl.appleTv ?? "")]);
     kb.push([b(tr("btn.qr", lang), { a: "qr", uuid: d.uuid })]);
   }
-  kb.push([url(tr("btn.guide", lang), setupGuideUrl(d.kind)), b(tr("btn.remove", lang), { a: "del", uuid: d.uuid })]);
+  kb.push([url(tr("btn.guide", lang), setupGuideUrl(d.kind, lang)), b(tr("btn.remove", lang), { a: "del", uuid: d.uuid })]);
   kb.push(back(lang, { a: "devs" }));
   return { text: withNotice(notice, body), kb };
 }
@@ -721,7 +722,7 @@ export function helpScreen(lang: BotLang, notice?: string): Screen {
     )),
     kb: [
       [url(tr("btn.guides", lang), HELP_LINKS.guides), url(tr("btn.troubleshoot", lang), HELP_LINKS.troubleshooting)],
-      [url(tr("btn.terms", lang), HELP_LINKS.terms), url(tr("btn.privacy", lang), HELP_LINKS.privacy)],
+      [url(tr("btn.terms", lang), legalUrl("terms", lang)), url(tr("btn.privacy", lang), legalUrl("privacy", lang))],
       back(lang, { a: "home" }),
     ],
   };

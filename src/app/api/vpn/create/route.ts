@@ -18,6 +18,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { rateLimit, acquireLock } from "@/lib/ratelimit";
 import { redis } from "@/lib/redis";
 import { randomUUID } from "crypto";
+import { newPanelSubId } from "@/lib/panel-sub-id";
 
 /** VLESS url из первой резолвящейся записи реестра (DE priority 0). */
 async function buildPrimaryVlessUrl(uuid: string): Promise<string> {
@@ -96,6 +97,9 @@ export async function POST(req: NextRequest) {
 
       const uuid = randomUUID();
       const email = `vpn_${userId}_${Date.now()}`;
+      // Random, not the e-mail: the panels serve a client's config at
+      // /sub/<subId> without a login (lib/panel-sub-id.ts).
+      const panelSubId = newPanelSubId();
 
       const expiryTime = await calcExpiryForUser(userId);
       account.paidUntil = expiryTime;
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
       const sync = await addClientToStaticPanels({
         uuid,
         email,
-        subId: email,
+        subId: panelSubId,
         expiryTimeMs: expiryTime,
       });
       if (sync.length === 0 || !sync.some((r) => r.ok)) {
@@ -119,7 +123,6 @@ export async function POST(req: NextRequest) {
       const vlessUrl = await buildPrimaryVlessUrl(uuid);
 
       const subToken = await createProfileSubToken(userId, uuid);
-      await redis.set(`hy2:${uuid}`, "1");
       await addProfile(userId, {
         uuid,
         clientEmail: email,
@@ -127,6 +130,7 @@ export async function POST(req: NextRequest) {
         createdAt: Date.now(),
         deviceType,
         subToken,
+        panelSubId,
       });
 
       if (profiles.length > 0) {

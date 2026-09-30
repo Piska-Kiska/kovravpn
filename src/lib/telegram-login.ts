@@ -43,6 +43,11 @@ export function isTelegramId(v: unknown): v is string | number {
 /** Referral codes are short hex/alnum tokens (lib/referrals.ts). */
 const REF_CODE_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
+/** A value that can be a referral code (lib/referrals.ts makes 8 hex chars). */
+export function isReferralCode(v: unknown): v is string {
+  return typeof v === "string" && REF_CODE_RE.test(v);
+}
+
 /**
  * Find or create the user for a confirmed Telegram id and apply a pending
  * referral. Same keys and order as /verify had: alias → `user:` → `account:`
@@ -67,7 +72,7 @@ export async function loginWithTelegram(input: TelegramLoginInput): Promise<Tele
 
   if (isNewUser) {
     let refCode: string | null = null;
-    if (typeof input.ref === "string" && REF_CODE_RE.test(input.ref)) refCode = input.ref;
+    if (isReferralCode(input.ref)) refCode = input.ref;
     if (!refCode) {
       const pending = await redis.get(`pending_ref:${telegramId}`);
       if (pending !== null && pending !== undefined) {

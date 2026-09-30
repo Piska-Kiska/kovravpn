@@ -15,6 +15,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
 import Localizer from "@/i18n/Localizer";
+import { LANG_BOOT_SCRIPT } from "@/i18n/boot-script";
 
 const rubik = Rubik({
   subsets: ["cyrillic", "latin"],
@@ -174,7 +175,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: `${SITE_NAME} (${SITE_NAME_LATIN})`,
-    locale: "ru_RU",
+    locale: "en_US",
     url: SITE_URL,
     title: DEFAULT_TITLE,
     description: DEFAULT_DESC,
@@ -199,10 +200,11 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: SITE_URL,
-    // hreflang signals to Google that this is the canonical Russian-language
-    // version of the site. Helps with regional ranking in RU-targeted SERPs.
+    // The server renders the site in English (the landing picks the saved
+    // language on the client, at the same URL). It used to claim "ru-RU"
+    // here for every page that did not set its own alternates (KP-08).
     languages: {
-      "ru-RU": SITE_URL,
+      en: SITE_URL,
       "x-default": SITE_URL,
     },
   },
@@ -237,7 +239,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="ru"
+      lang="en"
       className={`${rubik.variable} ${figtree.variable} ${schibsted.variable} ${interTight.variable} ${instrument.variable} ${playfair.variable} ${jetbrainsMono.variable} antialiased scroll-smooth`}
       suppressHydrationWarning
     >
@@ -250,19 +252,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `(function(){try{var d=document.documentElement,t=null;try{t=localStorage.getItem('theme')}catch(e){}var p=(t==='light'||t==='dark')?t:'system';var r=p==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;d.setAttribute('data-theme',r);d.setAttribute('data-theme-pref',p);d.style.colorScheme=r;}catch(e){}})()`,
           }}
         />
-        {/* Language boot. Cabinet pages (/login, /register, /dashboard, /tg)
-            resolve ?lang, a real saved choice, then navigator.languages
-            (keep in sync with src/i18n/resolve.ts) and hide the English SSR
-            markup until React re-renders in that language. Every other page
-            keeps the original RU/EN logic; the Localizer swaps its text.
-            The landing (/) renders its saved kovra_lang (default English) and
-            is hidden the same way until it has re-rendered in that language
-            (src/app/page.tsx removes the class). /guides is English only. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var d=document.documentElement,S=['en','ru','es','de','fr'],l=null;if(/^\\/(login|register|dashboard|tg)(\\/|$)/.test(location.pathname)){var q=new URL(location.href).searchParams.get('lang'),s=null,x=null;try{s=localStorage.getItem('kovra_lang');x=localStorage.getItem('kovra_lang_explicit')}catch(e){}if(S.indexOf(q)>=0)l=q;else if(S.indexOf(s)>=0&&(s!=='en'||x==='1'))l=s;else{var n=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||''];for(var i=0;i<n.length&&!l;i++){var c=String(n[i]).trim().toLowerCase().split(/[-_]/)[0];if(S.indexOf(c)>=0)l=c;}}if(!l)l='en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}else{var u=new URL(location.href),fromUrl=u.searchParams.get('lang'),saved=localStorage.getItem('lang');l=(fromUrl==='en'||fromUrl==='ru')?fromUrl:((saved==='en'||saved==='ru')?saved:'ru');if(/^\\/guides(\\/|$)/.test(location.pathname))l='en';else if(location.pathname==='/'){var k=null;try{k=localStorage.getItem('kovra_lang')}catch(e){}l=S.indexOf(k)>=0?k:'en';if(l!=='en'){d.classList.add('kc-lang-pending');setTimeout(function(){d.classList.remove('kc-lang-pending')},1200);}}}d.setAttribute('lang',l);d.setAttribute('data-lang',l);}catch(e){}})()`,
-          }}
-        />
+        {/* Language boot (src/i18n/boot-script.ts, mirrored by
+            bootLangFrom in src/i18n/resolve.ts): sets <html lang> before the
+            first paint. The server says "en", what most pages render; the
+            cabinet and the translated pages (/terms, /privacy, /guide) switch
+            to the visitor's language, the landing to its saved one, /promo
+            and /p/ to Russian, /guides stay English. */}
+        <script dangerouslySetInnerHTML={{ __html: LANG_BOOT_SCRIPT }} />
       </head>
       <body className="font-sans">
         {children}

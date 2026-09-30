@@ -8,7 +8,7 @@ import {
   detectLang,
   LANG_CHANGE_EVENT,
 } from "./runtime";
-import { isCabinetPath, resolveCabinetLang } from "./resolve";
+import { isCabinetPath, pageLang, resolveCabinetLang } from "./resolve";
 
 /**
  * Mount once at the document root (in `RootLayout`). Walks the DOM,
@@ -83,9 +83,18 @@ export default function Localizer() {
         currentLang = lang;
         langFromCabinet = false;
       }
+      // A page that does not exist in the requested language shows English
+      // and says so (/guide has no es/de/fr text of its own).
+      lang = pageLang(window.location.pathname, lang);
       document.documentElement.setAttribute("lang", lang);
       document.documentElement.setAttribute("data-lang", lang);
       observer?.disconnect();
+      // A page whose server text is in another language than <html lang>
+      // (the Russian SSR of /guide) wraps it in [data-lang-scope lang="ru"];
+      // once translated, that text is in `lang`.
+      document.querySelectorAll<HTMLElement>("[data-lang-scope]").forEach((el) => {
+        if (el.getAttribute("lang") !== lang) el.setAttribute("lang", lang);
+      });
       applyTranslations(lang, dict);
       observer?.takeRecords();
       if (observer) observer.observe(document.body, OBSERVER_OPTS);
