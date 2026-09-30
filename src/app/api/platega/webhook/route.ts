@@ -32,6 +32,7 @@ import { verifyPlategaWebhook, type PlategaOrderRecord } from "@/lib/platega";
 import { redis } from "@/lib/redis";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { ADMIN_TG_ID } from "@/lib/admin-bot";
+import { errorText } from "@/lib/admin-alert";
 import { noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -69,10 +70,15 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   }
 }
 
+/**
+ * The order record persisted by the create route. Null when it is missing or
+ * malformed; a Redis error throws (the caller asks for a retry rather than
+ * treating the order as missing).
+ */
 async function getOrderRecord(
   externalId: string,
 ): Promise<PlategaOrderRecord | null> {
-  const raw = await redis.get(`platega_order:${externalId}`).catch(() => null);
+  const raw = await redis.get(`platega_order:${externalId}`);
   if (!raw) return null;
   try {
     const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as PlategaOrderRecord;
@@ -85,6 +91,13 @@ async function getOrderRecord(
 }
 
 export async function POST(req: NextRequest) {
+  // The dedup key while it is held for a grant that has not happened yet, and
+  // whether the grant is done: they decide what an unexpected error answers.
+  // Before the grant: release, alert, 500, so Platega retries (KM-07). After
+  // it: 200, because a retry would grant twice.
+  let heldKey: string | null = null;
+  let granted = false;
+  let txRef = "?";
   try {
     if (!verifyPlategaWebhook(req.headers)) {
       console.warn("[platega-webhook] invalid credentials headers");
@@ -127,16 +140,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    txRef = txId;
+
     // ATOMIC DEDUP before any side effect.
     const dedupKey = `platega_done:${txId}:${status}`;
-    const reserved = await reserveDedupKey(dedupKey, DEDUP_TTL_SEC);
+    let reserved: boolean;
+    try {
+      reserved = await reserveDedupKey(dedupKey, DEDUP_TTL_SEC);
+    } catch (err) {
+      // Nothing is reserved and nothing granted: a retry is exactly right.
+      console.error("[platega-webhook] dedup reserve failed, requesting retry:", err);
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Platega: Redis error, asked Platega to retry</b>\ntx <code>${txId}</code>: ${errorText(err)}`,
+      );
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     if (!reserved) {
       return NextResponse.json({ ok: true, ignored: "duplicate" });
     }
+    heldKey = dedupKey;
 
-    const extId = String(
-      (await redis.get(`platega_tx:${txId}`).catch(() => "")) || "",
-    ).slice(0, 255);
+    // A Redis error here throws to the handler below (retry), rather than
+    // reading as "no such order" and dropping the payment.
+    const extId = String((await redis.get(`platega_tx:${txId}`)) || "").slice(0, 255);
     const parsed = extId ? parseSubOrderId(extId) : null;
     const order = extId ? await getOrderRecord(extId) : null;
 
@@ -187,9 +214,15 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error("[platega-webhook] grant failed, requesting retry:", err);
-      await releaseDedupKey(dedupKey);
+      await releaseDedupKey(dedupKey).catch(() => {});
+      heldKey = null;
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Platega: grant failed, asked Platega to retry</b>\ntx <code>${txId}</code>, order <code>${extId}</code>: ${errorText(err)}`,
+      );
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
+    granted = true;
 
     // ─── Stage 2: sync & notify (best-effort, never retried) ───
     try {
@@ -243,6 +276,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[platega-webhook] unhandled error:", error);
-    return NextResponse.json({ ok: true });
+    if (granted) {
+      // Granted already: a retry would grant a second time.
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Platega: error after the grant</b>\ntx <code>${txRef}</code>: ${errorText(error)}. Granted; check the expiry sync and the notice.`,
+      );
+      return NextResponse.json({ ok: true });
+    }
+    if (heldKey) await releaseDedupKey(heldKey).catch(() => {});
+    await sendTelegram(
+      ADMIN_TG_ID,
+      `⚠️ <b>Platega: error before the grant, asked Platega to retry</b>\ntx <code>${txRef}</code>: ${errorText(error)}`,
+    );
+    return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }
