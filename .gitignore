@@ -16,3 +16,10 @@ node_modules/
 
 # Offline bot screen harness output (scripts/bot-screens.mjs)
 bot-screens-out/
+
+# Node registry data (scripts/set-registry.ts) and its backups: node
+# addresses never go into this public repository. The shape is in
+# registry.example.json.
+registry.local.json
+registry*.local.json
+*.local.json

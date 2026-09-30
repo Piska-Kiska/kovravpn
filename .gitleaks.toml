@@ -65,6 +65,35 @@ description = "Possible BIP39 mnemonic assignment"
 regex = '''(?i)(mnemonic|seed[_-]?phrase|recovery[_-]?phrase)[\s]*[:=][\s]*['\"][a-z ]{60,}['\"]'''
 keywords = ["mnemonic", "seed", "recovery"]
 
+# ─── Node addresses ───────────────────────────────────────────
+# This repository is public and node addresses are never published: they
+# live in the git-ignored registry.local.json (scripts/set-registry.ts).
+# Any other public IPv4 address in the tree is a finding. The allowlist is
+# private, loopback, link-local, shared (CGNAT), documentation, multicast,
+# reserved and unspecified ranges, public DNS resolvers, and the Freekassa
+# notification senders (src/lib/freekassa.ts FK_IPS, published by Freekassa).
+# tests/no-public-ipv4.test.mjs enforces the same rule on every test run.
+[[rules]]
+id = "public-ipv4-address"
+description = "Public IPv4 address (node addresses belong in registry.local.json)"
+regex = '''(?:^|[^0-9.])((?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3})(?:$|[^0-9.]|\.[^0-9])'''
+secretGroup = 1
+
+[[rules.allowlists]]
+description = "Non-public ranges and published third-party addresses"
+regexTarget = "secret"
+regexes = [
+    '''^(?:0|10|127)\.''',
+    '''^169\.254\.''',
+    '''^172\.(?:1[6-9]|2[0-9]|3[01])\.''',
+    '''^192\.168\.''',
+    '''^100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.''',
+    '''^(?:192\.0\.2|198\.51\.100|203\.0\.113)\.''',
+    '''^(?:22[4-9]|2[3-5][0-9])\.''',
+    '''^(?:1\.1\.1\.1|1\.0\.0\.1|8\.8\.8\.8|8\.8\.4\.4|9\.9\.9\.9|77\.88\.8\.8|77\.88\.8\.1)$''',
+    '''^(?:168\.119\.157\.136|168\.119\.60\.227|178\.154\.197\.79|51\.250\.54\.238)$''',
+]
+
 # ─── Global allowlist ─────────────────────────────────────────
 [allowlist]
 description = "Global allowlist"

@@ -58,6 +58,7 @@ FORBIDDEN_FILES = re.compile(
     r"|.*\.pfx"
     r"|.*\.key"
     r"|id_rsa|id_ed25519|id_ecdsa|id_dsa"
+    r"|registry[^/]*\.local\.json"  # node addresses (scripts/set-registry.ts)
     r"|.*\.kdbx"
     r"|\.npmrc"
     r"|\.pypirc"
