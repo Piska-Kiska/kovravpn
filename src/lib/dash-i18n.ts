@@ -339,6 +339,7 @@ export interface DashDict {
   tg_err_sdk: Str;
   tg_err_auth: Str;
   tg_close: Str;
+  err_delete_retry: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -652,6 +653,7 @@ const en: DashDict = {
   tg_err_sdk: "Telegram didn’t load. Check your connection and try again.",
   tg_err_auth: "We couldn’t sign you in. Close this window and open it again from the bot.",
   tg_close: "Close",
+  err_delete_retry: "Could not remove the device from our servers. Nothing was changed. Try again in a minute.",
 };
 
 const ru: DashDict = {
@@ -967,6 +969,7 @@ const ru: DashDict = {
   tg_err_sdk: "Telegram не загрузился. Проверьте соединение и попробуйте ещё раз.",
   tg_err_auth: "Не получилось войти. Закройте окно и откройте его снова из бота.",
   tg_close: "Закрыть",
+  err_delete_retry: "Не удалось удалить устройство с наших серверов. Ничего не изменилось. Повторите через минуту.",
 };
 
 const es: DashDict = {
@@ -1277,6 +1280,7 @@ const es: DashDict = {
   tg_err_sdk: "Telegram no se cargó. Revisa tu conexión e inténtalo de nuevo.",
   tg_err_auth: "No pudimos iniciar tu sesión. Cierra esta ventana y ábrela de nuevo desde el bot.",
   tg_close: "Cerrar",
+  err_delete_retry: "No se pudo eliminar el dispositivo de nuestros servidores. No se ha cambiado nada. Inténtalo en un minuto.",
 };
 
 const de: DashDict = {
@@ -1587,6 +1591,7 @@ const de: DashDict = {
   tg_err_sdk: "Telegram wurde nicht geladen. Prüfe deine Verbindung und versuch es erneut.",
   tg_err_auth: "Die Anmeldung hat nicht geklappt. Schließe dieses Fenster und öffne es erneut aus dem Bot.",
   tg_close: "Schließen",
+  err_delete_retry: "Das Gerät konnte nicht von unseren Servern entfernt werden. Nichts wurde geändert. Versuch es in einer Minute erneut.",
 };
 
 const fr: DashDict = {
@@ -1897,6 +1902,7 @@ const fr: DashDict = {
   tg_err_sdk: "Telegram ne s’est pas chargé. Vérifiez votre connexion et réessayez.",
   tg_err_auth: "La connexion a échoué. Fermez cette fenêtre et rouvrez-la depuis le bot.",
   tg_close: "Fermer",
+  err_delete_retry: "Impossible de supprimer l’appareil de nos serveurs. Rien n’a été modifié. Réessayez dans une minute.",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };

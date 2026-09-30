@@ -8,7 +8,10 @@ import type { DashDict } from "@/lib/dash-i18n";
 import { localizeError } from "@/lib/i18n-shell";
 
 /** src/lib/balance.ts canCreateProfileAsync() and src/app/api/vpn/{delete,reset-hwid}. */
-type DashErrorKey = keyof Pick<DashDict, "max_devices" | "err_no_slot" | "err_device_gone" | "err_reset_failed" | "err_generic">;
+type DashErrorKey = keyof Pick<
+  DashDict,
+  "max_devices" | "err_no_slot" | "err_device_gone" | "err_reset_failed" | "err_delete_retry" | "err_generic"
+>;
 
 const DASH_ERROR_TABLE: Readonly<Record<string, DashErrorKey>> = {
   "Maximum 100 devices": "max_devices",
@@ -16,6 +19,8 @@ const DASH_ERROR_TABLE: Readonly<Record<string, DashErrorKey>> = {
   "Profile not found": "err_device_gone",
   "No profiles": "err_device_gone",
   "Reset failed": "err_reset_failed",
+  // lib/profile-delete.ts: a panel did not confirm, the device stays
+  "Panel delete failed": "err_delete_retry",
   // the shared table maps this to "couldn't set up the device", wrong for a delete
   "Delete failed": "err_generic",
 };

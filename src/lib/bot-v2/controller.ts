@@ -556,6 +556,8 @@ async function removeDevice(s: Session, msgId: number, uuid: string, answer: Ans
   if (!d) return showEdit(s, msgId, devicesScreen(view, s.lang, tr("devs.notFound", s.lang)));
   await showEdit(s, msgId, deletingScreen(d.label, s.lang));
   const r = await deleteOwnProfile(s.userId, uuid);
+  // A panel did not confirm: the device stays, and says so (profile-delete.ts).
+  if (r === "panel_failed") return showDevice(s, msgId, uuid, tr("devs.removeFailed", s.lang));
   const after = await loadView(s);
   const notice = r === "deleted" ? tr("devs.removed", s.lang, { dev: d.label }) : tr("devs.notFound", s.lang);
   return showEdit(s, msgId, devicesScreen(after.view, s.lang, notice));

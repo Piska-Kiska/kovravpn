@@ -508,7 +508,14 @@ async function handleConfirmDel(chatId: number, msgId: number, uuid: string) {
     return;
   }
   await edit(chatId, msgId, t("del.progress", lang), []);
-  await deleteOwnProfile(userId, uuid);
+  const r = await deleteOwnProfile(userId, uuid);
+  if (r === "panel_failed") {
+    await edit(chatId, msgId, t("del.fail", lang), [
+      [{ text: t("del.yes", lang), callback_data: `cdel_${uuid}` }],
+      backBtn("profiles", lang),
+    ]);
+    return;
+  }
   await edit(chatId, msgId, t("del.done", lang), [
     [{ text: t("del.toprof", lang), callback_data: "profiles" }],
     backBtn("menu", lang),
