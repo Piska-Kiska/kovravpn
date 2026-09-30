@@ -52,7 +52,7 @@ const {
 const { takeDeviceUuid, releaseTakenMark, noteNodeConfirmed, resetUuidPoolInstance, SEEN_WRITE_EVERY_MS } = await import(
   "../src/lib/uuid-pool.ts"
 );
-const { readNodeUuidPairs, resetNodeUuidCache, REBUILD_EVERY_MS } = await import("../src/lib/node-uuids.ts");
+const { readDevicePairs, readNodeUuidPairs, resetNodeUuidCache, REBUILD_EVERY_MS } = await import("../src/lib/node-uuids.ts");
 const { buildNodeUuidsBody, NODE_BODY_WINDOW_MS } = await import("../src/lib/node-uuids-body.ts");
 const { NextRequest } = await import("next/server");
 const { GET: nodeUuidsGet } = await import("../src/app/api/internal/node-uuids/route.ts");
@@ -590,6 +590,22 @@ describe("a taken UUID stays on the nodes without a gap", () => {
     });
     const { lines } = await answer(NOW);
     assert.equal(lines.get(uuid), NOW + 10 * DAY);
+  });
+
+  test("a node build never answers from a device read older than its view of the reserve", async () => {
+    // Hysteria2 read the devices a moment ago (the instance keeps that copy
+    // for REBUILD_EVERY_MS). Then a device takes P, its record is written
+    // and P moves to `spent`. The node build's view shows P spent, so only
+    // a device read made AFTER that view can see P's record: an older one
+    // would date P in the past and the nodes would drop the new device.
+    seedReady([[u(1), NOW - DAY]]);
+    await readDevicePairs(NOW);
+    const { uuid, instant } = await takeDeviceUuid(NOW + 1_000);
+    assert.equal(instant, true);
+    setUser(USER, [device(uuid, NOW + 1_000)], [plan(1, NOW + 10 * DAY)]);
+    await releaseTakenMark(uuid, NOW + 1_000);
+    const { lines } = await answer(NOW + 2_000);
+    assert.equal(lines.get(uuid), NOW + 10 * DAY, "the device's own date, ahead");
   });
 
   test("a node agent keeps the device across the whole sequence, and nothing counts as dropped", async () => {
