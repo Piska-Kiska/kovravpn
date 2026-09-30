@@ -575,7 +575,12 @@ async function createDevice(s: Session, msgId: number, device: DeviceKind, answe
     if (!created) return showEdit(s, msgId, devicesScreen(view, s.lang));
     const detail = await deviceDetail(s, profiles, view, created.uuid);
     if (!detail) return showEdit(s, msgId, devicesScreen(view, s.lang));
-    return showEdit(s, msgId, deviceScreen(view, detail, s.lang, tr("dev.ready", s.lang, { dev: detail.label })));
+    // Only here, on the fresh device: DE/UK/US are panels and take the device
+    // at once; the other locations are PRO nodes whose agents pull the list
+    // every 120 s from an answer cached up to 60 s (lib/node-uuids.ts), so
+    // "within 3 minutes".
+    const ready = `${tr("dev.ready", s.lang, { dev: detail.label })}\n${tr("dev.readyWhere", s.lang)}`;
+    return showEdit(s, msgId, deviceScreen(view, detail, s.lang, ready));
   } finally {
     await unlock().catch(() => undefined);
   }

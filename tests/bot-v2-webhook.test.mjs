@@ -212,6 +212,8 @@ describe("connecting a device", () => {
       "the progress edit has only Back",
     );
     assert.ok(edits.at(-1).body.text.includes("c0ffee00c0ffee00c0ffee00c0ffee00"));
+    // The fresh device says which locations work at once and which within minutes.
+    assert.ok(edits.at(-1).body.text.includes(DE["dev.readyWhere"]));
     assert.equal(calls("sendChatAction").length, 1);
   });
 

@@ -352,6 +352,8 @@ export interface DashDict {
   hero_title_soon: Str;
   /** A device beyond the running slots (lib/device-capacity.ts): paused, not deleted. */
   dev_slot_paused: Str;
+  /** Under the steps of a device just created: which locations work when. */
+  setup_locations: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -677,6 +679,7 @@ const en: DashDict = {
   dev_paused: "Works again after you renew your plan.",
   hero_title_soon: "Your plan ends soon",
   dev_slot_paused: "Paused: no free slot. To turn it on, buy a plan or an extra slot, or delete another device.",
+  setup_locations: "Germany, Britain and the USA work right away. The other countries connect within 3 minutes.",
 };
 
 const ru: DashDict = {
@@ -1004,6 +1007,7 @@ const ru: DashDict = {
   dev_paused: "Заработает после продления тарифа.",
   hero_title_soon: "Тариф скоро закончится",
   dev_slot_paused: "На паузе: нет свободного слота. Чтобы включить, купите тариф или дополнительный слот либо удалите другое устройство.",
+  setup_locations: "Германия, Великобритания и США работают сразу. Остальные страны подключатся в течение 3 минут.",
 };
 
 const es: DashDict = {
@@ -1326,6 +1330,7 @@ const es: DashDict = {
   dev_paused: "Vuelve a funcionar cuando renueves tu plan.",
   hero_title_soon: "Tu plan termina pronto",
   dev_slot_paused: "En pausa: no hay espacio libre. Para activarlo, compra un plan o un espacio extra, o elimina otro dispositivo.",
+  setup_locations: "Alemania, Reino Unido y EE. UU. funcionan al momento. Los demás países se conectan en 3 minutos como máximo.",
 };
 
 const de: DashDict = {
@@ -1648,6 +1653,7 @@ const de: DashDict = {
   dev_paused: "Funktioniert wieder, sobald du deinen Tarif verlängerst.",
   hero_title_soon: "Dein Tarif endet bald",
   dev_slot_paused: "Pausiert: kein freier Geräteplatz. Zum Einschalten einen Tarif oder einen Zusatzplatz kaufen oder ein anderes Gerät löschen.",
+  setup_locations: "Deutschland, Großbritannien und die USA funktionieren sofort. Die anderen Länder sind innerhalb von 3 Minuten verbunden.",
 };
 
 const fr: DashDict = {
@@ -1970,6 +1976,7 @@ const fr: DashDict = {
   dev_paused: "Refonctionne dès que vous renouvelez votre forfait.",
   hero_title_soon: "Votre forfait se termine bientôt",
   dev_slot_paused: "En pause : aucun emplacement libre. Pour le réactiver, achetez un forfait ou un emplacement supplémentaire, ou supprimez un autre appareil.",
+  setup_locations: "L’Allemagne, le Royaume-Uni et les États-Unis fonctionnent tout de suite. Les autres pays se connectent en 3 minutes maximum.",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };
