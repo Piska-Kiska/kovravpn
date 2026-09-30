@@ -1,6 +1,7 @@
 // src/i18n/resolve.ts
 //
-// Language resolution for the cabinet pages (/login, /register, /dashboard).
+// Language resolution for the cabinet pages (/login, /register, /dashboard,
+// and /tg, the same dashboard inside the Telegram Mini App).
 //
 // Pure module with zero runtime imports, so node tests can load it directly
 // under type stripping. The inline boot script in src/app/layout.tsx mirrors
@@ -22,7 +23,7 @@ export const CABINET_LANGS_ORDER: readonly Lang[] = ["en", "ru", "es", "de", "fr
 export const LANG_STORAGE_KEY = "kovra_lang";
 export const LANG_EXPLICIT_STORAGE_KEY = "kovra_lang_explicit";
 
-const CABINET_PATH_RE = /^\/(login|register|dashboard)(\/|$)/;
+const CABINET_PATH_RE = /^\/(login|register|dashboard|tg)(\/|$)/;
 
 export function isLang(v: unknown): v is Lang {
   return typeof v === "string" && (CABINET_LANGS_ORDER as readonly string[]).includes(v);
