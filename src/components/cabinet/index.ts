@@ -15,3 +15,4 @@ export { AuthShell, type AuthShellProps } from "./AuthShell";
 export { TelegramAuth, type TelegramAuthProps } from "./TelegramAuth";
 export { useDocumentTitle } from "./useDocumentTitle";
 export { cx, cssVars, readJson, EMAIL_RE, type ApiBody } from "./util";
+export { BackStackProvider, createBackStack, useBackLayer, useBackStackSize, type BackStack } from "./back-stack";

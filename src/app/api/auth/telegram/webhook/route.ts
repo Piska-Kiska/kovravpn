@@ -7,7 +7,6 @@ import {
   createAccount,
   getProfiles,
   addProfile,
-  removeProfile,
   getProfileLimit,
   resolveUserId,
   getUserRecord,
@@ -22,39 +21,51 @@ import {
   getUserLang,
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
-import { removeClientFromStaticPanels } from "@/lib/kovra-servers-sync";
+import { deleteOwnProfile } from "@/lib/profile-delete";
+import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
-import { syncAllExpiry } from "@/lib/balance";
-import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
-import { createInvoice } from "@/lib/nowpayments";
-import {
-  LAVA_MIN_AMOUNT,
-  createInvoice as createLavaInvoice,
-  lavaConfigured,
-  lavaMethodChoices,
-  rememberContract,
-} from "@/lib/lava";
+import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
+import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
-import { chargeIn, formatCharge } from "@/lib/lava-price";
-import { rememberCharge } from "@/lib/lava-purchase";
-import { buildTopupOrderId as buildLavaTopupOrderId } from "@/lib/bot-wallet";
-import { createCardPayment } from "@/lib/cashera-order";
-import { getBalanceUsd, addBalanceUsd, chargeBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
-import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddon, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
-import { createCryptoBotInvoice } from "@/lib/cryptobot";
+import { formatCharge } from "@/lib/lava-price";
+import {
+  MAX_TOPUP_USD,
+  MIN_TOPUP_CARD_USD,
+  MIN_TOPUP_CRYPTOBOT_USD,
+  MIN_TOPUP_NOWPAY_USD,
+  QUICK_TOPUP_USD as QUICK_TOPUP,
+  createWalletTopupInvoice,
+  lavaTopupChoices,
+  minTopupUsd as minForMethod,
+  type TopupMethod,
+} from "@/lib/wallet-topup";
+import { getBalanceUsd } from "@/lib/bot-wallet";
+import { PLAN_PRICES, activePlanKindOf, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
+import { purchaseFromWallet, type WalletProduct } from "@/lib/wallet-purchase";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
-import { randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import {
   tryHandleAdminCallback,
   tryHandleAdminText,
 } from "@/lib/admin-bot";
+import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
+import { isBotV2 } from "@/lib/bot-v2/gate";
+import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
+import {
+  handleV2Callback,
+  handleV2Command,
+  handleV2Fallback,
+  handleV2Note,
+  handleV2Reply,
+  handleV2Start,
+  parseCommand,
+} from "@/lib/bot-v2/controller";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
-const ADMIN_TG_ID = "6944217115";
 const PLAN_NAMES: Record<string, string> = {
   free: "Пробный",
   base: "Базовый",
@@ -105,6 +116,9 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
   });
 
   if (!res.ok) {
+    // The same screen again (a double tap, Back to where one already is):
+    // nothing to change. Deleting and resending here made the message jump.
+    if (await isNotModified(res)) return;
     const res2 = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,11 +128,17 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
       }),
     });
 
-    if (!res2.ok) {
+    if (!res2.ok && !(await isNotModified(res2))) {
       try { await tg("deleteMessage", { chat_id: chatId, message_id: msgId }); } catch {}
       await send(chatId, text, kb);
     }
   }
+}
+
+/** Telegram's "message is not modified" answer to an edit. */
+async function isNotModified(res: Response): Promise<boolean> {
+  const body = (await res.json().catch(() => null)) as { description?: unknown } | null;
+  return typeof body?.description === "string" && body.description.includes("message is not modified");
 }
 
 async function answerCb(id: string, text?: string) {
@@ -467,7 +487,13 @@ async function handleLink(chatId: number, msgId: number, uuid: string) {
 }
 
 async function handleDel(chatId: number, msgId: number, uuid: string) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  const profiles = await getProfiles(userId);
+  if (!profiles.some((p) => p.uuid === uuid)) {
+    await edit(chatId, msgId, t("link.notfound", lang), [backBtn("profiles", lang)]);
+    return;
+  }
   await edit(chatId, msgId, t("del.confirm", lang), [
     [{ text: t("del.yes", lang), callback_data: `cdel_${uuid}` }, { text: t("del.no", lang), callback_data: "profiles" }],
   ]);
@@ -476,14 +502,21 @@ async function handleDel(chatId: number, msgId: number, uuid: string) {
 async function handleConfirmDel(chatId: number, msgId: number, uuid: string) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  // Ownership first: `cdel_<uuid>` is client data, and a forged one used to
+  // remove another user's device from the panels.
+  if (!(await getProfiles(userId)).some((p) => p.uuid === uuid)) {
+    await edit(chatId, msgId, t("link.notfound", lang), [backBtn("profiles", lang)]);
+    return;
+  }
   await edit(chatId, msgId, t("del.progress", lang), []);
-  try {
-    const profs = await getProfiles(userId);
-    const prof = profs.find((p) => p.uuid === uuid);
-    await removeClientFromStaticPanels(uuid, prof?.clientEmail ?? uuid);
-  } catch { /* ok */ }
-  await removeProfile(userId, uuid);
-  await syncAllExpiry(userId);
+  const r = await deleteOwnProfile(userId, uuid);
+  if (r === "panel_failed") {
+    await edit(chatId, msgId, t("del.fail", lang), [
+      [{ text: t("del.yes", lang), callback_data: `cdel_${uuid}` }],
+      backBtn("profiles", lang),
+    ]);
+    return;
+  }
   await edit(chatId, msgId, t("del.done", lang), [
     [{ text: t("del.toprof", lang), callback_data: "profiles" }],
     backBtn("menu", lang),
@@ -586,11 +619,7 @@ async function screenPricing(chatId: number, msgId: number) {
 // switch the buy flow into renewal mode and lock it to that tier; extra device
 // capacity comes from the Add-device add-on, not from re-buying the plan.
 async function activePlanKind(userId: string): Promise<PlanKind | null> {
-  const now = Date.now();
-  const subs = await getSubscriptions(userId);
-  if (subs.some((s) => s.kind === "plan3" && s.expiresAt > now)) return "plan3";
-  if (subs.some((s) => s.kind === "plan1" && s.expiresAt > now)) return "plan1";
-  return null;
+  return activePlanKindOf(await getSubscriptions(userId));
 }
 
 async function screenBuyPlan(chatId: number, msgId: number) {
@@ -605,10 +634,22 @@ async function screenBuyPlan(chatId: number, msgId: number) {
   ]);
 }
 
+/**
+ * One-use value in the callback_data of a screen that pays at once: the
+ * purchase's requestId is `tgb-{chatId}-{nonce}`, so a double tap on the same
+ * button replays the first purchase instead of charging twice (the callback
+ * id is new on every tap and cannot do that). Hex: "_" splits callback_data.
+ */
+function buyNonce(): string {
+  return randomBytes(5).toString("hex");
+}
+const BUY_NONCE_RE = /^[0-9a-f]{10}$/;
+
 async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
   const now = Date.now();
+  const nonce = buyNonce();
   const subs = await getSubscriptions(userId);
   const planSub = subs
     .filter((s) => s.kind === kind && s.expiresAt > now)
@@ -619,7 +660,7 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
     const pr = PLAN_PRICES[kind][term];
     return [{
       text: t(`buy.term.${term}`, lang, { total: pr.total.toFixed(2), perMonth: pr.perMonth.toFixed(2) }),
-      callback_data: `buyterm_${kind}_${term}`,
+      callback_data: `buyterm_${kind}_${term}_${nonce}`,
     }];
   });
   rows.push(backBtn(isRenewal ? "menu" : "buyplan", lang));
@@ -631,98 +672,86 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
   }
 }
 
-async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term) {
-  const lang = await resolveLang(await getUserId(chatId));
+async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term, requestId: string) {
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("menu", lang)]); return; }
-  const plan = resolvePlan(kind, term);
-  if (!plan) { await edit(chatId, msgId, t("buy.err", lang), [backBtn("menu", lang)]); return; }
-  await chargeAndGrant(chatId, msgId, lang, userId, plan.price, async () => {
-    await applyPlanPurchase(userId, plan);
-    return t(`shop.sum.${kind}`, lang, { term });
-  }, `buyplan_${kind}`);
+  const lang = await resolveLang(userId);
+  await buyFromWallet(chatId, msgId, lang, userId, { kind, term }, requestId,
+    t(`shop.sum.${kind}`, lang, { term }), `buyplan_${kind}`);
 }
 
 // ─── Add-device (1/6/12 mo × $5) ─────────────────────
 async function screenAddDevice(chatId: number, msgId: number) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  // An extra device sits on a running plan (lib/wallet-purchase.ts refuses it otherwise).
+  if (!(await activePlanKind(userId))) {
+    await edit(chatId, msgId, t("buy.noplan", lang), [
+      [{ text: t("acc.buy", lang), callback_data: "buyplan" }],
+      backBtn("account", lang),
+    ]);
+    return;
+  }
+  const nonce = buyNonce();
   const rows: InlineBtn[][] = ([1, 6, 12] as Term[]).map((term) => {
     const total = DEVICE_ADDON_PRICE * term;
-    return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}` }];
+    return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}_${nonce}` }];
   });
   rows.push(backBtn("account", lang));
   await edit(chatId, msgId, t("dev.title", lang), rows);
 }
 
-async function handleAddDevice(chatId: number, msgId: number, term: Term) {
-  const lang = await resolveLang(await getUserId(chatId));
+async function handleAddDevice(chatId: number, msgId: number, term: Term, requestId: string) {
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("account", lang)]); return; }
-  const price = DEVICE_ADDON_PRICE * term;
-  await chargeAndGrant(chatId, msgId, lang, userId, price, async () => {
-    for (let i = 0; i < term; i++) await applyDeviceAddon(userId);
-    return t("shop.sum.device", lang, { days: term * 30 });
-  }, "adddev");
+  const lang = await resolveLang(userId);
+  await buyFromWallet(chatId, msgId, lang, userId, { kind: "device", term }, requestId,
+    t("shop.sum.device", lang, { days: term * 30 }), "adddev");
 }
 
 /**
- * Atomic charge-then-grant. Checks balance, charges, runs grant(); on grant
- * failure refunds. Renders insufficient/success. `backTo` is the retry target.
+ * Pay from the wallet (lib/wallet-purchase.ts: lock, idempotency by the
+ * nonce of the screen the button sits on, charge then grant, refund on
+ * failure) and render the outcome.
+ * `backTo` is the retry target.
  */
-async function chargeAndGrant(
+async function buyFromWallet(
   chatId: number, msgId: number, lang: BotLang, userId: string,
-  price: number, grant: () => Promise<string>, backTo: string,
+  product: WalletProduct, requestId: string, summary: string, backTo: string,
 ) {
-  const bal = await getBalanceUsd(userId);
-  if (bal < price) {
-    const need = price - bal;
+  const r = await purchaseFromWallet({ userId, product, requestId, source: "bot" });
+  const usd = (cents: number) => (cents / 100).toFixed(2);
+  if (r.status === "ok") {
     await edit(chatId, msgId,
-      t("shop.insufficient", lang, { price: price.toFixed(2), bal: bal.toFixed(2), need: need.toFixed(2) }),
+      t("shop.ok", lang, { summary, bal: usd(r.balanceCents) }),
       [
-        [{ text: t("shop.topup.btn", lang, { need: need.toFixed(2) }), callback_data: "topup" }],
+        [{ text: t("menu.devices", lang), callback_data: "profiles" }],
+        backBtn("menu", lang),
+      ]);
+    return;
+  }
+  if (r.status === "insufficient") {
+    await edit(chatId, msgId,
+      t("shop.insufficient", lang, { price: usd(r.priceCents), bal: usd(r.balanceCents), need: usd(r.needCents) }),
+      [
+        [{ text: t("shop.topup.btn", lang, { need: usd(r.needCents) }), callback_data: "topup" }],
         backBtn(backTo, lang),
       ]);
     return;
   }
-  const charged = await chargeBalanceUsd(userId, price);
-  if (!charged) {
-    await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
-    return;
-  }
-  let summary: string;
-  try {
-    summary = await grant();
-    await syncAllExpiry(userId);
-  } catch (err) {
-    console.error("[bot] grant failed, refunding:", err);
-    await addBalanceUsd(userId, price); // refund
-    await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
-    return;
-  }
-  const newBal = await getBalanceUsd(userId);
-  await edit(chatId, msgId,
-    t("shop.ok", lang, { summary, bal: newBal.toFixed(2) }),
-    [
-      [{ text: t("menu.devices", lang), callback_data: "profiles" }],
-      backBtn("menu", lang),
+  // A second tap while the first purchase runs: that one renders the result.
+  if (r.status === "conflict" && (r.reason === "busy" || r.reason === "in_progress")) return;
+  if (r.status === "conflict" && r.reason === "no_plan") {
+    await edit(chatId, msgId, t("buy.noplan", lang), [
+      [{ text: t("acc.buy", lang), callback_data: "buyplan" }],
+      backBtn("account", lang),
     ]);
+    return;
+  }
+  await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
 }
 
 // ─── Top-up balance (USD) ────────────────────────────
-const MIN_TOPUP_CRYPTOBOT_USD = 5;
-const MIN_TOPUP_NOWPAY_USD = 8;
-const MIN_TOPUP_CARD_USD = 5;
-const MAX_TOPUP_USD = 1000;
-const QUICK_TOPUP = [10, 20, 50, 100];
-
-type TopupMethod = "crypto" | "cryptobot" | "card" | "lava";
-
-function minForMethod(method: TopupMethod): number {
-  // Порог самой лавы, а не наше число: счета ниже $5 она не выставляет вовсе.
-  if (method === "lava") return LAVA_MIN_AMOUNT.USD;
-  if (method === "card") return MIN_TOPUP_CARD_USD;
-  return method === "cryptobot" ? MIN_TOPUP_CRYPTOBOT_USD : MIN_TOPUP_NOWPAY_USD;
-}
+// Amounts, minimums and the invoices themselves live in lib/wallet-topup.ts,
+// shared with the web cabinet and the Mini App.
 
 async function screenTopup(chatId: number, msgId: number) {
   const lang = await resolveLang(await getUserId(chatId));
@@ -780,9 +809,7 @@ async function screenLavaMethods(chatId: number, msgId: number, amountUsd: numbe
   }
   // Способы, которых лава на эту сумму не примет, не показываем вовсе: на $5
   // евровые отпадают, и показанная кнопка довела бы до отказа после нажатия.
-  const chips = lavaMethodChoices("USD", (c) => chargeIn(amountUsd, c)).filter(
-    (c) => LAVA_BOT_LABEL[c.id] !== undefined,
-  );
+  const chips = lavaTopupChoices(amountUsd, "USD").filter((c) => LAVA_BOT_LABEL[c.id] !== undefined);
   const rows: InlineBtn[][] = [];
   for (let i = 0; i < chips.length; i += 2) {
     rows.push(chips.slice(i, i + 2).map((c) => ({
@@ -807,85 +834,47 @@ async function handleTopupLava(
   method: LavaMethodId,
   currency: LavaCurrency,
 ) {
-  const lang = await resolveLang(await getUserId(chatId));
   const userId = await getUserId(chatId);
-  if (!userId) {
-    await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]);
-    return;
-  }
-  const min = minForMethod("lava");
-  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
-    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
-    return;
-  }
-  try {
-    const charge = chargeIn(amountUsd, currency);
-    const topupId = buildLavaTopupOrderId(userId);
-    const invoice = await createLavaInvoice({
-      orderId: topupId,
-      amount: charge,
-      currency,
-      methodId: method,
-      locale: lang === "ru" ? "ru" : "en",
-      successUrl: `${SITE_URL}/dashboard?paid=lava`,
-      failUrl: `${SITE_URL}/dashboard`,
-    });
-    // Указатель и ожидаемая сумма — ДО того, как ссылка уйдёт человеку: в
-    // событии лавы нашего номера нет, и без записи зачислять будет нечего.
-    await rememberContract(invoice.contractId, topupId);
-    await rememberCharge(invoice.contractId, {
-      orderId: topupId,
-      userId,
-      currency,
-      amount: charge,
-      priceUsd: amountUsd,
-      label: `wallet top-up $${amountUsd.toFixed(2)}`,
-      createdAt: Date.now(),
-    });
+  const lang = await resolveLang(userId);
+  const r = await createWalletTopupInvoice({
+    userId,
+    method: "lava",
+    amountUsd,
+    returnTo: "bot",
+    lavaMethodId: method,
+    lavaCurrency: currency,
+    locale: lang === "ru" ? "ru" : "en",
+  });
+  if (r.ok) {
     await edit(chatId, msgId,
-      t("topup.invoice", lang, { amount: amountUsd.toFixed(2) }),
+      t("topup.invoice", lang, { amount: r.amountUsd.toFixed(2) }),
       [
-        [{ text: `${formatCharge(amountUsd, currency)}`, url: invoice.paymentUrl }],
+        [{ text: r.chargeLabel, url: r.payUrl }],
         backBtn("topup_m_lava", lang),
       ]);
-  } catch (err) {
-    console.error("[bot] lava topup error:", err instanceof Error ? err.message : err);
+  } else if (r.error === "invalid_amount") {
+    const min = minForMethod("lava");
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+  } else {
     await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }
 
 async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
-  const lang = await resolveLang(await getUserId(chatId));
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]); return; }
-  const min = minForMethod(method);
-  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
-    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
-    return;
-  }
-  try {
-    let payUrl: string;
-    let invoiceKey = "topup.invoice";
-    if (method === "cryptobot") {
-      const inv = await createCryptoBotInvoice({ userId, amountUsd, source: "bot" });
-      payUrl = inv.payUrl;
-    } else if (method === "card") {
-      const res = await createCardPayment(userId, { type: "topup", amountUsd }, "bot");
-      payUrl = res.paymentUrl;
-      invoiceKey = "topup.invoice.card";
-    } else {
-      const orderId = buildTopupOrderId(userId);
-      const inv = await createInvoice({ orderId, amountUsd, description: `Kovra top-up $${amountUsd.toFixed(2)}`, source: "bot" });
-      payUrl = inv.invoiceUrl;
-    }
+  const lang = await resolveLang(userId);
+  const r = await createWalletTopupInvoice({ userId, method, amountUsd, returnTo: "bot" });
+  if (r.ok) {
     await edit(chatId, msgId,
-      t(invoiceKey, lang, { amount: amountUsd.toFixed(2) }),
+      t(method === "card" ? "topup.invoice.card" : "topup.invoice", lang, { amount: r.amountUsd.toFixed(2) }),
       [
-        [{ text: t("topup.pay", lang), url: payUrl }],
+        [{ text: t("topup.pay", lang), url: r.payUrl }],
         backBtn("topup", lang),
       ]);
-  } catch (err) {
-    console.error("[bot] topup invoice error:", err);
+  } else if (r.error === "invalid_amount") {
+    const min = minForMethod(method);
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+  } else {
     await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }
@@ -925,10 +914,10 @@ async function screenReferral(chatId: number, msgId: number) {
   ]);
 }
 
-async function handleCopyRef(chatId: number, msgId: number, code: string) {
+async function handleCopyRef(chatId: number, callbackId: string, code: string) {
   const lang = await resolveLang(await getUserId(chatId));
   await send(chatId, `${SITE_URL}/register?ref=${code}`);
-  await answerCb("", t("ref.sent", lang));
+  await answerCb(callbackId, t("ref.sent", lang));
 }
 
 // ─── Auth code handlers ──────────────────────────────
@@ -951,6 +940,13 @@ async function tryLink(code: string, chatId: number): Promise<boolean> {
   return true;
 }
 
+/** A message a person sent that is not text: a photo, a file, a voice or video note, a sticker. */
+function isPersonalMedia(message: Record<string, unknown>): boolean {
+  return ["photo", "document", "video", "voice", "video_note", "audio", "sticker", "animation"].some(
+    (k) => message[k] !== undefined && message[k] !== null,
+  );
+}
+
 async function handleCode(code: string, chatId: number): Promise<"auth" | "link" | false> {
   if (await tryAuth(code, chatId)) return "auth";
   if (await tryLink(code, chatId)) return "link";
@@ -960,9 +956,9 @@ async function handleCode(code: string, chatId: number): Promise<"auth" | "link"
 // ─── Webhook entry ───────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-telegram-bot-api-secret-token");
+  const secret = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !safeEqual(secret, expectedSecret)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -982,38 +978,58 @@ export async function POST(req: NextRequest) {
       if (fresh === null) return NextResponse.json({ ok: true });
     }
 
-    // Sync Telegram identity on every update (fire-and-forget).
+    // Sync Telegram identity on every update. Awaited and one after the
+    // other: both rewrite the same `user:` record (read-modify-write), so
+    // running them in parallel could drop one write, and on Vercel a promise
+    // left running after the response is simply lost. Failures never block
+    // the update.
     const fromUser = body.message?.from ?? body.callback_query?.from;
     if (fromUser?.id) {
-      const syncUserId = await resolveUserId(`tg_${fromUser.id}`);
-      syncTelegramIdentity(syncUserId, {
-        username: fromUser.username,
-        first_name: fromUser.first_name,
-        last_name: fromUser.last_name,
-      }).catch((e) => console.warn("[tg] syncTelegramIdentity failed:", e));
-      // First-contact language: persist Telegram language_code only if unset.
-      const tgLang = normalizeLang(fromUser.language_code);
-      if (tgLang) {
-        getUserLang(syncUserId).then((cur) => {
-          if (!cur) setUserLang(syncUserId, tgLang).catch(() => {});
-        }).catch(() => {});
+      try {
+        const syncUserId = await resolveUserId(`tg_${fromUser.id}`);
+        await syncTelegramIdentity(syncUserId, {
+          username: fromUser.username,
+          first_name: fromUser.first_name,
+          last_name: fromUser.last_name,
+        });
+        // First-contact language: persist Telegram language_code only if unset.
+        const tgLang = normalizeLang(fromUser.language_code);
+        if (tgLang && !(await getUserLang(syncUserId))) await setUserLang(syncUserId, tgLang);
+      } catch (e) {
+        console.warn("[tg] identity/lang sync failed:", e instanceof Error ? e.message : e);
       }
     }
 
     if (body.callback_query) {
       const cb = body.callback_query;
+      // Buttons on inline-mode messages carry no message; the bot has none.
+      if (!cb.message?.chat?.id || typeof cb.data !== "string") {
+        if (typeof cb.id === "string") await answerCb(cb.id);
+        return NextResponse.json({ ok: true });
+      }
       const chatId: number = cb.message.chat.id;
       const msgId: number = cb.message.message_id;
       const data: string = cb.data;
 
-      await answerCb(cb.id);
+      // New interface (owner first, then the kovra:botv2:users set). It
+      // answers the callback itself, with a toast where one is needed.
+      if (!data.startsWith("adm:") && (await isBotV2(chatId))) {
+        await handleV2Callback({ chatId, messageId: msgId, callbackId: String(cb.id), data });
+        return NextResponse.json({ ok: true });
+      }
+
+      // The copy button answers with its own toast ("Link sent").
+      if (!data.startsWith("copy_ref_")) await answerCb(cb.id);
 
       if (data.startsWith("adm:")) {
         const handled = await tryHandleAdminCallback(chatId, msgId, data, send, edit);
         if (handled) return NextResponse.json({ ok: true });
       }
 
-      if (data === "menu") await screenMenu(chatId, msgId);
+      // A button of the new interface in a chat that is back on the old one
+      // (the gate was narrowed): the old menu instead of silence.
+      if (isV2CallbackData(data)) await screenMenu(chatId, msgId);
+      else if (data === "menu") await screenMenu(chatId, msgId);
       else if (data === "lang") await screenLanguage(chatId, msgId);
       else if (data.startsWith("setlang_")) await handleSetLang(chatId, msgId, data.slice(8));
       else if (data === "account") await screenAccount(chatId, msgId);
@@ -1032,15 +1048,25 @@ export async function POST(req: NextRequest) {
       }
       else if (data === "topup") await screenTopup(chatId, msgId);
       else if (data.startsWith("buyterm_")) {
-        const [, k, tm] = data.split("_");
-        if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12"))
-          await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term);
+        // buyterm_<kind>_<term>_<nonce>. A button without the nonce (sent
+        // before it existed) shows the terms again instead of charging.
+        const [, k, tm, nonce] = data.split("_");
+        if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12")) {
+          if (nonce !== undefined && BUY_NONCE_RE.test(nonce))
+            await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term, `tgb-${chatId}-${nonce}`);
+          else await screenBuyTerm(chatId, msgId, k as PlanKind);
+        }
       }
       else if (data === "buyplan") await screenBuyPlan(chatId, msgId);
       else if (data === "adddev") await screenAddDevice(chatId, msgId);
       else if (data.startsWith("adddev_")) {
-        const tm = data.slice("adddev_".length);
-        if (tm === "1" || tm === "6" || tm === "12") await handleAddDevice(chatId, msgId, Number(tm) as Term);
+        // adddev_<term>_<nonce>; without the nonce: the term list again.
+        const [tm, nonce] = data.slice("adddev_".length).split("_");
+        if (tm === "1" || tm === "6" || tm === "12") {
+          if (nonce !== undefined && BUY_NONCE_RE.test(nonce))
+            await handleAddDevice(chatId, msgId, Number(tm) as Term, `tgb-${chatId}-${nonce}`);
+          else await screenAddDevice(chatId, msgId);
+        }
       }
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");
@@ -1085,7 +1111,7 @@ export async function POST(req: NextRequest) {
         const k = data.slice("buyplan_".length);
         if (k === "plan1" || k === "plan3") await screenBuyTerm(chatId, msgId, k as PlanKind);
       }
-      else if (data.startsWith("copy_ref_")) await handleCopyRef(chatId, msgId, data.slice(9));
+      else if (data.startsWith("copy_ref_")) await handleCopyRef(chatId, cb.id, data.slice(9));
       else if (data.startsWith("link_")) await handleLink(chatId, msgId, data.slice(5));
       else if (data.startsWith("del_")) await handleDel(chatId, msgId, data.slice(4));
       else if (data.startsWith("cdel_")) await handleConfirmDel(chatId, msgId, data.slice(5));
@@ -1113,7 +1139,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!message?.text) return NextResponse.json({ ok: true });
+    if (!message?.text) {
+      // A photo, a screenshot, a voice message… In the new interface it gets
+      // Help (nobody reads this chat, here is support), not silence.
+      const mChat = message?.chat;
+      if (
+        mChat?.type === "private" &&
+        typeof mChat.id === "number" &&
+        String(mChat.id) !== ADMIN_TG_ID &&
+        isPersonalMedia(message) &&
+        (await isBotV2(mChat.id))
+      ) {
+        await handleV2Note(mChat.id, "support");
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     const chatId: number = message.chat.id;
     const text: string = message.text.trim();
@@ -1123,6 +1163,10 @@ export async function POST(req: NextRequest) {
       const maybeCode = text.toUpperCase();
       if (/^[A-Z0-9]{6}$/.test(maybeCode)) {
         const result = await handleCode(maybeCode, chatId);
+        if (result !== false && (await isBotV2(chatId))) {
+          await handleV2Note(chatId, result === "auth" ? "authOk" : "authLinked");
+          return NextResponse.json({ ok: true });
+        }
         if (result === "auth") {
           const lang = await resolveLang(await getUserId(chatId));
           await send(chatId, t("auth.ok", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
@@ -1140,9 +1184,24 @@ export async function POST(req: NextRequest) {
       if (handled) return NextResponse.json({ ok: true });
     }
 
+    // New interface for this chat? (Owner first; see lib/bot-v2/gate.ts.)
+    const v2 = await isBotV2(chatId);
+
     // /start with code
     if (text.startsWith("/start ")) {
       const param = text.replace("/start ", "").trim();
+      // Referral and payment-return links; a login code goes on below.
+      if (v2 && (await handleV2Start(chatId, param)) === "handled") return NextResponse.json({ ok: true });
+      if (v2) {
+        // A login or link code, else any other parameter (an ad or partner
+        // link, an old sign-in link): the menu, never a dead end.
+        const result = await handleCode(param.toUpperCase(), chatId);
+        if (result === "auth") await handleV2Note(chatId, "authOk");
+        else if (result === "link") await handleV2Note(chatId, "authLinked");
+        else if (/^[A-Za-z0-9]{6}$/.test(param)) await handleV2Note(chatId, "codeGone");
+        else await handleV2Command(chatId, "menu");
+        return NextResponse.json({ ok: true });
+      }
       const lang = await resolveLang(await getUserId(chatId));
 
       // Referral link: /start ref_CODE
@@ -1186,8 +1245,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // /whoami | /me | /id — admin/support identity card (RU, admin-only utility)
-    if (text === "/whoami" || text === "/me" || text === "/id") {
+    // /whoami | /me | /id — admin/support identity card (RU, admin-only
+    // utility). Anyone else gets the ordinary reply to an unknown message.
+    if (isAdminChat(chatId) && (text === "/whoami" || text === "/me" || text === "/id")) {
       const uid = await resolveUserId(`tg_${chatId}`);
       const [user, account, profiles] = await Promise.all([
         getUserRecord(uid),
@@ -1222,6 +1282,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (v2) {
+      // Commands (/start, /menu, /devices, /balance, /help, /language) and
+      // the typed replies the new screens ask for (promo code, amount).
+      const command = parseCommand(text);
+      if (command) {
+        await handleV2Command(chatId, command);
+        return NextResponse.json({ ok: true });
+      }
+      if (await handleV2Reply(chatId, text)) return NextResponse.json({ ok: true });
+    }
+
     // /start or /menu
     if (text === "/start" || text === "/menu") {
       await screenMenu(chatId);
@@ -1240,16 +1311,21 @@ export async function POST(req: NextRequest) {
       }
       try {
         const userId = await getUserId(chatId);
-        let account = await getAccount(userId);
-        if (!account) account = await createAccount(userId);
-        const result = await redeemPromo(promoCode, userId);
-        const newBal = await addBalanceUsd(userId, result.amount);
-        await send(chatId, [
-          t("promo.ok", lang),
-          ``,
-          t("promo.credit", lang, { amount: result.amount.toFixed(2) }),
-          t("acc.balance", lang, { bal: newBal.toFixed(2) }),
-        ].join("\n"), mainMenuKb(lang));
+        const account = await getAccount(userId);
+        if (!account) await createAccount(userId);
+        // Same function as the web cabinet: once per code and user, and a
+        // code is never burned without the wallet credit.
+        const r = await redeemPromoToWallet(promoCode, userId);
+        if (r.ok) {
+          await send(chatId, [
+            t("promo.ok", lang),
+            ``,
+            t("promo.credit", lang, { amount: (r.amountCents / 100).toFixed(2) }),
+            t("acc.balance", lang, { bal: (r.balanceCents / 100).toFixed(2) }),
+          ].join("\n"), mainMenuKb(lang));
+        } else {
+          await send(chatId, t("common.error", lang, { msg: PROMO_ERROR_TEXT[r.error] }), [backBtn("menu", lang)]);
+        }
       } catch (err) {
         await send(chatId, t("common.error", lang, { msg: err instanceof Error ? err.message : "Error" }), [backBtn("menu", lang)]);
       }
@@ -1304,10 +1380,11 @@ export async function POST(req: NextRequest) {
       if (text.startsWith("/promo_create ")) {
         const parts = text.split(" ");
         const pCode = parts[1];
-        const pAmount = parseInt(parts[2] || "0");
-        const pMax = parseInt(parts[3] || "0");
+        const pAmount = Number((parts[2] || "0").replace(",", "."));
+        const pMaxRaw = parseInt(parts[3] || "0", 10);
+        const pMax = Number.isSafeInteger(pMaxRaw) && pMaxRaw > 0 ? pMaxRaw : 0;
         if (!pCode || !pAmount) {
-          await send(chatId, "Формат: /promo_create КОД СУММА [МАКС_ИСПОЛЬЗОВАНИЙ]");
+          await send(chatId, `Формат: /promo_create КОД СУММА_В_$ [МАКС_ИСПОЛЬЗОВАНИЙ]\nСумма в долларах, до $${PROMO_MAX_USD}.`);
           return NextResponse.json({ ok: true });
         }
         try {
@@ -1356,6 +1433,10 @@ export async function POST(req: NextRequest) {
     }
 
     // User fallback
+    if (v2) {
+      await handleV2Fallback(chatId, text);
+      return NextResponse.json({ ok: true });
+    }
     const lang = await resolveLang(await getUserId(chatId));
     await send(chatId, t("fallback.user", lang), mainMenuKb(lang));
     return NextResponse.json({ ok: true });

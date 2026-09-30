@@ -68,6 +68,7 @@ export function QrToggle({ url, leading, ref }: QrToggleProps) {
   const scannerInstance = useRef<Html5Qrcode | null>(null);
   const closeScanRef = useRef<HTMLButtonElement>(null);
   const qrBtnRef = useRef<HTMLButtonElement>(null);
+  const qrPanelRef = useRef<HTMLDivElement>(null);
   // Bumped when the scanner is opened from outside (the "more" menu, which
   // puts focus back on its trigger): the effect below runs after that and
   // moves focus into the scanner panel.
@@ -86,6 +87,14 @@ export function QrToggle({ url, leading, ref }: QrToggleProps) {
   useEffect(() => {
     if (scanFocusTick > 0) closeScanRef.current?.focus();
   }, [scanFocusTick]);
+
+  // The code opens below the row, often past the bottom of a phone screen:
+  // bring it into view, or the tap looks like it did nothing.
+  useEffect(() => {
+    if (mode !== "show") return;
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    qrPanelRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [mode]);
 
   async function startScanner() {
     setMode("scan");
@@ -158,7 +167,7 @@ export function QrToggle({ url, leading, ref }: QrToggleProps) {
       </div>
 
       {mode === "show" ? (
-        <div id={panelId} className="kc-dev-panel kc-enter">
+        <div id={panelId} ref={qrPanelRef} className="kc-dev-panel kc-enter">
           <div className="kc-qr" role="img" aria-label={t.qr_label}>
             <QRCodeSVG value={url} size={184} fgColor="#000000" bgColor="#ffffff" aria-hidden="true" />
           </div>

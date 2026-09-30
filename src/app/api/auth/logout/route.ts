@@ -1,15 +1,17 @@
 // src/app/api/auth/logout/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { destroySession, clearSessionCookie, COOKIE_NAME } from "@/lib/session";
+import { destroySession, clearSessionCookie, sessionIdFromRequest } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
-  const sid = req.cookies.get(COOKIE_NAME)?.value;
+  // Bearer (Mini App) wins, exactly as in getSessionFromRequest: logging out
+  // of the Mini App ends that session and leaves the site's cookie alone.
+  const { sid, source } = sessionIdFromRequest(req);
 
   if (sid) {
     await destroySession(sid);
   }
 
   const res = NextResponse.json({ success: true });
-  clearSessionCookie(res);
+  if (source !== "bearer") clearSessionCookie(res);
   return res;
 }

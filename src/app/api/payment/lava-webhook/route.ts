@@ -20,7 +20,7 @@
 //     содержат вовсе — связать их с покупкой автоматически нечем.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getUserRecord, markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import {
   applyDeviceAddon,
   applyPlanPurchase,
@@ -48,6 +48,7 @@ import type { LavaCurrency } from "@/lib/lava-methods";
 import { redis } from "@/lib/redis";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { ADMIN_TG_ID } from "@/lib/admin-bot";
+import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 export const runtime = "nodejs";
 
@@ -69,16 +70,6 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   } catch (err) {
     console.error("[lava-webhook] sendTelegram error:", err);
   }
-}
-
-async function notifyUser(userId: string, message: string): Promise<void> {
-  let chatId: string | null = null;
-  if (userId.startsWith("tg_")) chatId = userId.slice(3);
-  else {
-    const user = await getUserRecord(userId).catch(() => null);
-    if (user?.telegramId) chatId = String(user.telegramId);
-  }
-  if (chatId) await sendTelegram(chatId, message);
 }
 
 function fmtDate(ms: number): string {
@@ -390,15 +381,18 @@ export async function POST(req: NextRequest) {
       );
       return NextResponse.json({ ok: true, status: "no topup record" });
     }
+    // The account the order's id belongs to now (a linked Telegram account moved).
+    const walletOwner = await resolveUserId(userId);
     let newBal: number;
     try {
-      newBal = await addBalanceUsd(userId, usd);
+      newBal = await addBalanceUsd(walletOwner, usd);
     } catch (err) {
       console.error("[lava-webhook] wallet credit failed, requesting retry:", err);
       return retry("credit_failed");
     }
     await notifyUser(
-      userId,
+      walletOwner,
+      { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
       [
         `✅ <b>Balance topped up</b>`,
         ``,
@@ -465,7 +459,11 @@ export async function POST(req: NextRequest) {
     `📱 Active devices: <b>${s.activeSlots}</b>`,
   ];
   if (s.maxExpiry > 0) lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
-  await notifyUser(userId, lines.join("\n"));
+  await notifyUser(
+    userId,
+    { kind: "purchase", product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
+    lines.join("\n"),
+  );
 
   const fee = Number(invoice.receipt?.fee);
   await sendTelegram(
@@ -488,6 +486,7 @@ export async function POST(req: NextRequest) {
       await syncAllExpiry(ref.referrerId);
       await notifyUser(
         ref.referrerId,
+        { kind: "referral_reward" },
         [
           `🎁 <b>Referral reward!</b>`,
           ``,

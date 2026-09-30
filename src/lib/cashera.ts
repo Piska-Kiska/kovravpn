@@ -57,11 +57,14 @@ export interface CreatePaymentInput {
 }
 
 export class CasheraError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly body: unknown,
-  ) {
+  public readonly status: number;
+  public readonly body: unknown;
+
+  // No parameter properties: Node's type stripping (unit tests) rejects them.
+  constructor(status: number, body: unknown) {
     super(`Cashera API ${status}: ${JSON.stringify(body)}`);
+    this.status = status;
+    this.body = body;
     this.name = "CasheraError";
   }
 }

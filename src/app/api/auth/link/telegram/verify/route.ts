@@ -11,7 +11,9 @@
 // Current behaviour:
 //   - Already linked to THIS session         → idempotent success (no-op).
 //   - Already linked to ANOTHER account       → 409.
-//   - Standalone tg_X exists, EMPTY           → auto-wipe + create alias.
+//   - Standalone tg_X exists, EMPTY           → its USD wallet and running
+//                                                plans move here, then
+//                                                auto-wipe + create alias.
 //   - Standalone tg_X exists, has data        → 409 with explicit reason
 //                                                (admin must merge manually).
 //   - No tg_X at all                          → create alias normally.
@@ -133,6 +135,12 @@ function friendlyError(reason?: string): string {
   }
   if (reason.includes("not found")) {
     return "Аккаунт не найден";
+  }
+  if (reason.includes("is busy")) {
+    return "Идёт оплата с баланса. Повторите через минуту.";
+  }
+  if (reason.includes("Could not move")) {
+    return "Не удалось перенести баланс Telegram-аккаунта. Повторите позже или напишите в поддержку.";
   }
   return "Не удалось привязать Telegram";
 }

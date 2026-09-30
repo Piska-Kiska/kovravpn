@@ -16,10 +16,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { summarize, type Subscription } from "@/lib/subscriptions";
+import { notifyChat } from "@/lib/bot-v2/notify";
+import { safeEqual } from "@/lib/safe-compare";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TG_API = "https://api.telegram.org/bot";
 
 const ONE_DAY_MS = 86400000;
 const SEVEN_DAYS_MS = 7 * ONE_DAY_MS;
@@ -30,7 +30,7 @@ interface UserRecordLike {
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!CRON_SECRET || !safeEqual(authHeader ?? "", `Bearer ${CRON_SECRET}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -95,7 +95,8 @@ export async function GET(req: NextRequest) {
           const already = await redis.get(flagKey);
           if (!already) {
             const hoursLeft = Math.max(1, Math.round(msLeft / 3600000));
-            const ok = await sendTg(chatId, build1dMessage(hoursLeft));
+            // Localized with a Renew button in bot v2 chats (lib/bot-v2/notify.ts).
+            const ok = await notifyChat(chatId, userId, { kind: "expiring", hoursLeft }, build1dMessage(hoursLeft));
             if (ok) {
               await redis.set(flagKey, "1", { ex: 7 * 86400 });
               stats.notified_1d++;
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
           const flagKey = `expiry_notified_expired:${userId}`;
           const already = await redis.get(flagKey);
           if (!already) {
-            const ok = await sendTg(chatId, buildExpiredMessage());
+            const ok = await notifyChat(chatId, userId, { kind: "expired" }, buildExpiredMessage());
             if (ok) {
               await redis.set(flagKey, "1", { ex: 30 * 86400 });
               stats.notified_expired++;
@@ -157,26 +158,6 @@ async function resolveChatId(userId: string): Promise<number | null> {
   if (!user.telegramId) return null;
   const id = Number(user.telegramId);
   return isNaN(id) || id <= 0 ? null : id;
-}
-
-async function sendTg(chatId: number, text: string): Promise<boolean> {
-  if (!BOT_TOKEN) return false;
-  try {
-    const resp = await fetch(`${TG_API}${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
-    return resp.ok;
-  } catch (e) {
-    console.error("[cron/expiry-check] sendTg error:", e);
-    return false;
-  }
 }
 
 function build1dMessage(hoursLeft: number): string {

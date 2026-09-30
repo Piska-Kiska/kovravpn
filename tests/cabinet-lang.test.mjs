@@ -61,8 +61,8 @@ test("matchNavigatorLang takes the primary subtag, case-insensitively", () => {
 });
 
 test("isCabinetPath matches only the cabinet routes", () => {
-  for (const p of ["/login", "/register", "/dashboard", "/dashboard/", "/dashboard/x", "/login/"]) assert.equal(isCabinetPath(p), true, p);
-  for (const p of ["/", "/loginx", "/guide", "/terms", "/privacy", "/guides/login", "/register-now"]) assert.equal(isCabinetPath(p), false, p);
+  for (const p of ["/login", "/register", "/dashboard", "/dashboard/", "/dashboard/x", "/login/", "/tg", "/tg/"]) assert.equal(isCabinetPath(p), true, p);
+  for (const p of ["/", "/loginx", "/guide", "/terms", "/privacy", "/guides/login", "/register-now", "/tgx", "/guides/tg"]) assert.equal(isCabinetPath(p), false, p);
 });
 
 test("isLang accepts exactly the five cabinet languages", () => {

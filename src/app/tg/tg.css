@@ -1,0 +1,17 @@
+/* src/app/tg/tg.css
+   Screens of the Mini App shell before the cabinet mounts: loading, "open in
+   Telegram", errors. Tokens and buttons come from src/app/cabinet.css. */
+.kc-tgshell-main {
+  display: flex; align-items: center; justify-content: center; outline: none;
+  min-height: calc(var(--tg-vh, 100dvh) - var(--tg-safe-top, 0px));
+  padding: 32px var(--kc-gutter-r) max(32px, env(safe-area-inset-bottom)) var(--kc-gutter);
+}
+.kc-tgshell-card {
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+  width: 100%; max-width: 340px; text-align: center; color: var(--kc-text);
+}
+.kc-tgshell-status { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; line-height: 1.4; color: var(--kc-text-2); }
+.kc-tgshell-text { display: flex; flex-direction: column; gap: 8px; }
+.kc-tgshell-error { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5; color: var(--kc-text); text-align: left; }
+.kc-tgshell-error > svg { flex: none; margin-top: 2px; color: var(--kc-danger); }
+.kc-tgshell-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; }

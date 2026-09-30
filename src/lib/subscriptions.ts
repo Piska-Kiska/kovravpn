@@ -25,6 +25,7 @@
 
 import { redis } from "./redis";
 import { randomBytes } from "crypto";
+import { acquireLock } from "./ratelimit";
 
 export type SubKind = "plan1" | "plan3" | "device" | "referral";
 export type PlanKind = "plan1" | "plan3";
@@ -148,6 +149,18 @@ export function nextActiveExpiry(subs: Subscription[], at: number = Date.now()):
   return min;
 }
 
+/**
+ * The main plan tier currently running, or null. plan3 wins when both run.
+ * Re-buying the same tier extends it (addSubscription stacks the expiry), so
+ * while a plan runs, purchases are renewals of THAT tier; extra devices come
+ * from the device add-on.
+ */
+export function activePlanKindOf(subs: Subscription[], at: number = Date.now()): PlanKind | null {
+  if (subs.some((s) => s.kind === "plan3" && s.expiresAt > at)) return "plan3";
+  if (subs.some((s) => s.kind === "plan1" && s.expiresAt > at)) return "plan1";
+  return null;
+}
+
 export interface SubscriptionSummary {
   activeSlots: number;
   hasActive: boolean;
@@ -176,6 +189,71 @@ export function summarize(subs: Subscription[], at: number = Date.now()): Subscr
 }
 
 // ─── Mutations ────────────────────────────────────────
+//
+// Every write of `subs:{userId}` is a read-modify-write of one JSON list, and
+// grants come from many places at once: a purchase from the wallet, a payment
+// webhook, the referral reward, an account merge. Two of them for the same
+// user without a lock would each read the old list and the later write would
+// drop the other's grant (paid for). So every mutation runs under
+// `lock:subs:{userId}`, waiting a little for a lock another grant holds.
+
+const SUBS_LOCK_TTL_SEC = 10;
+const SUBS_LOCK_WAIT_MS = 3_000;
+const SUBS_LOCK_RETRY_MS = 50;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Run `fn` holding `lock:subs:{userId}`. A lock still held after
+ * SUBS_LOCK_WAIT_MS belongs to a writer that died (a grant is a few Redis
+ * calls): the write then goes ahead without it, as before the lock existed,
+ * and the log says so. A grant is never refused for the lock alone, because a
+ * webhook that fails after its dedup key is taken would lose the payment.
+ */
+async function withSubsLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + SUBS_LOCK_WAIT_MS;
+  let unlock: (() => Promise<void>) | null = null;
+  for (;;) {
+    try {
+      unlock = await acquireLock(`subs:${userId}`, SUBS_LOCK_TTL_SEC);
+    } catch (err) {
+      // Redis is failing: the write below will report it.
+      console.warn("[subs] lock error:", err instanceof Error ? err.message : err);
+      break;
+    }
+    if (unlock || Date.now() >= deadline) break;
+    await sleep(SUBS_LOCK_RETRY_MS);
+  }
+  if (!unlock) console.warn(JSON.stringify({ evt: "subs.lock_timeout", userId }));
+  try {
+    return await fn();
+  } finally {
+    if (unlock) {
+      try {
+        await unlock();
+      } catch {
+        /* the lock expires by TTL */
+      }
+    }
+  }
+}
+
+/**
+ * Change a user's subscription list under the per-user lock: `apply` gets the
+ * current list (expired > 30 days pruned) and returns the new one, which is
+ * saved. Returns what was saved. The one way to write `subs:{userId}`.
+ */
+export async function mutateSubscriptions(
+  userId: string,
+  apply: (subs: Subscription[], now: number) => Subscription[],
+): Promise<Subscription[]> {
+  return withSubsLock(userId, async () => {
+    const now = Date.now();
+    const next = apply(prune(await getSubscriptions(userId)), now);
+    await saveSubscriptions(userId, next);
+    return next;
+  });
+}
 
 /**
  * Add a subscription. Two stacking strategies:
@@ -193,25 +271,16 @@ export async function addSubscription(
   days: number,
   slots: number,
 ): Promise<Subscription[]> {
-  const now = Date.now();
-  let subs = prune(await getSubscriptions(userId));
-
-  if (kind === "plan1" || kind === "plan3") {
-    const existing = subs.find((s) => s.kind === kind && s.expiresAt > now);
-    if (existing) {
-      existing.expiresAt += days * DAY_MS;
-      existing.slots = slots; // normalize (in case of schema change)
-    } else {
-      subs.push({
-        id: newId(),
-        kind,
-        slots,
-        createdAt: now,
-        expiresAt: now + days * DAY_MS,
-      });
+  return mutateSubscriptions(userId, (subs, now) => {
+    if (kind === "plan1" || kind === "plan3") {
+      const existing = subs.find((s) => s.kind === kind && s.expiresAt > now);
+      if (existing) {
+        existing.expiresAt += days * DAY_MS;
+        existing.slots = slots; // normalize (in case of schema change)
+        return subs;
+      }
     }
-  } else {
-    // device / referral — independent window
+    // device / referral, or a plan with no running window of its kind
     subs.push({
       id: newId(),
       kind,
@@ -219,10 +288,8 @@ export async function addSubscription(
       createdAt: now,
       expiresAt: now + days * DAY_MS,
     });
-  }
-
-  await saveSubscriptions(userId, subs);
-  return subs;
+    return subs;
+  });
 }
 
 /** Convenience: apply a resolved plan purchase. */
@@ -236,6 +303,17 @@ export async function applyPlanPurchase(
 /** Convenience: apply a device add-on (30d, 1 slot, fixed). */
 export async function applyDeviceAddon(userId: string): Promise<Subscription[]> {
   return addSubscription(userId, "device", DEVICE_ADDON_DAYS, 1);
+}
+
+/**
+ * Device add-on bought for `term` months at once: ONE extra slot for
+ * term × 30 days. (Applying the 30-day add-on `term` times would instead give
+ * `term` slots that all end in 30 days — not what "+1 device · 180 days"
+ * promises.)
+ */
+export async function applyDeviceAddonTerm(userId: string, term: Term): Promise<Subscription[]> {
+  if (term !== 1 && term !== 6 && term !== 12) throw new Error(`invalid device add-on term: ${term}`);
+  return addSubscription(userId, "device", term * DEVICE_ADDON_DAYS, 1);
 }
 
 /** Convenience: grant a free referral reward (14d, 1 slot). */

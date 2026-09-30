@@ -21,7 +21,7 @@
 // 4xx = misconfiguration (no retries) — used only for auth failures.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getUserRecord, markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import {
   parseSubOrderId,
   resolvePlan,
@@ -43,6 +43,7 @@ import {
 import { redis } from "@/lib/redis";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { ADMIN_TG_ID } from "@/lib/admin-bot";
+import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
@@ -80,16 +81,6 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   } catch (err) {
     console.error("[cashera-webhook] sendTelegram error:", err);
   }
-}
-
-async function notifyUser(userId: string, message: string): Promise<void> {
-  let chatId: string | null = null;
-  if (userId.startsWith("tg_")) chatId = userId.slice(3);
-  else {
-    const user = await getUserRecord(userId);
-    if (user?.telegramId) chatId = String(user.telegramId);
-  }
-  if (chatId) await sendTelegram(chatId, message);
 }
 
 function fmtDate(ms: number): string {
@@ -213,16 +204,20 @@ export async function POST(req: NextRequest) {
         );
         return NextResponse.json({ ok: true, ignored: "amount mismatch" });
       }
+      // The wallet of the account the order's id belongs to now: a Telegram
+      // account linked to an e-mail one after the order was made moved there.
+      const walletOwner = await resolveUserId(tu.userId);
       let newBal: number;
       try {
-        newBal = await addBalanceUsd(tu.userId, order.amountUsd);
+        newBal = await addBalanceUsd(walletOwner, order.amountUsd);
       } catch (err) {
         console.error("[cashera-webhook] topup credit failed, requesting retry:", err);
         await releaseDedupKey(dedupKey);
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
       await notifyUser(
-        tu.userId,
+        walletOwner,
+        { kind: "topup", amountCents: noticeCents(order.amountUsd), balanceCents: noticeCents(newBal) },
         [
           `✅ <b>Balance topped up</b>`,
           ``,
@@ -326,7 +321,11 @@ export async function POST(req: NextRequest) {
     ];
     if (s.maxExpiry > 0)
       lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
-    await notifyUser(userId, lines.join("\n"));
+    await notifyUser(
+      userId,
+      { kind: "purchase", product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
+      lines.join("\n"),
+    );
 
     // ─── Referral reward: first paid purchase → referrer gets 14d sub ───
     try {
@@ -336,6 +335,7 @@ export async function POST(req: NextRequest) {
         await syncAllExpiry(ref.referrerId);
         await notifyUser(
           ref.referrerId,
+          { kind: "referral_reward" },
           [
             `🎁 <b>Referral reward!</b>`,
             ``,

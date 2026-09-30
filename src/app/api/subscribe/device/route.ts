@@ -3,7 +3,8 @@
 // Create a crypto invoice (USD) for a DEVICE ADD-ON.
 // One add-on = +1 device slot, fixed 30 days, $5, independent of the main
 // plan (runs its own window even if the plan is expired).
-// Body: {} (no params). Returns: { paymentUrl, invoiceId }
+// Body: {} or { returnTo: "miniapp" } (started in the Telegram Mini App: the
+// provider returns to it). Returns: { paymentUrl, invoiceId }
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
@@ -16,6 +17,7 @@ import {
 import { createInvoice } from "@/lib/nowpayments";
 import { redis } from "@/lib/redis";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { paymentReturnFor } from "@/lib/bot-link";
 
 const MAPPING_TTL_SEC = 72 * 60 * 60;
 
@@ -40,12 +42,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
+    // The body is optional: only `returnTo: "miniapp"` is read from it.
+    const body: unknown = await req.json().catch(() => null);
+    const back = paymentReturnFor(body);
     const orderId = buildDeviceOrderId(userId);
     const invoice = await createInvoice({
       orderId,
       amountUsd: DEVICE_ADDON_PRICE,
       description: `Kovra +1 device · ${DEVICE_ADDON_DAYS} days`,
       source: "web",
+      ...(back ? { successUrl: back.success, cancelUrl: back.fail } : {}),
     });
 
     await redis.set(

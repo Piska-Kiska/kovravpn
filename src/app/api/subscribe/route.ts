@@ -1,7 +1,7 @@
 // src/app/api/subscribe/route.ts
 //
 // Create a crypto invoice (USD) for a PLAN purchase.
-// Body: { kind: "plan1" | "plan3", term: 1 | 6 | 12 }
+// Body: { kind: "plan1" | "plan3", term: 1 | 6 | 12, returnTo?: "miniapp" }
 // Returns: { paymentUrl, invoiceId }
 //
 // On payment, NOWPayments fires the IPN to /api/payment/crypto-webhook,
@@ -14,6 +14,7 @@ import { resolvePlan, buildPlanOrderId } from "@/lib/subscriptions";
 import { createInvoice } from "@/lib/nowpayments";
 import { redis } from "@/lib/redis";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { paymentReturnFor } from "@/lib/bot-link";
 
 const MAPPING_TTL_SEC = 72 * 60 * 60; // 72h, covers slow confirmations
 
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       kind?: string;
       term?: number;
+      returnTo?: unknown;
     };
     const plan = resolvePlan(String(body.kind), Number(body.term));
     if (!plan) {
@@ -50,11 +52,13 @@ export async function POST(req: NextRequest) {
     const orderId = buildPlanOrderId(userId, plan.kind, plan.term);
     const label =
       plan.kind === "plan3" ? "3 devices" : "1 device";
+    const back = paymentReturnFor(body);
     const invoice = await createInvoice({
       orderId,
       amountUsd: plan.price,
       description: `Kovra ${label} · ${plan.term} mo`,
       source: "web",
+      ...(back ? { successUrl: back.success, cancelUrl: back.fail } : {}),
     });
 
     // Store invoice→purchase mapping for reconciliation/debugging.

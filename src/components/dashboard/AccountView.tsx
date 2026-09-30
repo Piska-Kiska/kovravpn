@@ -1,9 +1,14 @@
 // src/components/dashboard/AccountView.tsx
 // Account (spec §9.7): who is signed in, linked sign-in methods, language and
-// theme, help links and sign out. Two columns from 1024px.
+// theme, help links and sign out. Two columns from 1024px. Inside the Telegram
+// Mini App (`embedded`) the theme follows Telegram and there is no sign-out:
+// Telegram itself is the sign-in. There, the profile shows the person's
+// Telegram name and @username (display only), the e-mail form waits behind a
+// button, and Support is the support e-mail (the same the bot names: the bot
+// is not a support chat).
 "use client";
 
-import { ArrowUpRight, BookOpen, LifeBuoy, LogOut, Send, type LucideIcon } from "lucide-react";
+import { ArrowUpRight, BookOpen, LifeBuoy, LogOut, Mail, Send, type LucideIcon } from "lucide-react";
 import LinkAccounts from "@/components/LinkAccounts";
 import { Button, Icon, LangMenu, Segmented, cx } from "@/components/cabinet";
 import { THEME_PREFS, ThemeGlyph } from "@/components/chrome";
@@ -11,7 +16,11 @@ import { fmt } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
 import { useShellT } from "@/lib/i18n-shell";
 import { useThemePref, type ThemePref } from "@/lib/theme";
+import type { HostTelegramUser } from "./host";
 import { BreakableEmail, ViewHead, useRise } from "./shared";
+
+/** The address the bot's Help names too (lib/bot-v2/links.ts SUPPORT_EMAIL). */
+const SUPPORT_EMAIL = "support@kovravpn.com";
 
 export interface UserInfo {
   authMethod: string;
@@ -25,12 +34,16 @@ export interface AccountViewProps {
   userInfo: UserInfo | null;
   onUserUpdate(): void;
   onLogout(): void;
+  embedded?: boolean;
+  /** Mini App: the Telegram name and @username to show (not trusted for anything). */
+  telegramUser?: HostTelegramUser | null;
 }
 
 function HelpRow({ href, icon, title, sub, external }: { href: string; icon: LucideIcon; title: string; sub: string; external?: boolean }) {
+  const mail = href.startsWith("mailto:");
   return (
     <li>
-      <a className="kc-helprow" href={href} target="_blank" rel={external ? "noopener noreferrer" : "noopener"}>
+      <a className="kc-helprow" href={href} target={mail ? undefined : "_blank"} rel={mail ? undefined : external ? "noopener noreferrer" : "noopener"}>
         <span className="kc-helprow-icon">
           <Icon as={icon} size={18} />
         </span>
@@ -44,19 +57,22 @@ function HelpRow({ href, icon, title, sub, external }: { href: string; icon: Luc
   );
 }
 
-export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: AccountViewProps) {
+export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout, embedded = false, telegramUser = null }: AccountViewProps) {
   const shell = useShellT();
   const { pref, setPref } = useThemePref();
   const rise = useRise();
   const r1 = rise(1);
   const r2 = rise(2);
 
-  const identity = userInfo?.email ?? (userInfo?.telegramId ? fmt(t.tg_id, { id: userInfo.telegramId }) : "");
-  const initial = userInfo?.email ? userInfo.email.trim().charAt(0).toUpperCase() : null;
+  const tgName = embedded && telegramUser ? telegramUser.name || (telegramUser.username ? `@${telegramUser.username}` : "") : "";
+  const tgHandle = embedded && telegramUser?.username && telegramUser.name ? `@${telegramUser.username}` : null;
+  const identity = tgName || (userInfo?.email ?? (userInfo?.telegramId ? fmt(t.tg_id, { id: userInfo.telegramId }) : ""));
+  const initial = tgName ? tgName.replace(/^@/, "").trim().charAt(0).toUpperCase() || null : userInfo?.email ? userInfo.email.trim().charAt(0).toUpperCase() : null;
 
   return (
     <>
-      <ViewHead kicker={t.settings_kicker} title={t.account_title} />
+      {/* Inside Telegram the kicker only repeats the title (and the tab below). */}
+      <ViewHead kicker={embedded ? undefined : t.settings_kicker} title={t.account_title} />
       <div className="kc-account-grid">
         <div className={cx("kc-account-col", r1.className)} style={r1.style}>
           <section className="kc-panel kc-profile" aria-label={t.signed_in_as}>
@@ -66,10 +82,18 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
             <div className="kc-profile-text">
               <p className="kc-small">{t.signed_in_as}</p>
               <p className="kc-profile-id">{identity ? <BreakableEmail value={identity} /> : "—"}</p>
+              {tgHandle ? <p className="kc-small">{tgHandle}</p> : null}
             </div>
           </section>
           {userId && userInfo ? (
-            <LinkAccounts userId={userId} authMethod={userInfo.authMethod} email={userInfo.email} telegramId={userInfo.telegramId} onUpdate={onUserUpdate} />
+            <LinkAccounts
+              userId={userId}
+              authMethod={userInfo.authMethod}
+              email={userInfo.email}
+              telegramId={userInfo.telegramId}
+              onUpdate={onUserUpdate}
+              collapseEmailForm={embedded}
+            />
           ) : null}
         </div>
 
@@ -85,17 +109,24 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
               <LangMenu align="start" />
             </div>
             <hr className="kc-hair" />
-            <div className="kc-pref">
-              <p className="kc-label">{shell.theme}</p>
-              <Segmented<ThemePref>
-                name="kc-theme"
-                label={shell.theme}
-                value={pref}
-                block
-                options={THEME_PREFS.map((o) => ({ value: o.value, label: shell[o.key], glyph: <ThemeGlyph pref={o.value} /> }))}
-                onChange={setPref}
-              />
-            </div>
+            {embedded ? (
+              <div className="kc-pref">
+                <p className="kc-label">{shell.theme}</p>
+                <p className="kc-small">{t.theme_telegram}</p>
+              </div>
+            ) : (
+              <div className="kc-pref">
+                <p className="kc-label">{shell.theme}</p>
+                <Segmented<ThemePref>
+                  name="kc-theme"
+                  label={shell.theme}
+                  value={pref}
+                  block
+                  options={THEME_PREFS.map((o) => ({ value: o.value, label: shell[o.key], glyph: <ThemeGlyph pref={o.value} /> }))}
+                  onChange={setPref}
+                />
+              </div>
+            )}
           </section>
 
           <section id="help-panel" className="kc-panel kc-help" aria-labelledby="kc-help-title">
@@ -104,15 +135,21 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
             </h2>
             <ul className="kc-helprows">
               <HelpRow href="/guides" icon={BookOpen} title={t.guide} sub={t.guide_note} />
-              <HelpRow href="https://t.me/KovraVPN_bot" icon={LifeBuoy} title={t.support} sub={t.support_note} external />
+              {embedded ? (
+                <HelpRow href={`mailto:${SUPPORT_EMAIL}`} icon={Mail} title={t.support} sub={fmt(t.support_mail, { email: SUPPORT_EMAIL })} />
+              ) : (
+                <HelpRow href="https://t.me/KovraVPN_bot" icon={LifeBuoy} title={t.support} sub={t.support_note} external />
+              )}
             </ul>
           </section>
 
-          <div className="kc-signout">
-            <Button variant="danger" icon={LogOut} onClick={onLogout} className="kc-signout-btn">
-              {t.sign_out}
-            </Button>
-          </div>
+          {embedded ? null : (
+            <div className="kc-signout">
+              <Button variant="danger" icon={LogOut} onClick={onLogout} className="kc-signout-btn">
+                {t.sign_out}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </>

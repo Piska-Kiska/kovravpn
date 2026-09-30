@@ -157,7 +157,7 @@
 .kc-btn--sm::before { content: ""; position: absolute; inset: -2px 0; }
 
 .kc-btn--cta { background: var(--kc-cta-bg); color: var(--kc-cta-fg); border-color: var(--kc-cta-border); }
-.kc-btn--cta:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--kc-cta-hover); }
+@media (hover: hover) { .kc-btn--cta:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--kc-cta-hover); } }
 .kc a.kc-btn--cta { color: var(--kc-cta-fg); }
 .kc-btn--cta .kc-spin { border-color: rgba(20,18,16,.25); border-top-color: currentColor; }
 /* a disabled gold pill at 45% reads as mud on black: show a neutral pill instead */
@@ -166,7 +166,8 @@
 }
 
 .kc-btn--ghost { color: var(--kc-text); border-color: var(--kc-line-strong); }
-.kc-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--kc-well); }
+@media (hover: hover) { .kc-btn--ghost:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--kc-well); } }
+@media (hover: none) { .kc-btn--ghost:active:not(:disabled):not([aria-disabled="true"]) { background: var(--kc-well); } }
 
 .kc-btn--quiet {
   height: auto; min-height: var(--kc-hit); padding: 0; border-radius: var(--kc-r-xs);
@@ -193,7 +194,7 @@
   width: var(--kc-hit); height: var(--kc-hit); padding: 0; border-radius: 50%;
   color: var(--kc-text-2);
 }
-.kc-btn--icon:hover:not(:disabled) { color: var(--kc-text); background: var(--kc-well); }
+@media (hover: hover) { .kc-btn--icon:hover:not(:disabled) { color: var(--kc-text); background: var(--kc-well); } }
 .kc-btn--icon.kc-btn--sm { width: var(--kc-control-sm); height: var(--kc-control-sm); }
 .kc-btn--icon.kc-btn--sm::before { inset: -2px; }
 
@@ -347,7 +348,7 @@
   border: 0; border-radius: var(--kc-r-sm); background: transparent; color: var(--kc-text-2); cursor: pointer;
   font-size: 14px; font-weight: 500; transition: color var(--kc-d2) var(--kc-ease), background-color var(--kc-d2) var(--kc-ease);
 }
-.kc-copy-btn:hover:not(:disabled) { color: var(--kc-text); background: var(--kc-well-2); }
+@media (hover: hover) { .kc-copy-btn:hover:not(:disabled) { color: var(--kc-text); background: var(--kc-well-2); } }
 .kc-copy-btn:disabled { opacity: .45; cursor: default; }
 .kc-copy-btn.is-copied { color: var(--kc-ok); }
 .kc-copy-text { display: none; }
@@ -434,6 +435,7 @@
 .kc-dialog-body { color: var(--kc-text-2); font-size: 15px; line-height: 1.55; }
 .kc-dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 html:has(.kc-dialog[open]) { overflow: hidden; }
+.kc-dialog-grip { display: none; }
 @media (max-width: 767px) {
   .kc-dialog { inset: auto 0 0 0; margin: 0; width: 100%; max-width: 100%; max-height: 88dvh; }
   .kc-dialog[open] { animation-name: kc-sheet-in; }
@@ -443,6 +445,15 @@ html:has(.kc-dialog[open]) { overflow: hidden; }
   }
   .kc-dialog-actions { flex-direction: column-reverse; }
   .kc-dialog-actions > .kc-btn { width: 100%; }
+  /* a sheet: the grabber says it can be pulled down (Dialog handles the drag) */
+  .kc-dialog-grip { display: block; width: 36px; height: 4px; margin: -8px auto 12px; border-radius: 2px; background: var(--kc-line-strong); }
+  .kc-dialog-panel.is-dragging { transition: none; }
+  .kc-dialog-panel.is-settling { transition: transform var(--kc-d3) var(--kc-ease); }
+  /* dark: the sheet is lifted off the dimmed page instead of melting into it */
+  :root:not([data-theme="light"]) .kc-dialog-panel {
+    --kc-panel: #151518; --kc-well: #1d1d21; --kc-well-2: #25252a;
+    background: var(--kc-panel); border-color: var(--kc-line-strong);
+  }
 }
 
 /* ── 12. Panels, rows, badges, tiles ───────────────────────────────────── */
@@ -457,7 +468,9 @@ html:has(.kc-dialog[open]) { overflow: hidden; }
   cursor: pointer; transition: background-color var(--kc-d2) var(--kc-ease), border-color var(--kc-d2) var(--kc-ease);
   -webkit-tap-highlight-color: transparent;
 }
-.kc-radio-row:hover { background: var(--kc-well); }
+/* touch screens keep :hover on the last tapped element: hover only where a pointer hovers */
+@media (hover: hover) { .kc-radio-row:hover { background: var(--kc-well); } }
+@media (hover: none) { .kc-radio-row:active { background: var(--kc-well); } }
 .kc-radio-row:has(input:checked) { background: var(--kc-well); border-color: var(--kc-line-strong); }
 .kc-radio-row:has(input:disabled) { cursor: default; opacity: .45; }
 .kc-radio-row:has(input:focus-visible), .kc-tile:has(input:focus-visible) { outline: 2px solid var(--kc-focus); outline-offset: 2px; }
@@ -487,7 +500,8 @@ input:checked + .kc-radio-dot::after, .kc-radio-row:has(input:checked) .kc-radio
   font-size: 14px; line-height: 1.3; font-weight: 500;
   transition: border-color var(--kc-d2) var(--kc-ease), background-color var(--kc-d2) var(--kc-ease);
 }
-.kc-tile:hover:not(:disabled) { border-color: var(--kc-line-strong); background: var(--kc-well); }
+@media (hover: hover) { .kc-tile:hover:not(:disabled) { border-color: var(--kc-line-strong); background: var(--kc-well); } }
+@media (hover: none) { .kc-tile:active:not(:disabled) { background: var(--kc-well); } }
 .kc-tile:disabled { cursor: default; opacity: .45; }
 .kc-tile.is-selected, .kc-tile[aria-pressed="true"], .kc-tile:has(input:checked) { border: 1.5px solid var(--kc-text); }
 .kc-tile-check {

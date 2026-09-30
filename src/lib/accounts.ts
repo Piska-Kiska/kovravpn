@@ -57,6 +57,31 @@ export async function createAccount(
   return account;
 }
 
+/**
+ * Create the account record only if none exists (SET NX), so two logins that
+ * race, or a writer that got there first, never overwrite a live record.
+ * `created` is true only for the call that wrote it.
+ */
+export async function ensureAccount(
+  userId: string,
+  plan: UserAccount["plan"] = "active",
+): Promise<{ account: UserAccount; created: boolean }> {
+  const now = Date.now();
+  const fresh: UserAccount = {
+    plan: plan === "free" ? "active" : plan,
+    maxProfiles: 100,
+    extraProfiles: 0,
+    paidUntil: 0,
+    createdAt: now,
+    balance: WELCOME_BONUS,
+    balanceUpdatedAt: now,
+  };
+  const wrote = await redis.set(`account:${userId}`, JSON.stringify(fresh), { nx: true });
+  if (wrote !== null) return { account: fresh, created: true };
+  const existing = await getAccount(userId);
+  return { account: existing ?? fresh, created: false };
+}
+
 export async function getProfiles(userId: string): Promise<VpnProfile[]> {
   const raw = await redis.get(`profiles:${userId}`);
   if (!raw) return [];

@@ -13,3 +13,6 @@ node_modules/
 *.bak
 *.orig
 .env*.local
+
+# Offline bot screen harness output (scripts/bot-screens.mjs)
+bot-screens-out/

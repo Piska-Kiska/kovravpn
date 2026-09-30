@@ -49,6 +49,23 @@ export function fmtMoney(n: number, currency: "USD" | "EUR" | "RUB", lang: Lang)
   }
 }
 
+/** Like fmtMoney in USD, without ",00" for whole amounts: "$20", "20 $" (quick amount chips). */
+export function fmtUsdShort(n: number, lang: Lang): string {
+  const v = Number.isFinite(n) ? n : 0;
+  const whole = Number.isInteger(v);
+  try {
+    return new Intl.NumberFormat(lang === "en" ? "en-US" : lang, {
+      style: "currency",
+      currency: "USD",
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: whole ? 0 : 2,
+    }).format(v);
+  } catch {
+    return whole ? `$${v}` : `$${v.toFixed(2)}`;
+  }
+}
+
 export type HeroState = "active" | "expiring" | "expired" | "none";
 
 /** Whole days left on the plan: the server value, else derived from maxExpiry. */

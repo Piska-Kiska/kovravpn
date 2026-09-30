@@ -63,6 +63,8 @@ export async function createCardPayment(
   userId: string,
   purchase: CardPurchase,
   source: "web" | "bot",
+  /** Explicit return URLs; override the ones `source` implies. */
+  returnUrls?: { success: string; fail: string },
 ): Promise<CardPaymentResult> {
   if (!PAYMENT_METHOD) throw new Error("CASHERA_PAYMENT_METHOD is not set");
 
@@ -130,8 +132,8 @@ export async function createCardPayment(
     externalId,
     description: `Kovra ${label}`,
     callbackUrl: `${SITE_URL}/api/cashera/webhook`,
-    successUrl: source === "bot" ? botUrl : `${SITE_URL}/dashboard?paid=1`,
-    failUrl: source === "bot" ? botUrl : `${SITE_URL}/dashboard`,
+    successUrl: returnUrls?.success ?? (source === "bot" ? botUrl : `${SITE_URL}/dashboard?paid=1`),
+    failUrl: returnUrls?.fail ?? (source === "bot" ? botUrl : `${SITE_URL}/dashboard`),
   });
   if (!tx.payment_url) {
     throw new Error(`cashera create returned no payment_url (uuid ${tx.uuid})`);

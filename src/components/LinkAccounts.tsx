@@ -32,6 +32,8 @@ interface Props {
   email?: string;
   telegramId?: string;
   onUpdate?: () => void;
+  /** Show the e-mail form only after a tap on "Add e-mail sign-in" (the Mini App). */
+  collapseEmailForm?: boolean;
 }
 
 type UnlinkType = "email" | "telegram";
@@ -62,9 +64,10 @@ function LinkedRow({ icon, label, mono, email, canUnlink, busy, onUnlink }: { ic
   );
 }
 
-export default function LinkAccounts({ userId, email, telegramId, onUpdate }: Props) {
+export default function LinkAccounts({ userId, email, telegramId, onUpdate, collapseEmailForm = false }: Props) {
   const { t, lang } = useDashLang();
   const shell = useShellT();
+  const [emailFormOpen, setEmailFormOpen] = useState(!collapseEmailForm);
   const hasEmail = !!email;
   const hasTelegram = !!telegramId;
   const [unlinking, setUnlinking] = useState<string | null>(null);
@@ -121,7 +124,17 @@ export default function LinkAccounts({ userId, email, telegramId, onUpdate }: Pr
       ) : null}
 
       {!hasTelegram ? <LinkTelegram /> : null}
-      {!hasEmail ? <LinkEmail /> : null}
+      {!hasEmail ? (
+        emailFormOpen ? (
+          <LinkEmail focusOnMount={collapseEmailForm} />
+        ) : (
+          <div>
+            <Button variant="ghost" icon={Mail} onClick={() => setEmailFormOpen(true)}>
+              {t.link_email_add}
+            </Button>
+          </div>
+        )
+      ) : null}
 
       <ConfirmDialog
         open={confirming !== null}
@@ -223,7 +236,7 @@ function LinkTelegram() {
 /* ─── Link Email ───────────────────────────────── */
 type EmailStep = "form" | "verify";
 
-function LinkEmail() {
+function LinkEmail({ focusOnMount = false }: { focusOnMount?: boolean }) {
   const { t, lang } = useDashLang();
   const auth = useAuthT();
   const shell = useShellT();
@@ -238,6 +251,10 @@ function LinkEmail() {
   const [verifyCode, setVerifyCode] = useState(["", "", "", "", "", ""]);
   const otpRef = useRef<OtpInputHandle>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  // Opened by a tap on "Add e-mail sign-in": that button is gone, so focus goes to the form.
+  useEffect(() => {
+    if (focusOnMount) emailRef.current?.focus();
+  }, [focusOnMount]);
   const pwRef = useRef<HTMLInputElement>(null);
   const [cooldown, setCooldown] = useState(0);
   const [resendCount, setResendCount] = useState(0);

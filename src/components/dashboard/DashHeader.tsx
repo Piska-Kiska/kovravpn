@@ -1,11 +1,12 @@
 // src/components/dashboard/DashHeader.tsx
-// Sticky header. >= 1024px: wordmark, section tabs, the language | theme
-// capsule and the "d." account monogram. Below: wordmark and the capsule
-// (the tabs move to BottomNav).
+// Sticky header. >= 1024px: wordmark, section tabs, the balance chip (when
+// there is money on the balance), the language | theme capsule and the "d."
+// account monogram. Below: wordmark, the chip and the capsule (the tabs move
+// to BottomNav).
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import KovraWordmark from "@/components/KovraWordmark";
 import { cx } from "@/components/cabinet";
 import { AccountMark, PrefsCapsule, type AccountStatus, type Identity } from "@/components/chrome";
@@ -30,9 +31,11 @@ export interface DashHeaderProps {
   status: AccountStatus | null;
   onNavigate(target: NavTarget): void;
   onLogout(): void;
+  /** Rendered before the capsule: the balance chip. */
+  walletSlot?: ReactNode;
 }
 
-export function DashHeader({ t, view, identity, status, onNavigate, onLogout }: DashHeaderProps) {
+export function DashHeader({ t, view, identity, status, onNavigate, onLogout, walletSlot }: DashHeaderProps) {
   const shell = useShellT();
   const lang = useCabinetLang();
   const [scrolled, setScrolled] = useState(false);
@@ -60,6 +63,7 @@ export function DashHeader({ t, view, identity, status, onNavigate, onLogout }: 
           </nav>
         </div>
         <div className="kc-header-tools kh-bar">
+          {walletSlot}
           <PrefsCapsule lang={lang} onLang={setCabinetLang} />
           <div className="kc-dash-account">
             <AccountMark

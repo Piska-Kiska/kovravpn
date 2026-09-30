@@ -10,12 +10,17 @@
 
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { fetchWithTimeout } from "./fetch-timeout";
+import { botChatUrl } from "./bot-link";
 
 const API_BASE = "https://pay.crypt.bot/api";
 const API_TOKEN = process.env.CRYPTOBOT_API_TOKEN || "";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://proxysvpn.com";
-const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "proxysvpn_bot";
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com").replace(/\/$/, "");
+
+/** Whether invoices can be created at all (the API token is set). */
+export function cryptoBotConfigured(): boolean {
+  return API_TOKEN.length > 0;
+}
 
 export const CRYPTOBOT_ACCEPTED_ASSETS = ["USDT", "TON", "BTC"] as const;
 
@@ -24,6 +29,8 @@ export interface CreateCryptoBotInvoiceParams {
   amountUsd: number;
   /** "web" -> dashboard return; "bot" -> open bot deep-link */
   source?: "web" | "bot";
+  /** Explicit "paid" button URL; overrides the one `source` implies. */
+  paidBtnUrl?: string;
 }
 
 export interface CryptoBotInvoice {
@@ -65,9 +72,10 @@ export async function createCryptoBotInvoice(
   const orderId = `topup_${p.userId}_${Date.now()}`;
 
   const paidBtnUrl =
-    p.source === "web"
+    p.paidBtnUrl ??
+    (p.source === "web"
       ? `${SITE_URL}/dashboard?topupcryptobot=1`
-      : `https://t.me/${BOT_USERNAME}?start=paidcryptobot`;
+      : botChatUrl("paidcryptobot"));
 
   const body = {
     currency_type: "fiat",

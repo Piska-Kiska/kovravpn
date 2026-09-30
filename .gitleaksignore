@@ -1,3 +1,5 @@
 # .gitleaksignore — fingerprints of findings to suppress.
 # Format: one fingerprint per line, as printed by gitleaks output.
 # Example: a1b2c3d4...:path/to/file.go:rule-id:42
+# made-up subscription token in the bot screen harness fixtures (marked gitleaks:allow since)
+3f1a8013bccd4d6fc455064e6563da08e4c09561:scripts/bot-screens.mjs:generic-api-key:53

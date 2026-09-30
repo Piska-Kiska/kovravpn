@@ -1,5 +1,9 @@
 // src/components/dashboard/RewardsView.tsx
 // Invite friends (referral link, share, stats) and the promo code form.
+// Inside the Mini App the invite is the bot link (t.me/…?start=ref_…, what the
+// bot itself hands out) and Share opens Telegram's own chat picker, which
+// every Telegram client has; navigator.share is missing in several of
+// Telegram's webviews.
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -22,17 +26,26 @@ export interface RewardsViewProps {
   promoLoading: boolean;
   promoMsg: PromoMsg | null;
   onApplyPromo(): void;
+  /** Mini App: share through Telegram (host.share); the bot link is the invite. */
+  shareInTelegram?: (url: string, text: string) => void;
 }
 
-export function RewardsView({ t, referral, promoCode, onPromoCode, promoLoading, promoMsg, onApplyPromo }: RewardsViewProps) {
+export function RewardsView({ t, referral, promoCode, onPromoCode, promoLoading, promoMsg, onApplyPromo, shareInTelegram }: RewardsViewProps) {
   const shell = useShellT();
   const rise = useRise();
-  const [canShare] = useState(() => typeof navigator !== "undefined" && typeof navigator.share === "function");
+  const [canNativeShare] = useState(() => typeof navigator !== "undefined" && typeof navigator.share === "function");
+  const inTelegram = typeof shareInTelegram === "function";
+  const link = referral ? (inTelegram && referral.botLink ? referral.botLink : referral.link) : "";
+  const canShare = inTelegram || canNativeShare;
 
   const share = async () => {
-    if (!referral) return;
+    if (!referral || !link) return;
+    if (shareInTelegram) {
+      shareInTelegram(link, t.share_text);
+      return;
+    }
     try {
-      await navigator.share({ title: "Kovra", text: t.share_text, url: referral.link });
+      await navigator.share({ title: "Kovra", text: t.share_text, url: link });
     } catch {
       // AbortError (the user closed the sheet) or an unsupported payload.
     }
@@ -54,7 +67,7 @@ export function RewardsView({ t, referral, promoCode, onPromoCode, promoLoading,
 
   return (
     <>
-      <ViewHead kicker={t.rewards_kicker} title={t.rewards_title} />
+      <ViewHead kicker={inTelegram ? undefined : t.rewards_kicker} title={t.rewards_title} />
       <div className="kc-rewards-grid">
         <section className={cx("kc-panel kc-panel--accent kc-ref", r1.className)} style={r1.style} aria-labelledby="kc-ref-title">
           <div className="kc-ref-head">
@@ -63,7 +76,7 @@ export function RewardsView({ t, referral, promoCode, onPromoCode, promoLoading,
             </h2>
             <p className="kc-ref-lede">{fmt(t.ref_body, { days: REF_REWARD_DAYS })}</p>
           </div>
-          <CopyField value={referral?.link ?? ""} label={t.ref_link_label} copyLabel={shell.copy} copiedLabel={shell.copied} failedLabel={shell.copy_failed} />
+          <CopyField value={link} label={t.ref_link_label} copyLabel={shell.copy} copiedLabel={shell.copied} failedLabel={shell.copy_failed} />
           {canShare && referral ? (
             <div>
               <Button variant="ghost" size="sm" icon={Share2} iconSize={16} onClick={() => void share()}>

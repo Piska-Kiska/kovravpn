@@ -6,7 +6,7 @@
 // Гейт: SIGN (secret2) + IP FK + atomic dedup. Сумма зафиксирована при
 // createOrder и на стороне FK неизменяема, поэтому отдельная сверка суммы не нужна.
 
-import { getUserRecord, markTopup } from '@/lib/accounts';
+import { markTopup } from '@/lib/accounts';
 import {
   parseSubOrderId, resolvePlan, applyPlanPurchase, applyDeviceAddon,
   applyReferralReward, summarize, getSubscriptions,
@@ -14,7 +14,7 @@ import {
 import { syncAllExpiry } from '@/lib/balance';
 import { grantReferralReward } from '@/lib/referrals';
 import { reserveDedupKey, releaseDedupKey } from '@/lib/dedup';
-import { fetchWithTimeout } from '@/lib/fetch-timeout';
+import { noticeProductOf, notifyUser } from '@/lib/bot-v2/notify';
 import { getClientIp, isFreekassaIp, verifyNotifySign } from '@/lib/freekassa';
 
 export const runtime = 'nodejs';
@@ -22,7 +22,6 @@ export const dynamic = 'force-dynamic';
 
 const SHOP_ID = process.env.FREEKASSA_SHOP_ID!;
 const SKIP_IP = process.env.FREEKASSA_DISABLE_IP_CHECK === '1';
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const DEDUP_TTL_SEC = 90 * 86400;
 
 const ok = (b: string, s = 200) =>
@@ -31,20 +30,6 @@ const ok = (b: string, s = 200) =>
 function fmtDate(ms: number): string {
   try { return new Date(ms).toISOString().slice(0, 10); } catch { return ''; }
 }
-async function notifyTelegram(userId: string, message: string): Promise<void> {
-  try {
-    let chatId: string | null = null;
-    if (userId.startsWith('tg_')) chatId = userId.slice(3);
-    else { const u = await getUserRecord(userId); if (u?.telegramId) chatId = String(u.telegramId); }
-    if (!chatId || !BOT_TOKEN) return;
-    await fetchWithTimeout(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' }),
-      timeoutMs: 5000,
-    });
-  } catch (err) { console.error('[fk] notifyTelegram error:', err); }
-}
-
 export async function GET() { return ok('OK'); }
 
 export async function POST(req: Request) {
@@ -99,14 +84,18 @@ export async function POST(req: Request) {
       `📱 Active devices: <b>${s.activeSlots}</b>`,
     ];
     if (s.maxExpiry > 0) lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
-    await notifyTelegram(userId, lines.join('\n'));
+    await notifyUser(
+      userId,
+      { kind: 'purchase', product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
+      lines.join('\n'),
+    );
 
     try {
       const ref = await grantReferralReward(userId);
       if (ref.rewarded && ref.referrerId) {
         await applyReferralReward(ref.referrerId);
         await syncAllExpiry(ref.referrerId);
-        await notifyTelegram(ref.referrerId, [
+        await notifyUser(ref.referrerId, { kind: 'referral_reward' }, [
           `🎁 <b>Referral reward!</b>`, ``,
           `Your friend bought a subscription.`,
           `You got <b>+14 days</b> for 1 device.`,

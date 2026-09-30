@@ -186,16 +186,16 @@ export interface LavaInvoice {
 }
 
 export class LavaError extends Error {
+  public readonly status: number;
   /** Тело ответа. Не перечислимое: иначе уезжает в журнал дважды. */
   public readonly body: unknown;
 
-  constructor(
-    public readonly status: number,
-    body: unknown,
-  ) {
+  // No parameter properties: Node's type stripping (unit tests) rejects them.
+  constructor(status: number, body: unknown) {
     // Текст ответа в message: линия настраивается один раз, и «lava 400» без
     // объяснения превращает настройку в гадание. Секретов в их ответе нет.
     super(`lava.top ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+    this.status = status;
     this.name = "LavaError";
     Object.defineProperty(this, "body", { value: body, enumerable: false });
   }
