@@ -359,12 +359,14 @@ async function handleCreate(chatId: number, msgId: number) {
 }
 
 /**
- * Where each device gets its apps: Happ first, then an alternative. The
- * alternative is INCY on Apple devices (V2RayTun's App Store app is gone:
- * id6476628951 answers 404, KP-12) and V2RayTun where it still ships
- * (Google Play, the developer's Windows installer).
+ * Where each device gets its apps: Happ first, then an alternative where one
+ * exists. The alternative is INCY on iPhone and Mac (V2RayTun's App Store app
+ * is gone: id6476628951 answers 404, KP-12) and V2RayTun where it still ships
+ * (Google Play, the developer's Windows installer). Apple TV has none: INCY
+ * has no tvOS build (its App Store record lists iPhone, iPad and iPod only),
+ * so only Happ for TV is offered.
  */
-const DEVICE_LINKS: Record<string, { name: string; happ: string; alt: { app: "INCY" | "V2RayTun"; url: string } }> = {
+const DEVICE_LINKS: Record<string, { name: string; happ: string; alt?: { app: "INCY" | "V2RayTun"; url: string } }> = {
   android: {
     name: "Android",
     happ: "https://play.google.com/store/apps/details?id=com.happproxy",
@@ -388,12 +390,14 @@ const DEVICE_LINKS: Record<string, { name: string; happ: string; alt: { app: "IN
   tv: {
     name: "Apple TV",
     happ: "https://apps.apple.com/us/app/happ-proxy-utility-for-tv/id6748297274",
-    alt: { app: "INCY", url: INCY_LINKS.apple },
   },
 };
 
-function altAppButton(devInfo: (typeof DEVICE_LINKS)[string], lang: BotLang): { text: string; url: string } {
-  return { text: t(devInfo.alt.app === "INCY" ? "btn.incy" : "btn.v2ray", lang), url: devInfo.alt.url };
+/** The download row of a device: Happ, and the alternative when the device has one. */
+function appButtons(devInfo: (typeof DEVICE_LINKS)[string], lang: BotLang): { text: string; url: string }[] {
+  const row = [{ text: t("btn.happ", lang), url: devInfo.happ }];
+  if (devInfo.alt) row.push({ text: t(devInfo.alt.app === "INCY" ? "btn.incy" : "btn.v2ray", lang), url: devInfo.alt.url });
+  return row;
 }
 
 async function handleCreateDevice(chatId: number, msgId: number, device: string) {
@@ -458,7 +462,7 @@ async function handleCreateDevice(chatId: number, msgId: number, device: string)
       ``,
       t("link.install", lang),
     ].join("\n"), [
-      [{ text: t("btn.happ", lang), url: devInfo.happ }, altAppButton(devInfo, lang)],
+      appButtons(devInfo, lang),
       [{ text: t("btn.devices", lang), callback_data: "profiles" }],
       [{ text: t("link.howto", lang), callback_data: "guide" }],
       backBtn("menu", lang),
@@ -497,7 +501,7 @@ async function handleLink(chatId: number, msgId: number, uuid: string) {
       t("link.install", lang),
     ].join("\n"),
     [
-      [{ text: t("btn.happ", lang), url: devInfo.happ }, altAppButton(devInfo, lang)],
+      appButtons(devInfo, lang),
       [{ text: t("link.howto", lang), callback_data: "guide" }],
       backBtn("profiles", lang),
     ],
@@ -563,7 +567,7 @@ async function screenGuide(chatId: number, msgId: number) {
     ],
     [{ text: "── INCY ──", callback_data: "guide" }],
     [
-      { text: "🍎 iOS/macOS/TV", url: INCY_LINKS.apple },
+      { text: "🍎 iOS/macOS", url: INCY_LINKS.apple },
     ],
     [{ text: "── V2RayTun ──", callback_data: "guide" }],
     [

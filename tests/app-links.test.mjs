@@ -119,10 +119,27 @@ describe("the legacy bot's buttons", () => {
     assert.ok(!urls.some((u) => DEAD_APP.test(u)));
   });
 
+  test("the guide screen does not offer INCY for TV: it has no tvOS build", async () => {
+    const buttons = await press("guide");
+    const incy = buttons.filter((b) => b.url === INCY_LINKS.apple);
+    assert.deepEqual(incy.map((b) => b.text), ["🍎 iOS/macOS"]);
+  });
+
+  test("an Apple TV device's link screen offers Happ for TV only (INCY has no tvOS build)", async () => {
+    mem.store.set(
+      `profiles:tg_${USER}`,
+      JSON.stringify([{ uuid: UUID, clientEmail: "vpn_x", vlessUrl: "vless://x", createdAt: 1, deviceType: "tv", subToken: SUB_TOKEN }]),
+    );
+    const buttons = await press(`link_${UUID}`);
+    const downloads = buttons.filter((b) => b.text.startsWith("📥"));
+    assert.deepEqual(downloads.map((b) => b.text), ["📥 Happ"]);
+    assert.match(downloads[0].url, /happ-proxy-utility-for-tv\/id6748297274$/);
+    assert.ok(!buttons.some((b) => b.url === INCY_LINKS.apple), JSON.stringify(buttons));
+  });
+
   for (const [deviceType, app, url] of [
     ["iphone", "INCY", () => INCY_LINKS.apple],
     ["mac", "INCY", () => INCY_LINKS.apple],
-    ["tv", "INCY", () => INCY_LINKS.apple],
     ["android", "V2RayTun", () => V2RAYTUN_LINKS.android],
     ["windows", "V2RayTun", () => V2RAYTUN_LINKS.windows],
   ]) {
