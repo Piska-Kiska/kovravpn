@@ -589,3 +589,41 @@ html:has(.kc-dash) {
   }
 }
 
+/* ── 11. Inside the Telegram Mini App (/tg) ────────────────────────────── */
+/* --tg-vh: Telegram's stable window height; --tg-safe-top / -bottom: device
+   insets plus Telegram's own controls (Bot API 8.0). All set by TgShell. */
+.kc-embedded {
+  --kc-mbar-h: 52px;
+  --kc-safe-b: max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px));
+  min-height: var(--tg-vh, 100dvh); padding-top: var(--tg-safe-top, 0px);
+}
+html:has(.kc-embedded) {
+  overscroll-behavior-y: none;
+  scroll-padding-top: calc(52px + var(--tg-safe-top, 0px) + 16px);
+  scroll-padding-bottom: calc(64px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + 16px);
+}
+html:has(.kc-embedded) body { overscroll-behavior-y: none; }
+
+.kc-mbar {
+  position: sticky; top: var(--tg-safe-top, 0px); z-index: 40; background: var(--kc-page);
+  box-shadow: 0 1px 0 transparent; transition: box-shadow var(--kc-d2) var(--kc-ease);
+}
+.kc-mbar.is-scrolled { box-shadow: 0 1px 0 var(--kc-line); }
+.kc-mbar-in {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--kc-mbar-h);
+  max-width: calc(var(--kc-maxw-dash) + var(--kc-gutter) + var(--kc-gutter-r)); margin: 0 auto;
+  padding: 0 var(--kc-gutter-r) 0 var(--kc-gutter);
+}
+.kc-mbar-brand { display: inline-flex; align-items: center; color: var(--kc-text); }
+.kc-mbar-end { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* the tab bar stays at every width (a Telegram Desktop window can be wide) */
+.kc-embedded .kc-bnav { display: block; height: calc(var(--kc-bottom-nav-h) + var(--kc-safe-b)); padding-bottom: var(--kc-safe-b); }
+.kc-embedded .kc-dash-main { padding-bottom: calc(var(--kc-bottom-nav-h) + var(--kc-safe-b) + 32px); }
+.kc-embedded .kc-dash-wrap { padding-top: 4px; }
+@media (min-width: 768px) { .kc-embedded .kc-dash-wrap { padding-top: 12px; } }
+.kc-embedded .kc-plan-side { top: calc(var(--kc-mbar-h) + var(--tg-safe-top, 0px) + 16px); }
+.kc-embedded .kc-help { scroll-margin-top: calc(var(--kc-mbar-h) + var(--tg-safe-top, 0px) + 16px); }
+@media (max-width: 767px) {
+  .kc-embedded .kc-dialog-panel { padding-bottom: max(24px, var(--kc-safe-b)); }
+}

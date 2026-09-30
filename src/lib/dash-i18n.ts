@@ -330,6 +330,15 @@ export interface DashDict {
   // ── payment check ──
   paid_checking: Str;
   paid_slow: Str;
+  // ── Telegram Mini App ──
+  theme_telegram: Str;
+  tg_loading: Str;
+  tg_outside_title: Str;
+  tg_outside_body: Str;
+  tg_open_bot: Str;
+  tg_err_sdk: Str;
+  tg_err_auth: Str;
+  tg_close: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -635,6 +644,14 @@ const en: DashDict = {
   m_crypto_topup_note: "You’ll pick the coin on the next page. The balance updates after network confirmation, usually 5–30 minutes.",
   paid_checking: "Checking payment… Your plan or balance updates by itself: usually within a minute for cards, up to 30 minutes for crypto.",
   paid_slow: "We haven’t seen the payment yet. If you paid, it will show up here by itself; you can close this message.",
+  theme_telegram: "Follows your Telegram theme.",
+  tg_loading: "Opening your account…",
+  tg_outside_title: "Open in Telegram",
+  tg_outside_body: "This page is your Kovra account inside the Telegram bot.",
+  tg_open_bot: "Open the bot",
+  tg_err_sdk: "Telegram didn’t load. Check your connection and try again.",
+  tg_err_auth: "We couldn’t sign you in. Close this window and open it again from the bot.",
+  tg_close: "Close",
 };
 
 const ru: DashDict = {
@@ -942,6 +959,14 @@ const ru: DashDict = {
   m_crypto_topup_note: "Монету выберете на следующей странице. Баланс обновится после подтверждения в сети, обычно за 5–30 минут.",
   paid_checking: "Проверяем оплату… Тариф или баланс обновится сам: по карте обычно за минуту, по криптовалюте до 30 минут.",
   paid_slow: "Мы пока не видим оплату. Если вы заплатили, она появится здесь сама; это сообщение можно закрыть.",
+  theme_telegram: "Как в Telegram.",
+  tg_loading: "Открываем кабинет…",
+  tg_outside_title: "Откройте в Telegram",
+  tg_outside_body: "Эта страница открывается внутри Telegram-бота Kovra.",
+  tg_open_bot: "Открыть бота",
+  tg_err_sdk: "Telegram не загрузился. Проверьте соединение и попробуйте ещё раз.",
+  tg_err_auth: "Не получилось войти. Закройте окно и откройте его снова из бота.",
+  tg_close: "Закрыть",
 };
 
 const es: DashDict = {
@@ -1244,6 +1269,14 @@ const es: DashDict = {
   m_crypto_topup_note: "Elegirás la moneda en la página siguiente. El saldo se actualiza tras la confirmación de la red, normalmente en 5–30 minutos.",
   paid_checking: "Comprobando el pago… Tu plan o tu saldo se actualizan solos: normalmente en un minuto con tarjeta y hasta 30 minutos con cripto.",
   paid_slow: "Aún no vemos el pago. Si ya pagaste, aparecerá aquí solo; puedes cerrar este mensaje.",
+  theme_telegram: "Sigue el tema de Telegram.",
+  tg_loading: "Abriendo tu cuenta…",
+  tg_outside_title: "Abrir en Telegram",
+  tg_outside_body: "Esta página es tu cuenta de Kovra dentro del bot de Telegram.",
+  tg_open_bot: "Abrir el bot",
+  tg_err_sdk: "Telegram no se cargó. Revisa tu conexión e inténtalo de nuevo.",
+  tg_err_auth: "No pudimos iniciar tu sesión. Cierra esta ventana y ábrela de nuevo desde el bot.",
+  tg_close: "Cerrar",
 };
 
 const de: DashDict = {
@@ -1546,6 +1579,14 @@ const de: DashDict = {
   m_crypto_topup_note: "Die Coin wählst du auf der nächsten Seite. Das Guthaben aktualisiert sich nach der Netzwerkbestätigung, meist in 5–30 Minuten.",
   paid_checking: "Zahlung wird geprüft… Dein Tarif oder Guthaben aktualisiert sich automatisch: mit Karte meist innerhalb einer Minute, mit Krypto bis zu 30 Minuten.",
   paid_slow: "Wir sehen die Zahlung noch nicht. Wenn du bezahlt hast, erscheint sie hier von selbst; du kannst diese Meldung schließen.",
+  theme_telegram: "Folgt deinem Telegram-Design.",
+  tg_loading: "Dein Konto wird geöffnet…",
+  tg_outside_title: "In Telegram öffnen",
+  tg_outside_body: "Diese Seite ist dein Kovra-Konto im Telegram-Bot.",
+  tg_open_bot: "Bot öffnen",
+  tg_err_sdk: "Telegram wurde nicht geladen. Prüfe deine Verbindung und versuch es erneut.",
+  tg_err_auth: "Die Anmeldung hat nicht geklappt. Schließe dieses Fenster und öffne es erneut aus dem Bot.",
+  tg_close: "Schließen",
 };
 
 const fr: DashDict = {
@@ -1848,6 +1889,14 @@ const fr: DashDict = {
   m_crypto_topup_note: "Vous choisirez la cryptomonnaie à l’étape suivante. Le solde se met à jour après confirmation du réseau, en général sous 5 à 30 minutes.",
   paid_checking: "Vérification du paiement… Votre forfait ou votre solde se met à jour automatiquement : en général en une minute par carte, jusqu’à 30 minutes en crypto.",
   paid_slow: "Nous ne voyons pas encore le paiement. Si vous avez payé, il apparaîtra ici automatiquement ; vous pouvez fermer ce message.",
+  theme_telegram: "Suit le thème de Telegram.",
+  tg_loading: "Ouverture de votre compte…",
+  tg_outside_title: "Ouvrir dans Telegram",
+  tg_outside_body: "Cette page est votre compte Kovra dans le bot Telegram.",
+  tg_open_bot: "Ouvrir le bot",
+  tg_err_sdk: "Telegram ne s’est pas chargé. Vérifiez votre connexion et réessayez.",
+  tg_err_auth: "La connexion a échoué. Fermez cette fenêtre et rouvrez-la depuis le bot.",
+  tg_close: "Fermer",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };

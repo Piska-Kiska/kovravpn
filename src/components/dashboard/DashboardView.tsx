@@ -1,8 +1,11 @@
 // src/components/dashboard/DashboardView.tsx
 //
-// The personal dashboard (rendered by src/app/dashboard/page.tsx). This file
-// owns all state, data loading and the request handlers; the views in
-// src/components/dashboard/* are presentational.
+// The personal dashboard, on the site (/dashboard) and inside the Telegram
+// Mini App (/tg). This file owns all state, data loading and the request
+// handlers; the views in src/components/dashboard/* are presentational. What
+// differs between the two places comes from the `host` (host.ts): where a
+// payment page opens, what happens when the session is lost, Telegram's back
+// arrow and haptics.
 //
 // Views (hash-routed, see useDashView): #devices (home), #plan, #rewards,
 // #account (#help scrolls to the Help panel). `?view=<view>` or `?view=topup`
@@ -19,9 +22,20 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { trackEvent } from "@/lib/attribution";
 import { useDashLang } from "@/lib/dash-i18n";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
-import { Button, CabinetRoot, ConfirmDialog, Notice, cx, readJson, useDocumentTitle } from "@/components/cabinet";
+import {
+  BackStackProvider,
+  Button,
+  CabinetRoot,
+  ConfirmDialog,
+  Notice,
+  createBackStack,
+  cx,
+  readJson,
+  useBackStackSize,
+  useDocumentTitle,
+} from "@/components/cabinet";
 import { statusTone, type AccountStatus, type Identity } from "@/components/chrome";
-import { fmt, plural } from "@/lib/cabinet-lang";
+import { fmt, plural, type Lang } from "@/lib/cabinet-lang";
 import { copyText } from "@/lib/clipboard";
 import { useShellT } from "@/lib/i18n-shell";
 import { DEVICE_DEFS, isDeviceId, type DeviceId } from "@/lib/dashboard/devices";
@@ -56,12 +70,14 @@ import { DashHeader } from "./DashHeader";
 import { DashSkeleton } from "./DashSkeleton";
 import { DevicesSection } from "./DevicesSection";
 import { ExtraSlotDialog } from "./ExtraSlotDialog";
+import { MiniAppBar } from "./MiniAppBar";
 import { PaymentReturnNotice } from "./PaymentReturnNotice";
 import { PlanView } from "./PlanView";
 import { RewardsView, type PromoMsg } from "./RewardsView";
 import { StatusHero } from "./StatusHero";
 import { TopupDialog, type TopupConfig } from "./TopupDialog";
 import { WalletChip, fmtCents } from "./WalletPanel";
+import { WEB_HOST, type DashHost } from "./host";
 import { FirstVisitProvider } from "./shared";
 import { isDashView, replaceDashUrl, useDashView, type DashView } from "./useDashView";
 import "@/app/dashboard/dashboard.css";
@@ -249,9 +265,15 @@ function ViewFrame({ view, firstVisit, onVisit, children }: { view: DashView; fi
   );
 }
 
-export function DashboardView() {
+export interface DashboardViewProps {
+  /** Where the dashboard runs; the site when omitted. */
+  host?: DashHost;
+}
+
+export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   const { lang, t } = useDashLang();
   const shell = useShellT();
+  const embedded = host.embedded;
   useDocumentTitle(fmt("{t} | Kovra", { t: t.page_title }));
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -326,6 +348,7 @@ export function DashboardView() {
   const [mountTs] = useState(() => Date.now());
   const [visited, setVisited] = useState<ReadonlySet<DashView>>(() => new Set<DashView>());
   const devicesHeadingRef = useRef<HTMLHeadingElement>(null);
+  const [backStack] = useState(createBackStack);
 
   /** Server error -> UI text; `fallback` when the response carries no error. */
   const errText = (raw: unknown, status: number, fallback: string) => dashError(raw, status, lang, t, fallback);
@@ -336,6 +359,8 @@ export function DashboardView() {
       else delete next[uuid];
       return next;
     });
+  /** Body field of payment requests made inside the Mini App: the provider returns there. */
+  const returnTo: Record<string, string> = embedded ? { returnTo: "miniapp" } : {};
 
   // Entry-point parameters, once: ?paid= (back from a payment page), ?view=.
   // Both are removed from the address in one replaceState (see replaceDashUrl).
@@ -372,7 +397,7 @@ export function DashboardView() {
   const loadUser = useCallback(async () => {
     if (MOCK) {
       setUserId("mock-user");
-      setUserInfo({ authMethod: "email", email: "demo@kovravpn.com" });
+      setUserInfo(embedded ? { authMethod: "telegram", telegramId: "100000001" } : { authMethod: "email", email: "demo@kovravpn.com" });
       return;
     }
     try {
@@ -386,12 +411,19 @@ export function DashboardView() {
           telegramId: typeof d.telegramId === "string" || typeof d.telegramId === "number" ? String(d.telegramId) : undefined,
         });
       } else {
-        window.location.href = "/login";
+        host.onAuthLost();
       }
     } catch {
-      window.location.href = "/login";
+      // Site: as before, back to the sign-in. Mini App: a network blip is not
+      // a lost session; offer a retry.
+      if (embedded) {
+        setLoadError(true);
+        setLoading(false);
+      } else {
+        host.onAuthLost();
+      }
     }
-  }, []);
+  }, [embedded, host]);
 
   useEffect(() => {
     void loadUser();
@@ -487,20 +519,27 @@ export function DashboardView() {
       if (document.visibilityState === "visible" && !MOCK) void fetchAccount();
     };
     document.addEventListener("visibilitychange", onVisible);
+    const offResume = host.onResume?.(() => {
+      if (!MOCK) void fetchAccount();
+    });
     return () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
+      offResume?.();
     };
-  }, [paidPending, paidDone, userId, fetchAccount]);
+  }, [paidPending, paidDone, userId, fetchAccount, host]);
 
   useEffect(() => {
+    if (!paidKind) return;
     // Seen: a later ?paid= must not compare against this payment's baseline.
-    if (paidKind) saveBaseline(null);
-  }, [paidKind]);
+    saveBaseline(null);
+    host.haptic?.("success");
+  }, [paidKind, host]);
 
   /**
-   * Leave for a payment page. The baseline is saved first. In the preview the
-   * page stays, so the check starts right away.
+   * Leave for a payment page. The baseline is saved first. On the site the
+   * page goes away; in the Mini App it stays, so the check starts right away
+   * and runs while the person pays in the browser.
    */
   const openPayment = (url: string, kind: PaidKind) => {
     const base: PaidBaseline | null = account
@@ -510,9 +549,9 @@ export function DashboardView() {
     if (MOCK) {
       console.info("[dash-mock] payment page:", url);
     } else {
-      window.location.href = url;
+      host.openPayment(url);
     }
-    if (MOCK) {
+    if (embedded || MOCK) {
       setPaidBaseline(base);
       setPaidFromUrl(false);
       setPaidPending(true);
@@ -522,7 +561,7 @@ export function DashboardView() {
   const handleBuyPlan = async () => {
     setBuying(true); setPlanError(null);
     try {
-      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "card" }) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, method: "card", ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "platega", kind: planKind, term });
@@ -534,7 +573,7 @@ export function DashboardView() {
   const handleBuyDevice = async () => {
     setBuyingDevice(true); setSlotError(null);
     try {
-      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "card" }) });
+      const r = await fetch("/api/platega/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", method: "card", ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "platega" });
@@ -546,7 +585,7 @@ export function DashboardView() {
   const handleBuyPlanCard = async () => {
     setBuyingCard(true); setPlanError(null);
     try {
-      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "cashera", kind: planKind, term });
@@ -558,7 +597,7 @@ export function DashboardView() {
   const handleBuyDeviceCard = async () => {
     setBuyingCardDevice(true); setSlotError(null);
     try {
-      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device" }) });
+      const r = await fetch("/api/cashera/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "device", ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "cashera" });
@@ -571,7 +610,7 @@ export function DashboardView() {
   const handleBuyPlanAlt = async () => {
     setBuyingAlt(true); setPlanError(null);
     try {
-      const r = await fetch("/api/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term }) });
+      const r = await fetch("/api/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: planKind, term, ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "crypto", provider: "nowpayments", kind: planKind, term });
@@ -583,7 +622,7 @@ export function DashboardView() {
   const handleBuyDeviceAlt = async () => {
     setBuyingAltDevice(true); setSlotError(null);
     try {
-      const r = await fetch("/api/subscribe/device", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const r = await fetch("/api/subscribe/device", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...returnTo }) });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "crypto", provider: "nowpayments" });
@@ -608,7 +647,7 @@ export function DashboardView() {
       const r = await fetch("/api/subscribe/lava", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, method: id, currency }),
+        body: JSON.stringify({ ...body, method: id, currency, ...returnTo }),
       });
       const d = await r.json();
       if (d.paymentUrl) {
@@ -660,7 +699,7 @@ export function DashboardView() {
         const r = await fetch("/api/wallet/purchase", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: product.kind, term: product.term, requestId, source: "web" }),
+          body: JSON.stringify({ kind: product.kind, term: product.term, requestId, source: embedded ? "miniapp" : "web" }),
         });
         status = r.status;
         body = await readJson(r);
@@ -671,12 +710,13 @@ export function DashboardView() {
         setWallet((w) => (w ? { ...w, balanceCents: o.balanceCents } : w));
         const amount = fmtCents(o.priceCents, lang);
         setDone(fmt(target === "plan" ? t.wallet_paid_plan : t.wallet_paid_slot, { amount }));
-        trackEvent("wallet_purchase", { kind: product.kind, term: product.term, cents: o.priceCents, source: "web" });
+        trackEvent("wallet_purchase", { kind: product.kind, term: product.term, cents: o.priceCents, source: embedded ? "miniapp" : "web" });
+        host.haptic?.("success");
         await fetchAccount();
         return;
       }
       if (o.kind === "unauthorized") {
-        window.location.href = "/login";
+        host.onAuthLost();
         return;
       }
       if (o.kind === "insufficient") {
@@ -684,6 +724,7 @@ export function DashboardView() {
         setShortCents(o.needCents);
       }
       setErr(walletErrText(o));
+      host.haptic?.("error");
     } catch {
       setErr(t.err_conn);
     } finally {
@@ -733,16 +774,18 @@ export function DashboardView() {
         body: JSON.stringify({
           method: route.kind,
           amountUsd,
-          returnTo: "web",
+          returnTo: embedded ? "miniapp" : "web",
           ...(route.kind === "lava" ? { lavaMethod: route.id, lavaCurrency: route.currency } : {}),
         }),
       });
       const d = await readJson(r);
       if (r.ok && typeof d.payUrl === "string") {
         trackEvent("payment_initiated", { type: "topup", method: route.kind, amountUsd });
+        if (embedded) setTopupOpen(false);
         openPayment(d.payUrl, "topup");
       } else {
         setTopupError(topupErrText(r.status, d));
+        host.haptic?.("error");
       }
     } catch {
       setTopupError(t.err_conn);
@@ -885,6 +928,30 @@ export function DashboardView() {
   const { view, navigate } = useDashView(!loading, fallbackView);
   const onVisit = useCallback((v: DashView) => setVisited((prev) => (prev.has(v) ? prev : new Set(prev).add(v))), []);
 
+  // ── Telegram's back arrow: the newest open layer, else home ──
+  useEffect(() => (showDevicePicker ? backStack.push(() => setShowDevicePicker(false)) : undefined), [showDevicePicker, backStack]);
+  useEffect(() => (lastCreatedDevice ? backStack.push(() => setLastCreatedDevice(null)) : undefined), [lastCreatedDevice, backStack]);
+  const layers = useBackStackSize(backStack);
+  useEffect(() => {
+    if (!host.bindBack) return;
+    const handler = layers > 0 ? () => void backStack.back() : view !== null && view !== "devices" ? () => navigate("devices") : null;
+    return host.bindBack(handler);
+  }, [host, layers, view, navigate, backStack]);
+
+  // The Mini App tells the account when the person switches the language.
+  const reportedLang = useRef<Lang | null>(null);
+  useEffect(() => {
+    if (!host.onLangChange) return;
+    if (reportedLang.current === null) {
+      reportedLang.current = lang;
+      return;
+    }
+    if (lang !== reportedLang.current) {
+      reportedLang.current = lang;
+      host.onLangChange(lang);
+    }
+  }, [lang, host]);
+
   const identity: Identity | null = userInfo?.email
     ? { label: userInfo.email, initial: userInfo.email.trim().charAt(0).toUpperCase() || null }
     : userInfo?.telegramId
@@ -913,8 +980,8 @@ export function DashboardView() {
       </Button>
     ) : null;
 
-  const walletChip = () =>
-    wallet && wallet.balanceCents > 0 ? (
+  const walletChip = (always: boolean) =>
+    wallet && (always || wallet.balanceCents > 0) ? (
       <WalletChip t={t} lang={lang} balanceCents={wallet.balanceCents} pending={paidPending && !paidDone && !paidSlow} onClick={() => openTopup(null)} />
     ) : null;
 
@@ -1007,123 +1074,129 @@ export function DashboardView() {
     );
   } else if (view === "account") {
     content = (
-      <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} />
+      <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} embedded={embedded} />
     );
   }
 
   return (
-    <CabinetRoot variant="dash">
-      <DashHeader
-        t={t}
-        view={view}
-        identity={identity}
-        status={accountStatus}
-        onNavigate={navigate}
-        onLogout={() => void handleLogout()}
-        walletSlot={walletChip()}
-      />
-      <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
-        <div className="kc-dash-wrap">
-          {paidPending ? (
-            <PaymentReturnNotice
-              t={t}
-              state={paidKind ?? (paidSlow ? "slow" : "pending")}
-              kind={paidBaseline?.kind ?? null}
-              balance={wallet ? fmtCents(wallet.balanceCents, lang) : null}
-              dismissLabel={shell.dismiss}
-              onDismiss={() => setPaidPending(false)}
-            />
-          ) : null}
-          {loadError ? (
-            <Notice
-              tone="error"
-              className="kc-load-error"
-              action={
-                <Button variant="ghost" size="sm" onClick={() => void (userId ? fetchAccount() : loadUser())}>
-                  {shell.retry}
-                </Button>
-              }
-            >
-              {t.load_failed}
-            </Notice>
-          ) : null}
-          {loading || !view ? (
-            loadError ? null : <DashSkeleton label={t.loading_account} />
-          ) : loadError && !account ? null : (
-            <ViewFrame key={view} view={view} firstVisit={!visited.has(view)} onVisit={onVisit}>
-              {content}
-            </ViewFrame>
-          )}
-        </div>
-      </main>
-      <BottomNav t={t} view={view} onNavigate={navigate} />
+    <BackStackProvider stack={backStack}>
+      <CabinetRoot variant="dash" className={embedded ? "kc-embedded" : undefined}>
+        {embedded ? (
+          <MiniAppBar end={walletChip(true)} />
+        ) : (
+          <DashHeader
+            t={t}
+            view={view}
+            identity={identity}
+            status={accountStatus}
+            onNavigate={navigate}
+            onLogout={() => void handleLogout()}
+            walletSlot={walletChip(false)}
+          />
+        )}
+        <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
+          <div className="kc-dash-wrap">
+            {paidPending ? (
+              <PaymentReturnNotice
+                t={t}
+                state={paidKind ?? (paidSlow ? "slow" : "pending")}
+                kind={paidBaseline?.kind ?? null}
+                balance={wallet ? fmtCents(wallet.balanceCents, lang) : null}
+                dismissLabel={shell.dismiss}
+                onDismiss={() => setPaidPending(false)}
+              />
+            ) : null}
+            {loadError ? (
+              <Notice
+                tone="error"
+                className="kc-load-error"
+                action={
+                  <Button variant="ghost" size="sm" onClick={() => void (userId ? fetchAccount() : loadUser())}>
+                    {shell.retry}
+                  </Button>
+                }
+              >
+                {t.load_failed}
+              </Notice>
+            ) : null}
+            {loading || !view ? (
+              loadError ? null : <DashSkeleton label={t.loading_account} />
+            ) : loadError && !account ? null : (
+              <ViewFrame key={view} view={view} firstVisit={!visited.has(view)} onVisit={onVisit}>
+                {content}
+              </ViewFrame>
+            )}
+          </div>
+        </main>
+        <BottomNav t={t} view={view} onNavigate={navigate} />
 
-      <ConfirmDialog
-        open={confirmReset !== null}
-        title={t.reset_title}
-        body={t.reset_hwid_note}
-        confirmLabel={t.reset_confirm}
-        cancelLabel={t.cancel}
-        busy={resettingId !== null}
-        onConfirm={async () => {
-          if (!confirmReset) return;
-          await handleResetHwid(confirmReset);
-          setConfirmReset(null);
-        }}
-        onCancel={() => setConfirmReset(null)}
-      />
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        tone="danger"
-        title={fmt(t.delete_title, { name: confirmDelete?.name ?? t.dev_fallback })}
-        body={t.delete_body}
-        confirmLabel={t.delete_device}
-        cancelLabel={t.cancel}
-        busy={deletingId !== null}
-        onConfirm={async () => {
-          if (!confirmDelete) return;
-          const ok = await handleDelete(confirmDelete.uuid);
-          setConfirmDelete(null);
-          // The card (and its menu button) is gone: land on the section heading.
-          if (ok) window.setTimeout(() => devicesHeadingRef.current?.focus({ preventScroll: true }), 60);
-        }}
-        onCancel={() => setConfirmDelete(null)}
-      />
-      {pricing ? (
-        <ExtraSlotDialog
-          open={slotDialogOpen}
-          onClose={() => { setSlotDialogOpen(false); setSlotDone(null); setShortCents(null); }}
-          t={t}
-          lang={lang}
-          price={pricing.deviceAddonPrice}
-          days={pricing.deviceAddonDays}
-          lavaEnabled={pricing.lavaEnabled}
-          busy={payBusy}
-          isLoading={slotLoading}
-          onPay={paySlot}
-          error={slotError}
-          errorAction={shortAction(slotDialogOpen)}
-          onDismissError={() => { setSlotError(null); setShortCents(null); }}
-          balanceCents={wallet ? wallet.balanceCents : null}
-          done={slotDone}
+        <ConfirmDialog
+          open={confirmReset !== null}
+          title={t.reset_title}
+          body={t.reset_hwid_note}
+          confirmLabel={t.reset_confirm}
+          cancelLabel={t.cancel}
+          busy={resettingId !== null}
+          onConfirm={async () => {
+            if (!confirmReset) return;
+            await handleResetHwid(confirmReset);
+            setConfirmReset(null);
+          }}
+          onCancel={() => setConfirmReset(null)}
         />
-      ) : null}
-      {wallet ? (
-        <TopupDialog
-          open={topupOpen}
-          openSeq={topupSeq}
-          onClose={() => setTopupOpen(false)}
-          t={t}
-          lang={lang}
-          balanceCents={wallet.balanceCents}
-          config={wallet.topup}
-          suggestCents={topupSuggest}
-          busy={topupBusy}
-          error={topupError}
-          onDismissError={() => setTopupError(null)}
-          onSubmit={(route, amountUsd) => void startTopup(route, amountUsd)}
+        <ConfirmDialog
+          open={confirmDelete !== null}
+          tone="danger"
+          title={fmt(t.delete_title, { name: confirmDelete?.name ?? t.dev_fallback })}
+          body={t.delete_body}
+          confirmLabel={t.delete_device}
+          cancelLabel={t.cancel}
+          busy={deletingId !== null}
+          onConfirm={async () => {
+            if (!confirmDelete) return;
+            const ok = await handleDelete(confirmDelete.uuid);
+            setConfirmDelete(null);
+            // The card (and its menu button) is gone: land on the section heading.
+            if (ok) window.setTimeout(() => devicesHeadingRef.current?.focus({ preventScroll: true }), 60);
+          }}
+          onCancel={() => setConfirmDelete(null)}
         />
-      ) : null}
-    </CabinetRoot>
+        {pricing ? (
+          <ExtraSlotDialog
+            open={slotDialogOpen}
+            onClose={() => { setSlotDialogOpen(false); setSlotDone(null); setShortCents(null); }}
+            t={t}
+            lang={lang}
+            price={pricing.deviceAddonPrice}
+            days={pricing.deviceAddonDays}
+            lavaEnabled={pricing.lavaEnabled}
+            busy={payBusy}
+            isLoading={slotLoading}
+            onPay={paySlot}
+            error={slotError}
+            errorAction={shortAction(slotDialogOpen)}
+            onDismissError={() => { setSlotError(null); setShortCents(null); }}
+            balanceCents={wallet ? wallet.balanceCents : null}
+            done={slotDone}
+          />
+        ) : null}
+        {wallet ? (
+          <TopupDialog
+            open={topupOpen}
+            openSeq={topupSeq}
+            onClose={() => setTopupOpen(false)}
+            t={t}
+            lang={lang}
+            balanceCents={wallet.balanceCents}
+            config={wallet.topup}
+            suggestCents={topupSuggest}
+            busy={topupBusy}
+            error={topupError}
+            onDismissError={() => setTopupError(null)}
+            onSubmit={(route, amountUsd) => void startTopup(route, amountUsd)}
+          />
+        ) : null}
+      </CabinetRoot>
+    </BackStackProvider>
   );
 }

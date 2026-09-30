@@ -1,6 +1,8 @@
 // src/components/dashboard/AccountView.tsx
 // Account (spec §9.7): who is signed in, linked sign-in methods, language and
-// theme, help links and sign out. Two columns from 1024px.
+// theme, help links and sign out. Two columns from 1024px. Inside the Telegram
+// Mini App (`embedded`) the theme follows Telegram and there is no sign-out:
+// Telegram itself is the sign-in.
 "use client";
 
 import { ArrowUpRight, BookOpen, LifeBuoy, LogOut, Send, type LucideIcon } from "lucide-react";
@@ -25,6 +27,7 @@ export interface AccountViewProps {
   userInfo: UserInfo | null;
   onUserUpdate(): void;
   onLogout(): void;
+  embedded?: boolean;
 }
 
 function HelpRow({ href, icon, title, sub, external }: { href: string; icon: LucideIcon; title: string; sub: string; external?: boolean }) {
@@ -44,7 +47,7 @@ function HelpRow({ href, icon, title, sub, external }: { href: string; icon: Luc
   );
 }
 
-export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: AccountViewProps) {
+export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout, embedded = false }: AccountViewProps) {
   const shell = useShellT();
   const { pref, setPref } = useThemePref();
   const rise = useRise();
@@ -85,17 +88,24 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
               <LangMenu align="start" />
             </div>
             <hr className="kc-hair" />
-            <div className="kc-pref">
-              <p className="kc-label">{shell.theme}</p>
-              <Segmented<ThemePref>
-                name="kc-theme"
-                label={shell.theme}
-                value={pref}
-                block
-                options={THEME_PREFS.map((o) => ({ value: o.value, label: shell[o.key], glyph: <ThemeGlyph pref={o.value} /> }))}
-                onChange={setPref}
-              />
-            </div>
+            {embedded ? (
+              <div className="kc-pref">
+                <p className="kc-label">{shell.theme}</p>
+                <p className="kc-small">{t.theme_telegram}</p>
+              </div>
+            ) : (
+              <div className="kc-pref">
+                <p className="kc-label">{shell.theme}</p>
+                <Segmented<ThemePref>
+                  name="kc-theme"
+                  label={shell.theme}
+                  value={pref}
+                  block
+                  options={THEME_PREFS.map((o) => ({ value: o.value, label: shell[o.key], glyph: <ThemeGlyph pref={o.value} /> }))}
+                  onChange={setPref}
+                />
+              </div>
+            )}
           </section>
 
           <section id="help-panel" className="kc-panel kc-help" aria-labelledby="kc-help-title">
@@ -108,11 +118,13 @@ export function AccountView({ t, userId, userInfo, onUserUpdate, onLogout }: Acc
             </ul>
           </section>
 
-          <div className="kc-signout">
-            <Button variant="danger" icon={LogOut} onClick={onLogout} className="kc-signout-btn">
-              {t.sign_out}
-            </Button>
-          </div>
+          {embedded ? null : (
+            <div className="kc-signout">
+              <Button variant="danger" icon={LogOut} onClick={onLogout} className="kc-signout-btn">
+                {t.sign_out}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </>
