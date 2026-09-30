@@ -23,19 +23,31 @@
 // indexed here once per rebuild into a Map, so a connect is an O(1) lookup.
 // A purchase, a pause or a deletion reaches Hysteria2 within that minute.
 //
-// ── When Redis fails ────────────────────────────────────
-// The last list that was read successfully keeps answering for
-// STALE_IF_ERROR_MS, so a Redis blip does not throw every paying user off at
-// their next reconnect (the panel-less nodes keep their list the same way).
-// After that, or with no list at all, every connect is refused: fail closed.
+// ── When Redis fails or hangs ───────────────────────────
+// Hysteria2 waits about 10 s for this answer and then refuses the client, and
+// the Upstash REST client has no request timeout of its own (it retries for
+// seconds, and a hung socket waits much longer). So a read that has not
+// answered within READ_TIMEOUT_MS counts as a failure, exactly like an error:
+// the last list that was read successfully keeps answering while it is
+// younger than STALE_IF_ERROR_MS (counted from when it was READ, not from
+// when it was last used), so a Redis blip does not throw every paying user
+// off at their next reconnect (the panel-less nodes keep their list the same
+// way). After a failure no new read is tried for RETRY_AFTER_FAILURE_MS, so a
+// wave of connects answers at once from that list instead of each waiting
+// for the timeout again. A read that answers after its timeout still updates
+// the list. With no list young enough, every connect is refused: fail closed.
 //
 // Nothing here logs a UUID.
 
 import { readNodeUuidPairs, type NodeUuidPairsRead } from "./node-uuids";
 import { normalizeUuid, type UuidPair } from "./node-uuids-body";
 
-/** How long the last good list may answer while Redis cannot be read. */
+/** How long the last good list may answer while Redis cannot be read, from when it was read. */
 export const STALE_IF_ERROR_MS = 5 * 60_000;
+/** How long a connect waits for the list before it answers from the last one. */
+export const READ_TIMEOUT_MS = 1_500;
+/** After a failed or timed-out read, how long connects answer from the last list without trying again. */
+export const RETRY_AFTER_FAILURE_MS = 15_000;
 
 export type Hy2Refusal = "malformed" | "unknown" | "inactive" | "unavailable";
 
@@ -64,47 +76,85 @@ export function decideHy2(auth: unknown, byUuid: ReadonlyMap<string, number>, no
 
 export interface Hy2AccessDeps {
   readPairs(now: number): Promise<NodeUuidPairsRead>;
+  /** Overrides READ_TIMEOUT_MS (tests). */
+  readTimeoutMs?: number;
 }
 
 export type Hy2Access = (auth: unknown, now?: number) => Promise<Hy2Verdict>;
+
+class ReadTimeout extends Error {
+  constructor(ms: number) {
+    super(`no answer within ${ms} ms`);
+    this.name = "ReadTimeout";
+  }
+}
+
+/** Resolves with the read, or rejects with ReadTimeout after `ms`; the timer never outlives the race. */
+function within<T>(read: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new ReadTimeout(ms)), ms);
+  });
+  return Promise.race([read, timeout]).finally(() => clearTimeout(timer));
+}
 
 /**
  * An access check with its own copy of the last good index. The app uses the
  * one below; tests build their own with fake storage.
  */
 export function createHy2Access(deps: Hy2AccessDeps): Hy2Access {
-  /** The index of the last successful read, and when it was read. */
+  const timeoutMs = deps.readTimeoutMs ?? READ_TIMEOUT_MS;
+  /** The index of the newest successful read, and when that read hit Redis. */
   let index: { pairs: readonly UuidPair[]; byUuid: Map<string, number>; readAt: number } | null = null;
+  /** No read is tried before this moment (set by a failed or timed-out read). */
+  let retryAt = Number.NEGATIVE_INFINITY;
+
+  /** Takes a successful read unless the index already holds a newer one. Indexes only a new list. */
+  const adopt = (read: NodeUuidPairsRead): void => {
+    if (index !== null && read.at < index.readAt) return;
+    const byUuid = index !== null && index.pairs === read.pairs ? index.byUuid : indexPairs(read.pairs);
+    index = { pairs: read.pairs, byUuid, readAt: read.at };
+    retryAt = Number.NEGATIVE_INFINITY;
+  };
 
   return async function hy2Access(auth: unknown, now: number = Date.now()): Promise<Hy2Verdict> {
     // A malformed password never costs a storage read.
     if (normalizeUuid(auth) === null) return { ok: false, reason: "malformed" };
 
-    let byUuid: ReadonlyMap<string, number>;
-    try {
-      const { pairs } = await deps.readPairs(now);
-      if (index === null || index.pairs !== pairs) {
-        index = { pairs, byUuid: indexPairs(pairs), readAt: now };
-      } else {
-        index.readAt = now;
+    let fresh = false;
+    if (now >= retryAt) {
+      let read: Promise<NodeUuidPairsRead> | null = null;
+      try {
+        read = deps.readPairs(now);
+        adopt(await within(read, timeoutMs));
+        fresh = true;
+      } catch (err) {
+        retryAt = now + RETRY_AFTER_FAILURE_MS;
+        // A read that answers late still brings the list up to date.
+        if (err instanceof ReadTimeout && read !== null) read.then(adopt, () => undefined);
+        const last = index;
+        const age = last === null ? Number.NaN : now - last.readAt;
+        const usable = age >= 0 && age < STALE_IF_ERROR_MS;
+        console.error(
+          `[hy2/auth] access list unreadable (${usable ? "answering from the last list" : "refusing"}; next try in ${RETRY_AFTER_FAILURE_MS / 1000} s):`,
+          err instanceof Error ? err.message : err,
+        );
       }
-      byUuid = index.byUuid;
-    } catch (err) {
-      const last = index;
-      const stale = last !== null && now - last.readAt >= 0 && now - last.readAt < STALE_IF_ERROR_MS;
-      console.error(
-        `[hy2/auth] access list unreadable (${stale ? "answering from the last list" : "refusing"}):`,
-        err instanceof Error ? err.message : err,
-      );
-      if (!stale || last === null) return { ok: false, reason: "unavailable" };
-      byUuid = last.byUuid;
     }
-    return decideHy2(auth, byUuid, now);
+
+    const last = index;
+    if (last === null) return { ok: false, reason: "unavailable" };
+    if (!fresh) {
+      const age = now - last.readAt;
+      if (!(age >= 0 && age < STALE_IF_ERROR_MS)) return { ok: false, reason: "unavailable" };
+    }
+    return decideHy2(auth, last.byUuid, now);
   };
 }
 
 /**
- * Whether the device with this password may connect now. Never throws: a
- * storage failure beyond STALE_IF_ERROR_MS is a refusal ("unavailable").
+ * Whether the device with this password may connect now. Never throws and
+ * answers within about READ_TIMEOUT_MS: a storage failure or hang beyond
+ * STALE_IF_ERROR_MS is a refusal ("unavailable").
  */
 export const hy2Access: Hy2Access = createHy2Access({ readPairs: readNodeUuidPairs });

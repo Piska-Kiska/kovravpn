@@ -30,9 +30,11 @@ const MAX_USERS = 50_000;
 export interface NodeUuidPairsRead {
   pairs: UuidPair[];
   malformed: number;
+  /** When these pairs were read from Redis (a copy keeps the time of its rebuild). */
+  at: number;
 }
 
-let cached: ({ at: number } & NodeUuidPairsRead) | null = null;
+let cached: NodeUuidPairsRead | null = null;
 /** The rebuild in progress, shared by every caller that arrives meanwhile. */
 let inflight: Promise<NodeUuidPairsRead> | null = null;
 
@@ -88,8 +90,8 @@ async function rebuild(now: number): Promise<NodeUuidPairsRead> {
     subs: parseStored(subs[i]),
   }));
   const { pairs, malformed } = accessPairs(users, now);
-  cached = { at: now, pairs, malformed };
-  return { pairs, malformed };
+  cached = { pairs, malformed, at: now };
+  return cached;
 }
 
 /**
@@ -100,7 +102,7 @@ async function rebuild(now: number): Promise<NodeUuidPairsRead> {
  */
 export async function readNodeUuidPairs(now: number = Date.now()): Promise<NodeUuidPairsRead> {
   if (cached && now - cached.at >= 0 && now - cached.at < REBUILD_EVERY_MS) {
-    return { pairs: cached.pairs, malformed: cached.malformed };
+    return cached;
   }
   if (inflight) return inflight;
   const run = rebuild(now);
