@@ -3,6 +3,8 @@
 // Create a Platega payment from the web dashboard.
 // Body: { kind: "plan1" | "plan3", term: 1 | 6 | 12, method: "card" | "crypto" }
 //       { kind: "device", method: "card" | "crypto" }
+//       + returnTo?: "miniapp" — started in the Telegram Mini App: the
+//         provider returns to the Mini App instead of the site.
 // Returns: { paymentUrl, transactionId, amountRub }
 //
 // method "card"   → Platega 12 «Международная оплата»
@@ -16,6 +18,7 @@ import { resolvePlan } from "@/lib/subscriptions";
 import { plategaEnabled, PlategaError } from "@/lib/platega";
 import { createPlategaPayment, type PlategaPurchase } from "@/lib/platega-order";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { paymentReturnFor } from "@/lib/bot-link";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,6 +47,7 @@ export async function POST(req: NextRequest) {
       kind?: string;
       term?: number;
       method?: string;
+      returnTo?: unknown;
     };
 
     const method = body.method === "crypto" ? "crypto" : body.method === "card" ? "card" : null;
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    const result = await createPlategaPayment(userId, purchase, method);
+    const result = await createPlategaPayment(userId, purchase, method, paymentReturnFor(body));
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof PlategaError) {

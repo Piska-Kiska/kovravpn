@@ -50,6 +50,8 @@ export async function createPlategaPayment(
   userId: string,
   purchase: PlategaPurchase,
   method: "card" | "crypto",
+  /** Where Platega sends the person back; the site's dashboard by default. */
+  returnUrls?: { success: string; fail: string },
 ): Promise<PlategaPaymentResult> {
   let externalId: string;
   let amountUsd: number;
@@ -121,8 +123,8 @@ export async function createPlategaPayment(
     currency,
     description: `Kovra ${label}`,
     payload: externalId,
-    returnUrl: `${SITE_URL}/dashboard?paid=1`,
-    failedUrl: `${SITE_URL}/dashboard`,
+    returnUrl: returnUrls?.success ?? `${SITE_URL}/dashboard?paid=1`,
+    failedUrl: returnUrls?.fail ?? `${SITE_URL}/dashboard`,
   });
 
   // Callback carries only Platega's tx id — persist the pointer.

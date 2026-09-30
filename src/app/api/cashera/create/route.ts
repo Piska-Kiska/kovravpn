@@ -3,6 +3,8 @@
 // Create a Cashera CARD payment (web dashboard).
 // Body: { kind: "plan1" | "plan3", term: 1 | 6 | 12 }   — main plan
 //       { kind: "device" }                              — +1 device, 30 days
+//       + returnTo?: "miniapp" — started in the Telegram Mini App: the
+//         provider returns to the Mini App instead of the site.
 // Returns: { paymentUrl, uuid, expiresAt, amountRub, currency }
 //
 // Creation logic (FX, order record, tx pointer) lives in lib/cashera-order
@@ -19,6 +21,7 @@ import {
   type CardPurchase,
 } from "@/lib/cashera-order";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { paymentReturnFor } from "@/lib/bot-link";
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,6 +49,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       kind?: string;
       term?: number;
+      returnTo?: unknown;
     };
 
     let purchase: CardPurchase;
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    const res = await createCardPayment(userId, purchase, "web");
+    const res = await createCardPayment(userId, purchase, "web", paymentReturnFor(body));
     return NextResponse.json({
       paymentUrl: res.paymentUrl,
       uuid: res.uuid,

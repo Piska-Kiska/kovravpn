@@ -4,7 +4,8 @@
 // из-за рубежа чем-то, кроме криптовалюты: карта, PayPal, Apple Pay, Pix, а в
 // евро ещё SEPA, iDEAL и MB WAY.
 //
-// Тело: { what: "plan" | "device", kind?, term?, method, currency? }
+// Тело: { what: "plan" | "device", kind?, term?, method, currency?, returnTo?: "miniapp" }
+// (returnTo — оплата начата в Telegram Mini App: лава вернёт человека в него).
 // Ответ: { paymentUrl }
 //
 // ЧЕМ ЛАВА ОТЛИЧАЕТСЯ ОТ ОСТАЛЬНЫХ ЛИНИЙ И ЧТО ИЗ ЭТОГО СЛЕДУЕТ:
@@ -25,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { getAccount, getUserRecord } from "@/lib/accounts";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { paymentReturnFor } from "@/lib/bot-link";
 import {
   createInvoice,
   lavaConfigured,
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
       method?: unknown;
       currency?: unknown;
       fullName?: unknown;
+      returnTo?: unknown;
     };
 
     const purchase = resolvePurchase(userId, body);
@@ -124,6 +127,7 @@ export async function POST(req: NextRequest) {
     const email = typeof user?.email === "string" ? user.email : undefined;
 
     const amount = chargeIn(purchase.priceUsd, currency);
+    const back = paymentReturnFor(body);
     const invoice = await createInvoice({
       orderId: purchase.orderId,
       amount,
@@ -132,8 +136,8 @@ export async function POST(req: NextRequest) {
       locale: "en",
       email,
       fullName,
-      successUrl: `${SITE_URL}/dashboard?paid=lava`,
-      failUrl: `${SITE_URL}/dashboard`,
+      successUrl: back?.success ?? `${SITE_URL}/dashboard?paid=lava`,
+      failUrl: back?.fail ?? `${SITE_URL}/dashboard`,
     });
 
     // Указатель и ожидаемая сумма — ДО того, как ссылка уйдёт покупателю: в

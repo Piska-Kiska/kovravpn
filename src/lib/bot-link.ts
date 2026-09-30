@@ -49,3 +49,29 @@ export function miniAppUrl(startapp?: string, env: BotLinkEnv = process.env): st
   if (startapp === undefined) return `https://t.me/${botUsername(env)}?startapp`;
   return withPayload("startapp", startapp, env);
 }
+
+/** Where a payment provider sends the person back after paying or cancelling. */
+export interface PaymentReturnUrls {
+  success: string;
+  fail: string;
+}
+
+/**
+ * Return addresses for a payment started inside the Mini App: back into
+ * Telegram, which reopens the Mini App with start_param "paid" (the page
+ * then shows "Checking payment…"). A site URL would open the external
+ * browser, where the person is not signed in.
+ */
+export function miniAppPaymentReturn(env: BotLinkEnv = process.env): PaymentReturnUrls {
+  return { success: miniAppUrl("paid", env), fail: miniAppUrl(undefined, env) };
+}
+
+/**
+ * The request body asks for the Mini App return (`returnTo: "miniapp"`), else
+ * undefined so the caller keeps its own (site) addresses. Only the shape is
+ * read: the flag decides where a browser lands afterwards, nothing about money.
+ */
+export function paymentReturnFor(body: unknown, env: BotLinkEnv = process.env): PaymentReturnUrls | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  return (body as { returnTo?: unknown }).returnTo === "miniapp" ? miniAppPaymentReturn(env) : undefined;
+}
