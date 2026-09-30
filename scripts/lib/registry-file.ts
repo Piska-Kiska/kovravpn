@@ -11,7 +11,15 @@
 // Why a merge and not a replace: the live registry carries entries this file
 // may not know (the PRO locations are written by the ops tooling), and a
 // stale local file used to replace the whole list, taking every location it
-// did not list offline. A merge adds and updates by key and never drops one.
+// did not list offline. A merge adds new keys and never drops one.
+//
+// Why an update needs to be asked for: a local file goes stale too (a node
+// moved to a new address, its REALITY keys were rotated), and applying it
+// would put the dead values back. So a stored key is updated only when the
+// operator names it (--update=<key>), an update that changes where or how
+// clients connect (CONNECTION_FIELDS) is refused without
+// --allow-connection-change, and an update merges field by field: a stored
+// field the file does not mention stays.
 
 /** A location as src/lib/inbounds.ts InboundEntry stores it. */
 export interface RegistryEntry {
@@ -110,30 +118,85 @@ export function parseStoredRegistry(stored: unknown): RegistryEntry[] {
   return value as RegistryEntry[];
 }
 
+/**
+ * Fields that decide where and how clients connect. Changing one moves every
+ * client of the location, so it needs --allow-connection-change on top of
+ * --update=<key>.
+ */
+export const CONNECTION_FIELDS: readonly (keyof RegistryEntry)[] = [
+  "source",
+  "inboundId",
+  "address",
+  "port",
+  "protocol",
+  "serverName",
+  "publicKey",
+  "shortId",
+  "spiderX",
+  "fingerprint",
+  "encryption",
+  "flow",
+  "hy2Sni",
+  "hy2Insecure",
+  "hy2Pin",
+];
+
+export interface MergeOptions {
+  /** Stored keys the file may update. Any other stored key stays exactly as stored. */
+  update: ReadonlySet<string>;
+  /** Whether an update may change CONNECTION_FIELDS. */
+  allowConnectionChange: boolean;
+}
+
+/** A stored key the file differs from, and the fields it would change (names only: no values). */
+export interface EntryDiff {
+  key: string;
+  fields: string[];
+  /** The changed fields that are CONNECTION_FIELDS. */
+  connection: string[];
+}
+
 export interface RegistryPlan {
   /** The registry after the merge: stored order kept, new keys appended. */
   next: RegistryEntry[];
   added: string[];
-  changed: string[];
+  /** Updated: named in `update`, and allowed. */
+  updated: EntryDiff[];
+  /** The file differs, but the key is not named in `update`: kept as stored. */
+  held: EntryDiff[];
+  /** Named in `update`, but it changes connection fields without allowConnectionChange: kept as stored. */
+  blocked: EntryDiff[];
   unchanged: string[];
   /** Keys in the store that the file does not mention: kept as they are. */
   kept: string[];
 }
 
-function sameEntry(a: RegistryEntry, b: RegistryEntry): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    if (JSON.stringify((a as unknown as Record<string, unknown>)[k]) !== JSON.stringify((b as unknown as Record<string, unknown>)[k])) {
-      return false;
-    }
-  }
-  return true;
+const DEFAULT_OPTIONS: MergeOptions = { update: new Set(), allowConnectionChange: false };
+
+function field(e: RegistryEntry, k: string): unknown {
+  return (e as unknown as Record<string, unknown>)[k];
 }
 
-/** Merge the file into the stored registry by key; never drops a stored key. O(n + m). */
-export function mergeRegistry(current: readonly RegistryEntry[], incoming: readonly RegistryEntry[]): RegistryPlan {
+/** The fields of `fresh` whose value differs from `old` (fields only `old` has are not a change: they stay). */
+function diffEntry(old: RegistryEntry, fresh: RegistryEntry): EntryDiff {
+  const fields = Object.keys(fresh)
+    .filter((k) => JSON.stringify(field(old, k)) !== JSON.stringify(field(fresh, k)))
+    .sort();
+  const connection = fields.filter((k) => (CONNECTION_FIELDS as readonly string[]).includes(k));
+  return { key: old.key, fields, connection };
+}
+
+/**
+ * Merge the file into the stored registry by key; never drops a stored key,
+ * and changes a stored one only as `opts` allows. O(n + m).
+ */
+export function mergeRegistry(
+  current: readonly RegistryEntry[],
+  incoming: readonly RegistryEntry[],
+  opts: MergeOptions = DEFAULT_OPTIONS,
+): RegistryPlan {
   const byKey = new Map(incoming.map((e) => [e.key, e]));
-  const plan: RegistryPlan = { next: [], added: [], changed: [], unchanged: [], kept: [] };
+  const plan: RegistryPlan = { next: [], added: [], updated: [], held: [], blocked: [], unchanged: [], kept: [] };
   const stored = new Set<string>();
   for (const old of current) {
     stored.add(old.key);
@@ -141,12 +204,21 @@ export function mergeRegistry(current: readonly RegistryEntry[], incoming: reado
     if (!fresh) {
       plan.kept.push(old.key);
       plan.next.push(old);
-    } else if (sameEntry(old, fresh)) {
+      continue;
+    }
+    const diff = diffEntry(old, fresh);
+    if (diff.fields.length === 0) {
       plan.unchanged.push(old.key);
       plan.next.push(old);
+    } else if (!opts.update.has(old.key)) {
+      plan.held.push(diff);
+      plan.next.push(old);
+    } else if (diff.connection.length > 0 && !opts.allowConnectionChange) {
+      plan.blocked.push(diff);
+      plan.next.push(old);
     } else {
-      plan.changed.push(old.key);
-      plan.next.push(fresh);
+      plan.updated.push(diff);
+      plan.next.push({ ...old, ...fresh });
     }
   }
   for (const e of incoming) {
@@ -155,4 +227,32 @@ export function mergeRegistry(current: readonly RegistryEntry[], incoming: reado
     plan.next.push(e);
   }
   return plan;
+}
+
+/** Why --write must not go ahead with this plan, or null when it may. */
+export function writeRefusal(plan: RegistryPlan): string | null {
+  if (plan.blocked.length === 0) return null;
+  const what = plan.blocked.map((d) => `${d.key} (${d.connection.join(", ")})`).join("; ");
+  return (
+    `refusing to write: the update changes where or how clients connect: ${what}. ` +
+    `Check the file against the live node, then add --allow-connection-change.`
+  );
+}
+
+/**
+ * Parse the value of --update=: comma-separated keys, each one in the file.
+ * Throws on an unknown or malformed key.
+ */
+export function parseUpdateKeys(value: string, incoming: readonly RegistryEntry[]): Set<string> {
+  const known = new Set(incoming.map((e) => e.key));
+  const keys = new Set<string>();
+  for (const raw of value.split(",")) {
+    const key = raw.trim();
+    if (key === "") continue;
+    if (!KEY_RE.test(key)) throw new Error(`--update: ${JSON.stringify(key)} is not a registry key`);
+    if (!known.has(key)) throw new Error(`--update: ${key} is not in the file`);
+    keys.add(key);
+  }
+  if (keys.size === 0) throw new Error("--update needs at least one key, e.g. --update=de,uk");
+  return keys;
 }
