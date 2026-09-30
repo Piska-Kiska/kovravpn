@@ -14,7 +14,6 @@
 // every profile's 3X-UI expiry to the furthest active subscription.
 
 import { NextRequest, NextResponse } from "next/server";
-import { getUserRecord } from "@/lib/accounts";
 import {
   parseSubOrderId,
   resolvePlan,
@@ -32,6 +31,7 @@ import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
 import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { ADMIN_TG_ID } from "@/lib/admin-bot";
+import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
@@ -48,30 +48,6 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
     });
   } catch (err) {
     console.error("[crypto-webhook] sendTelegram error:", err);
-  }
-}
-
-async function notifyTelegram(userId: string, message: string): Promise<void> {
-  try {
-    let chatId: string | null = null;
-    if (userId.startsWith("tg_")) chatId = userId.slice(3);
-    else {
-      const user = await getUserRecord(userId);
-      if (user?.telegramId) chatId = String(user.telegramId);
-    }
-    if (!chatId || !BOT_TOKEN) return;
-    await fetchWithTimeout(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: "HTML",
-      }),
-      timeoutMs: 5000,
-    });
-  } catch (err) {
-    console.error("[crypto-webhook] notifyTelegram error:", err);
   }
 }
 
@@ -136,8 +112,9 @@ export async function POST(req: NextRequest) {
         await releaseDedupKey(`crypto_payment_done:${pidT}`);
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
-      await notifyTelegram(
+      await notifyUser(
         tu.userId,
+        { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
         [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
       );
       return NextResponse.json({ ok: true, credited: usd });
@@ -215,7 +192,11 @@ export async function POST(req: NextRequest) {
       `📱 Active devices: <b>${s.activeSlots}</b>`,
     ];
     if (s.maxExpiry > 0) lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
-    await notifyTelegram(userId, lines.join("\n"));
+    await notifyUser(
+      userId,
+      { kind: "purchase", product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
+      lines.join("\n"),
+    );
 
     // ─── Referral reward: first paid purchase → referrer gets 14d sub ───
     try {
@@ -223,8 +204,9 @@ export async function POST(req: NextRequest) {
       if (ref.rewarded && ref.referrerId) {
         await applyReferralReward(ref.referrerId);
         await syncAllExpiry(ref.referrerId);
-        await notifyTelegram(
+        await notifyUser(
           ref.referrerId,
+          { kind: "referral_reward" },
           [
             `🎁 <b>Referral reward!</b>`,
             ``,
