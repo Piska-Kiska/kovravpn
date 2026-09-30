@@ -12,6 +12,15 @@
 //
 // On a finished payment we ADD the corresponding subscription and re-sync
 // every profile's 3X-UI expiry to the furthest active subscription.
+//
+// What was actually paid (KM-09): a `partially_paid` IPN grants nothing and
+// alerts the admin once per payment and amount; a `finished` one whose
+// actually_paid strays more than 1% from pay_amount is granted as usual and
+// alerts the admin (an overpayment is not credited automatically: refund it
+// or credit it by hand). Before, both were silent.
+//
+// Redis failing before the grant or credit releases the dedup key and
+// answers 503/500, so NOWPayments retries (KM-07); after it, 200.
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -26,7 +35,8 @@ import {
 import { syncAllExpiry } from "@/lib/balance";
 import { markTopup, resolveUserId } from "@/lib/accounts";
 import { grantReferralReward } from "@/lib/referrals";
-import { verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
+import { ipnAmountsLine, paidDeviation, verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
+import { errorText, escapeHtml } from "@/lib/admin-alert";
 import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
 import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
@@ -59,7 +69,26 @@ function fmtDate(ms: number): string {
   }
 }
 
+/** After a grant or credit: tell the admin when the buyer paid more or less than asked. */
+async function alertOnPaidDeviation(payload: IpnPayload, paymentId: string): Promise<void> {
+  const deviation = paidDeviation(payload);
+  if (!deviation) return;
+  const what =
+    deviation === "over"
+      ? "paid MORE than asked; granted as ordered, the extra is NOT credited: refund it or credit it by hand"
+      : "finished but paid LESS than asked; granted as ordered";
+  await sendTelegram(
+    ADMIN_TG_ID,
+    `⚠️ <b>NOWPayments: ${what}</b>\npayment <code>${escapeHtml(paymentId)}</code>, order <code>${escapeHtml(String(payload.order_id))}</code>\n${ipnAmountsLine(payload)}`,
+  );
+}
+
 export async function POST(req: NextRequest) {
+  // The dedup key while it is held for a grant or credit that has not
+  // happened yet, and whether it has (see the header).
+  let heldKey: string | null = null;
+  let granted = false;
+  let paymentRef = "?";
   try {
     const rawBody = await req.text();
     const signature = req.headers.get("x-nowpayments-sig") || "";
@@ -84,6 +113,38 @@ export async function POST(req: NextRequest) {
       price_currency: payload.price_currency,
     });
 
+    paymentRef = String(payload.payment_id);
+
+    // ─── Partially paid: nothing granted, the admin decides ───
+    if (payload.payment_status === "partially_paid") {
+      const pidP = String(payload.payment_id);
+      if (!/^[a-zA-Z0-9_\-]{1,128}$/.test(pidP)) {
+        return NextResponse.json({ ok: true, ignored: "bad payment_id" });
+      }
+      // One alert per payment and amount: NOWPayments repeats the IPN.
+      const paidKey = String(Number(payload.actually_paid) || 0).slice(0, 32);
+      let fresh: boolean;
+      try {
+        fresh = await reserveDedupKey(`crypto_partial:${pidP}:${paidKey}`, DEDUP_TTL_SEC);
+      } catch (err) {
+        console.error("[crypto-webhook] partial-payment record failed, requesting retry:", err);
+        return NextResponse.json({ error: "unavailable" }, { status: 503 });
+      }
+      if (fresh) {
+        console.warn("[crypto-webhook] partially paid, NOT granted", {
+          payment_id: pidP,
+          order_id: payload.order_id,
+          pay_amount: payload.pay_amount,
+          actually_paid: payload.actually_paid,
+        });
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>NOWPayments: partially paid, NOT granted</b>\npayment <code>${escapeHtml(pidP)}</code>, order <code>${escapeHtml(String(payload.order_id))}</code>\n${ipnAmountsLine(payload)}\nCheck the payment in the NOWPayments dashboard: refund it or grant by hand.`,
+        );
+      }
+      return NextResponse.json({ ok: true, ignored: "partially_paid" });
+    }
+
     if (payload.payment_status !== "finished") {
       return NextResponse.json({ ok: true, ignored: "not finished" });
     }
@@ -98,22 +159,41 @@ export async function POST(req: NextRequest) {
       if (!/^[a-zA-Z0-9_\-]{1,128}$/.test(pidT)) {
         return NextResponse.json({ ok: true, ignored: "bad payment_id" });
       }
-      const reservedT = await reserveDedupKey(`crypto_payment_done:${pidT}`, DEDUP_TTL_SEC);
+      let reservedT: boolean;
+      try {
+        reservedT = await reserveDedupKey(`crypto_payment_done:${pidT}`, DEDUP_TTL_SEC);
+      } catch (err) {
+        console.error("[crypto-webhook] dedup reserve failed, requesting retry:", err);
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>NOWPayments: Redis error, asked for a retry</b>\npayment <code>${escapeHtml(pidT)}</code>: ${errorText(err)}`,
+        );
+        return NextResponse.json({ error: "unavailable" }, { status: 503 });
+      }
       if (!reservedT) return NextResponse.json({ ok: true, ignored: "duplicate" });
+      heldKey = `crypto_payment_done:${pidT}`;
       const usd = Number(payload.price_amount) || 0;
-      // The account the order's id belongs to now (a linked Telegram account moved).
-      const walletOwner = await resolveUserId(tu.userId);
+      let walletOwner: string;
       let newBal: number;
       try {
+        // The account the order's id belongs to now (a linked Telegram account moved).
+        walletOwner = await resolveUserId(tu.userId);
         newBal = await addBalanceUsd(walletOwner, usd);
       } catch (err) {
         // Ключ дедупа уже занят, а зачисления не было. Освобождаем его и просим
         // повторить: без этого оплата осталась бы без денег НАВСЕГДА — повтор
         // отсёкся бы как дубликат.
         console.error("[crypto-webhook] wallet credit failed, requesting retry:", err);
-        await releaseDedupKey(`crypto_payment_done:${pidT}`);
+        await releaseDedupKey(`crypto_payment_done:${pidT}`).catch(() => {});
+        heldKey = null;
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>NOWPayments: top-up credit failed, asked for a retry</b>\npayment <code>${escapeHtml(pidT)}</code>: ${errorText(err)}`,
+        );
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
+      granted = true;
+      await alertOnPaidDeviation(payload, pidT);
       await notifyUser(
         walletOwner,
         { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
@@ -137,13 +217,21 @@ export async function POST(req: NextRequest) {
     }
 
     // ATOMIC DEDUP: must happen before any side effect.
-    const reserved = await reserveDedupKey(
-      `crypto_payment_done:${paymentId}`,
-      DEDUP_TTL_SEC,
-    );
+    let reserved: boolean;
+    try {
+      reserved = await reserveDedupKey(`crypto_payment_done:${paymentId}`, DEDUP_TTL_SEC);
+    } catch (err) {
+      console.error("[crypto-webhook] dedup reserve failed, requesting retry:", err);
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>NOWPayments: Redis error, asked for a retry</b>\npayment <code>${escapeHtml(paymentId)}</code>: ${errorText(err)}`,
+      );
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     if (!reserved) {
       return NextResponse.json({ ok: true, ignored: "duplicate" });
     }
+    heldKey = `crypto_payment_done:${paymentId}`;
 
     // ─── Ступень 1: выдача (граница, после которой повтор удваивал бы) ───
     //
@@ -167,9 +255,16 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error("[crypto-webhook] grant failed, requesting retry:", err);
-      await releaseDedupKey(`crypto_payment_done:${paymentId}`);
+      await releaseDedupKey(`crypto_payment_done:${paymentId}`).catch(() => {});
+      heldKey = null;
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>NOWPayments: grant failed, asked for a retry</b>\npayment <code>${escapeHtml(paymentId)}</code>: ${errorText(err)}`,
+      );
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
+    granted = true;
+    await alertOnPaidDeviation(payload, paymentId);
 
     // ─── Ступень 2: синхронизация и уведомления (повтору не подлежит) ───
     try {
@@ -223,16 +318,22 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    // Сюда попадает то, что не поймали ступени выше. Отвечаем 200 осознанно —
-    // повтор после уже сделанной выдачи удвоил бы её, — но молчать нельзя:
-    // до этой правки такой сбой не оставлял ни строчки, кроме журнала.
+    // Whatever the stages above did not catch. After the grant the answer is
+    // 200 on purpose (a retry would grant twice); before it the key is
+    // released and NOWPayments is asked to retry. Either way the admin hears.
     console.error("[crypto-webhook] unhandled error:", error);
+    if (granted) {
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `🚨 <b>NOWPayments: error after the grant</b>\n\npayment <code>${escapeHtml(paymentRef)}</code>: <code>${errorText(error)}</code>\n\nGranted; check the expiry sync and the notice.`,
+      );
+      return NextResponse.json({ ok: true });
+    }
+    if (heldKey) await releaseDedupKey(heldKey).catch(() => {});
     await sendTelegram(
       ADMIN_TG_ID,
-      `🚨 <b>NOWPayments: необработанный сбой в вебхуке</b>\n\n<code>${String(
-        error instanceof Error ? error.message : error,
-      ).slice(0, 300)}</code>\n\nПроверить платёж вручную.`,
-    ).catch(() => {});
-    return NextResponse.json({ ok: true });
+      `🚨 <b>NOWPayments: error before the grant, asked for a retry</b>\n\npayment <code>${escapeHtml(paymentRef)}</code>: <code>${errorText(error)}</code>`,
+    );
+    return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }
