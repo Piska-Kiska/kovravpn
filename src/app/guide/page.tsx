@@ -296,8 +296,8 @@ export default function GuidePage() {
                 <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
-            <p className="mt-2" data-i18n-html="guide.ios.s1b.html">Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://apps.apple.com/us/app/v2raytun/id6476628951" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
+            <p className="mt-2" data-i18n-html="guide.ios.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href="https://apps.apple.com/app/id6756943388" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
             </p>
           </Step>
           <Step num={2} titleI18nKey="guide.step.import" titleFallback="Импортируйте подписку">
@@ -355,8 +355,8 @@ export default function GuidePage() {
                 <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
-            <p className="mt-2" data-i18n-html="guide.mac.s1b.html">Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://apps.apple.com/us/app/v2raytun/id6476628951" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
+            <p className="mt-2" data-i18n-html="guide.mac.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href="https://apps.apple.com/app/id6756943388" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">App Store</a>
             </p>
           </Step>
           <Step num={2} titleI18nKey="guide.step.import" titleFallback="Импортируйте подписку">

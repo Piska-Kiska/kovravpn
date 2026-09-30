@@ -13,14 +13,26 @@ export const HAPP_LINKS = {
 } as const;
 
 /**
- * INCY: the alternative client.
- * OWNER TO VERIFY before release: the App Store id and the GitHub releases
- * path come from the audit and have not been checked against the live stores.
+ * INCY: the alternative client, and the one on the Russian App Store.
+ * The App Store id answers in the US, Russian and German stores (iTunes
+ * lookup, 30.09.2026) and is the one ProxysVPN links. The GitHub releases
+ * path is still unchecked against the live repository.
  */
 export const INCY_LINKS = {
   apple: "https://apps.apple.com/app/id6756943388",
   other: "https://github.com/INCY-DEV/incy-platforms/releases/latest",
   all: "https://github.com/INCY-DEV/incy-platforms",
+} as const;
+
+/**
+ * V2RayTun where it still ships: Google Play and the developer's Windows
+ * installer. Only the legacy bot offers it. Its App Store app (id6476628951)
+ * is gone in every store checked (404, empty iTunes lookup), so Apple
+ * devices get INCY instead (KP-12).
+ */
+export const V2RAYTUN_LINKS = {
+  android: "https://play.google.com/store/apps/details?id=com.v2raytun.android",
+  windows: "https://storage.v2raytun.com/v2RayTun_Setup.exe",
 } as const;
 
 export interface AppRow {

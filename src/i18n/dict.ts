@@ -177,7 +177,7 @@ const ru: Dict = {
   /* ios */
   "guide.ios.s1.html": "Скачайте <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.ios.s1b.html":
-    "Альтернатива: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Альтернатива: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.ios.s2a.html":
     "Откройте HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Импорт из буфера обмена»</strong>.",
   "guide.ios.s2b":
@@ -203,7 +203,7 @@ const ru: Dict = {
   /* macos */
   "guide.mac.s1.html": "Скачайте <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.mac.s1b.html":
-    "Альтернатива: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Альтернатива: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.mac.s2.html":
     "Откройте HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Импорт из буфера»</strong>. Приложение распознает ссылку подписки и добавит сервер. Подписка будет обновляться сама.",
   "guide.mac.s3a.html":
@@ -619,7 +619,7 @@ const en: Dict = {
 
   "guide.ios.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.ios.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.ios.s2a.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.ios.s2b":
@@ -643,7 +643,7 @@ const en: Dict = {
 
   "guide.mac.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.mac.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.mac.s2.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>. The app will recognise the subscription link and add the server. The subscription updates itself.",
   "guide.mac.s3a.html":
@@ -1061,7 +1061,7 @@ const es: Dict = {
 
   "guide.ios.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.ios.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.ios.s2a.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.ios.s2b":
@@ -1085,7 +1085,7 @@ const es: Dict = {
 
   "guide.mac.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.mac.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.mac.s2.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>. The app will recognise the subscription link and add the server. The subscription updates itself.",
   "guide.mac.s3a.html":
@@ -1502,7 +1502,7 @@ const de: Dict = {
 
   "guide.ios.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.ios.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.ios.s2a.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.ios.s2b":
@@ -1526,7 +1526,7 @@ const de: Dict = {
 
   "guide.mac.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.mac.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.mac.s2.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>. The app will recognise the subscription link and add the server. The subscription updates itself.",
   "guide.mac.s3a.html":
@@ -1943,7 +1943,7 @@ const fr: Dict = {
 
   "guide.ios.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.ios.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.ios.s2a.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.ios.s2b":
@@ -1967,7 +1967,7 @@ const fr: Dict = {
 
   "guide.mac.s1.html": "Install <strong class=\"text-nm-text\">HAPP</strong>:",
   "guide.mac.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://apps.apple.com/us/app/v2raytun/id6476628951\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://apps.apple.com/app/id6756943388\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">App Store</a>",
   "guide.mac.s2.html":
     "Open HAPP → <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>. The app will recognise the subscription link and add the server. The subscription updates itself.",
   "guide.mac.s3a.html":
