@@ -1,12 +1,17 @@
 // src/app/api/promo/list/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { listPromos, deletePromo } from "@/lib/promo";
+import { safeEqual } from "@/lib/safe-compare";
 
-const ADMIN_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+/** Admin auth: X-Internal-Key = the bot token, compared in constant time. */
+function isAdmin(req: NextRequest): boolean {
+  const token = process.env.TELEGRAM_BOT_TOKEN || "";
+  const key = req.headers.get("x-internal-key");
+  return token.length > 0 && key !== null && safeEqual(key, token);
+}
 
 export async function GET(req: NextRequest) {
-  const key = req.headers.get("x-internal-key");
-  if (!key || key !== ADMIN_TOKEN) {
+  if (!isAdmin(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -15,8 +20,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const key = req.headers.get("x-internal-key");
-  if (!key || key !== ADMIN_TOKEN) {
+  if (!isAdmin(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

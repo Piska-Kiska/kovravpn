@@ -24,7 +24,7 @@ import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } fr
 import { deleteOwnProfile } from "@/lib/profile-delete";
 import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
-import { redeemPromoToWallet, PROMO_ERROR_TEXT, createPromo, listPromos, deletePromo } from "@/lib/promo";
+import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
 import { formatCharge } from "@/lib/lava-price";
@@ -1297,10 +1297,11 @@ export async function POST(req: NextRequest) {
       if (text.startsWith("/promo_create ")) {
         const parts = text.split(" ");
         const pCode = parts[1];
-        const pAmount = parseInt(parts[2] || "0");
-        const pMax = parseInt(parts[3] || "0");
+        const pAmount = Number((parts[2] || "0").replace(",", "."));
+        const pMaxRaw = parseInt(parts[3] || "0", 10);
+        const pMax = Number.isSafeInteger(pMaxRaw) && pMaxRaw > 0 ? pMaxRaw : 0;
         if (!pCode || !pAmount) {
-          await send(chatId, "Формат: /promo_create КОД СУММА [МАКС_ИСПОЛЬЗОВАНИЙ]");
+          await send(chatId, `Формат: /promo_create КОД СУММА_В_$ [МАКС_ИСПОЛЬЗОВАНИЙ]\nСумма в долларах, до $${PROMO_MAX_USD}.`);
           return NextResponse.json({ ok: true });
         }
         try {

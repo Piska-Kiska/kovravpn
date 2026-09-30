@@ -4,16 +4,33 @@ import { randomBytes } from "crypto";
 import { acquireLock } from "./ratelimit";
 import { addBalanceCents, usdToCents } from "./bot-wallet";
 
+/** Codes: 3–32 letters, digits, '_' or '-', compared upper-cased. */
+const PROMO_CODE_RE = /^[\p{L}\p{N}_-]{3,32}$/u;
+
 export interface PromoCode {
   code: string;
   type: "balance";         // credits the USD wallet (balance_usd)
-  amount: number;          // USD amount
+  amount: number;          // US DOLLARS (not roubles), at most PROMO_MAX_USD
   maxUses: number;         // 0 = unlimited
   usedCount: number;
   expiresAt: number;       // timestamp, 0 = no expiry
   createdAt: number;
   createdBy: string;       // admin userId
   description: string;     // internal note
+}
+
+/**
+ * The most one promo code may credit, in US dollars. Promo amounts are
+ * dollars everywhere (the wallet is USD); a code above this is refused both
+ * when it is created and when it is redeemed, so a code meant as "500 ₽"
+ * can never hand out $500.
+ */
+export const PROMO_MAX_USD = 50;
+
+/** Is `amount` a promo amount we may credit (dollars, > 0, ≤ PROMO_MAX_USD, whole cents)? */
+export function isValidPromoAmount(amount: unknown): amount is number {
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > PROMO_MAX_USD) return false;
+  return usdToCents(amount) !== null && Math.abs(amount * 100 - Math.round(amount * 100)) < 1e-6;
 }
 
 /** Generate a random promo code */
@@ -34,6 +51,10 @@ export async function createPromo(params: {
   createdBy: string;
 }): Promise<PromoCode> {
   const code = (params.code || generatePromoCode()).toUpperCase().trim();
+  if (!PROMO_CODE_RE.test(code)) throw new Error("Код: 3–32 буквы, цифры, _ или -");
+  if (!isValidPromoAmount(params.amount)) {
+    throw new Error(`Сумма промокода в долларах: от $0.01 до $${PROMO_MAX_USD}`);
+  }
 
   // Check if already exists
   const existing = await redis.get(`promo:${code}`);
@@ -101,8 +122,6 @@ export const PROMO_ERROR_TEXT: Record<PromoRedeemError, string> = {
   internal: "Could not apply the promo code. Try again later.",
 };
 
-/** Codes: 3–32 letters, digits, '_' or '-', compared upper-cased. */
-const PROMO_CODE_RE = /^[\p{L}\p{N}_-]{3,32}$/u;
 
 /**
  * Redeem a promo code INTO THE WALLET (`balance_usd:{userId}`, USD cents),
@@ -160,6 +179,12 @@ async function redeemLocked(code: string, userId: string): Promise<PromoRedeemRe
   if (amountCents === null) {
     console.error(`[promo] code ${code} has an unusable amount: ${promo.amount}`);
     return { ok: false, error: "internal" };
+  }
+  if (!isValidPromoAmount(promo.amount)) {
+    // Most likely a code created as roubles before promo amounts were
+    // dollars everywhere. Refused, and the owner sees it in the log.
+    console.error(JSON.stringify({ evt: "promo.over_cap", code, amount: promo.amount, maxUsd: PROMO_MAX_USD }));
+    return { ok: false, error: "not_found" };
   }
 
   const usedKey = `promo_used:${code}:${userId}`;

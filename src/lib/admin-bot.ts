@@ -38,6 +38,7 @@ import { getBalanceInfo } from "./balance";
 import { saveUserRecord, getUserRecord, lookupUserIdByUsername } from "./accounts";
 import { redis } from "./redis";
 import {
+  PROMO_MAX_USD,
   createPromo,
   listPromos,
   deletePromo,
@@ -648,9 +649,10 @@ async function screenPromoMenu(
     msgId,
     "🎟 <b>Промокоды</b>\n\n" +
       "Можно использовать кнопки ниже или текстовые команды:\n" +
-      "• <code>/promo_create КОД СУММА [МАКС]</code>\n" +
+      "• <code>/promo_create КОД СУММА_В_$ [МАКС]</code>\n" +
       "• <code>/promo_list</code>\n" +
-      "• <code>/promo_delete КОД</code>",
+      "• <code>/promo_delete КОД</code>\n\n" +
+      `Сумма — в долларах на баланс, не больше $${PROMO_MAX_USD}.`,
     [
       [{ text: "📋 Список промокодов", callback_data: "adm:promo_list" }],
       [{ text: "← В меню", callback_data: "adm:menu" }],
@@ -678,7 +680,7 @@ async function screenPromoList(
         ? new Date(p.expiresAt).toLocaleDateString("ru-RU")
         : "∞";
     lines.push(
-      `<code>${p.code}</code> — ${p.amount}₽, ` +
+      `<code>${p.code}</code> — $${p.amount}, ` +
         `${p.usedCount}/${p.maxUses || "∞"}, до ${exp}`,
     );
   }
