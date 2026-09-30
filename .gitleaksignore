@@ -3,3 +3,13 @@
 # Example: a1b2c3d4...:path/to/file.go:rule-id:42
 # made-up subscription token in the bot screen harness fixtures (marked gitleaks:allow since)
 3f1a8013bccd4d6fc455064e6563da08e4c09561:scripts/bot-screens.mjs:generic-api-key:53
+# Node addresses in scripts/set-registry.ts as committed on 2026-07-12, before
+# the data moved to the git-ignored registry.local.json (KS-3). They stay in
+# the history until the owner decides on a rewrite; the full-history scan of
+# .githooks/pre-push must not block every push on them. Any NEW public
+# address is still a finding (rule public-ipv4-address).
+a0fb523cda10e4efb50e66af1e4aeb6d961185b3:scripts/set-registry.ts:public-ipv4-address:7
+a0fb523cda10e4efb50e66af1e4aeb6d961185b3:scripts/set-registry.ts:public-ipv4-address:15
+067cc674fde469f6d731a14b04da9d6509179d7a:scripts/set-registry.ts:public-ipv4-address:23
+3387f5b368a799aee71aadde6059e9085d23f794:scripts/set-registry.ts:public-ipv4-address:31
+827bb2acda265aa39c3e4a78acec76515855f152:scripts/set-registry.ts:public-ipv4-address:39
