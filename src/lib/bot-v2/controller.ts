@@ -21,7 +21,6 @@ import { redis } from "../redis";
 import {
   ensureAccount,
   ensureProfileSubToken,
-  getAccount,
   getProfiles,
   resolveUserId,
   setUserLang,
@@ -81,6 +80,7 @@ import {
   productCents,
   promoAskScreen,
   promoResultScreen,
+  qrFailScreen,
   qrPhoto,
   slotScreen,
   termsScreen,
@@ -253,23 +253,34 @@ async function rememberLive(chatId: number, messageId: number): Promise<void> {
 export async function showNew(s: Session, screen: Screen): Promise<number | null> {
   const sent = await sendScreen(s.deps.api, s.chatId, screen);
   if (sent === null) return null;
-  let previous: number | null = null;
-  try {
-    const raw = await redis.get<unknown>(liveKey(s.chatId));
-    const n = Number(raw);
-    previous = Number.isSafeInteger(n) && n > 0 ? n : null;
-  } catch {
-    previous = null;
-  }
+  const previous = await readLive(s.chatId);
   if (previous !== null && previous !== sent) await deleteMessage(s.deps.api, s.chatId, previous);
   await rememberLive(s.chatId, sent);
   return sent;
 }
 
-/** Edit the message a button sits on. */
+async function readLive(chatId: number): Promise<number | null> {
+  try {
+    const n = Number(await redis.get<unknown>(liveKey(chatId)));
+    return Number.isSafeInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Edit the message a button sits on. When that is not the live screen (a
+ * button on a payment notice, or on an older menu), it becomes the live one
+ * and the previous live screen is deleted: one live message, always.
+ */
 async function showEdit(s: Session, messageId: number, screen: Screen): Promise<void> {
+  const previous = await readLive(s.chatId);
   const out = await editScreen(s.deps.api, s.chatId, messageId, screen);
-  if (out.kind !== "failed") await rememberLive(s.chatId, out.messageId);
+  if (out.kind === "failed") return;
+  if (previous !== null && previous !== messageId && previous !== out.messageId) {
+    await deleteMessage(s.deps.api, s.chatId, previous);
+  }
+  await rememberLive(s.chatId, out.messageId);
 }
 
 async function clearAwaits(chatId: number): Promise<void> {
@@ -402,12 +413,14 @@ async function route(s: Session, msgId: number, x: V2Action, answer: Answer): Pr
       await answer();
       const { view } = await loadView(s);
       const kind = view.planKind ?? view.lastPlanKind;
-      if (!kind) return showEdit(s, msgId, plansScreen(view, lang, "w"));
-      return showEdit(s, msgId, termsScreen(view, kind, lang, "w"));
+      if (!kind) return showEdit(s, msgId, plansScreen(view, lang, x.from));
+      return showEdit(s, msgId, termsScreen(view, kind, lang, x.from));
     }
     case "slot": {
       await answer();
       const { view } = await loadView(s);
+      // A slot sits on a running plan (an old button can still ask for one).
+      if (!view.planKind) return showEdit(s, msgId, payProblemScreen("no_plan", lang, { a: "wallet" }, null));
       return showEdit(s, msgId, slotScreen(view, lang, x.from));
     }
     case "order": {
@@ -415,6 +428,9 @@ async function route(s: Session, msgId: number, x: V2Action, answer: Answer): Pr
       const { view } = await loadView(s);
       if (x.product !== "slot" && view.planKind && view.planKind !== x.product) {
         return showEdit(s, msgId, payProblemScreen("other_plan", lang, { a: "wallet" }, view.planKind));
+      }
+      if (x.product === "slot" && !view.planKind) {
+        return showEdit(s, msgId, payProblemScreen("no_plan", lang, { a: "wallet" }, null));
       }
       return showEdit(s, msgId, orderScreen(view, x.product, x.term, s.deps.nonce(), lang, x.from));
     }
@@ -580,7 +596,7 @@ async function sendQr(s: Session, uuid: string, answer: Answer): Promise<void> {
   } catch (err) {
     console.error("[bot-v2] QR failed:", err instanceof Error ? err.message : err);
   }
-  await sendScreen(s.deps.api, s.chatId, { text: tr("qr.fail", s.lang), kb: [] });
+  await sendScreen(s.deps.api, s.chatId, qrFailScreen(uuid, s.lang));
 }
 
 // ─── Paying from the wallet ─────────────────────────────────────────────────
@@ -591,6 +607,9 @@ async function pay(
   x: Extract<V2Action, { a: "pay" }>,
   answer: Answer,
 ): Promise<void> {
+  // A friend's link opened this chat: record it before the first purchase,
+  // whose reward it is (wallet-purchase.ts rewards the referrer).
+  await settlePendingReferral(s.chatId, s.userId);
   const r = await purchaseFromWallet({
     userId: s.userId,
     product: { kind: x.product === "slot" ? "device" : x.product, term: x.term },
@@ -618,6 +637,7 @@ async function pay(
       if (r.reason === "other_plan_active") {
         return showEdit(s, msgId, payProblemScreen("other_plan", s.lang, retry, r.activePlan ?? view.planKind));
       }
+      if (r.reason === "no_plan") return showEdit(s, msgId, payProblemScreen("no_plan", s.lang, retry, null));
       // request_reused: a nonce from another order; draw a fresh order.
       return showEdit(s, msgId, orderScreen(view, x.product, x.term, s.deps.nonce(), s.lang, x.from));
     case "error":
@@ -674,6 +694,7 @@ async function topupAmount(s: Session, method: TopupMethod, cents: number, answe
   }
   await answer();
   await sendTyping(s.deps.api, s.chatId);
+  await settlePendingReferral(s.chatId, s.userId);
   const r = await createWalletTopupInvoice({ userId: s.userId, method, amountUsd: cents / 100, returnTo: "bot" });
   if (r.ok) return invoiceScreen(method, r.amountCents, r.payUrl, fmtUsd(r.amountCents), s.lang);
   if (r.error === "invalid_amount") return topupManualScreen(method, min, MAX_TOPUP_USD, s.lang, true);
@@ -694,6 +715,7 @@ async function lavaInvoice(
   }
   await answer();
   await sendTyping(s.deps.api, s.chatId);
+  await settlePendingReferral(s.chatId, s.userId);
   const r = await createWalletTopupInvoice({
     userId: s.userId,
     method: "lava",
@@ -771,8 +793,16 @@ export async function handleV2Start(
     const userId = await resolveUserId(`tg_${chatId}`);
     await redis.set(`pending_ref:${chatId}`, refCode, { ex: 86400 });
     const lang = await resolveLang(userId);
-    // Record at once for an existing account, as the old interface does.
-    if (await getAccount(userId).catch(() => null)) await settlePendingReferral(chatId, userId);
+    // Record it at once, creating the account: the friend's first purchase
+    // may come from any screen (Balance & plans, a top-up), not only from
+    // "Connect", and it must find the referral recorded. Whoever already
+    // has a referrer keeps it (settlePendingReferral).
+    try {
+      await ensureAccount(userId);
+      await settlePendingReferral(chatId, userId);
+    } catch (err) {
+      console.warn("[bot-v2] referral not recorded at /start:", err instanceof Error ? err.message : err);
+    }
     await handleV2Command(chatId, "menu", deps, tr("note.ref", lang, { days: REFERRAL_REWARD_DAYS }));
     return "handled";
   }
@@ -786,6 +816,9 @@ export async function handleV2Start(
 
 const PROMO_FORMAT = /^[\p{L}\p{N}_-]{3,32}$/u;
 
+/** Promo answers after which the next message is read as a code again. */
+const PROMO_RETRY_ERRORS: ReadonlySet<string> = new Set(["not_found", "expired", "used_up", "already_used"]);
+
 /**
  * A typed reply the bot asked for (a promo code, a top-up amount). False
  * when nothing was awaited, so the caller goes on with its own handling.
@@ -797,12 +830,18 @@ export async function handleV2Reply(chatId: number, text: string, deps: BotV2Dep
   ]);
   if (promoAwait) {
     await redis.del(promoAwaitKey(chatId));
+    // Something that cannot be a code ("how?", a sentence) is not an answer
+    // to the prompt: the prompt closes and the message is handled as any
+    // other (the caller's fallback).
+    if (!PROMO_FORMAT.test(text.trim().toUpperCase())) return false;
     const s = await openSession(chatId, deps);
     const outcome = await redeemPromo(s, text);
-    // A wrong code keeps the prompt open ("Send the code as a message"), so
-    // the next message is read as a code again. The rate limit in
+    // A code that did not work keeps the prompt open ("Send the code as a
+    // message"), so a corrected code can follow. The rate limit in
     // redeemPromo bounds the guessing.
-    if (!outcome.ok) await redis.set(promoAwaitKey(chatId), "1", { ex: AWAIT_TTL_SEC });
+    if (!outcome.ok && PROMO_RETRY_ERRORS.has(outcome.error)) {
+      await redis.set(promoAwaitKey(chatId), "1", { ex: AWAIT_TTL_SEC });
+    }
     await showNew(s, promoResultScreen(outcome, s.lang));
     return true;
   }
@@ -837,8 +876,47 @@ async function redeemPromo(s: Session, text: string): Promise<PromoOutcome> {
   return r.ok ? { ok: true, amountCents: r.amountCents, balanceCents: r.balanceCents } : { ok: false, error: r.error };
 }
 
-/** Any other message in a v2 chat: the menu, with a hint to use the buttons. */
-export async function handleV2Fallback(chatId: number, deps: BotV2Deps = defaultBotV2Deps()): Promise<void> {
-  const lang = await resolveLang(await resolveUserId(`tg_${chatId}`));
-  await handleV2Command(chatId, "menu", deps, tr("note.unknown", lang));
+/**
+ * Any other message in a v2 chat. An unknown command gets the menu with a
+ * hint to use the buttons. Anything a person wrote or sent (a question, a
+ * screenshot) gets Help, saying plainly that nobody reads this chat and
+ * where support is: the bot must not look like it swallowed a question.
+ */
+export async function handleV2Fallback(
+  chatId: number,
+  text: string | null,
+  deps: BotV2Deps = defaultBotV2Deps(),
+): Promise<void> {
+  if (text !== null && text.trim().startsWith("/")) {
+    const lang = await resolveLang(await resolveUserId(`tg_${chatId}`));
+    await handleV2Command(chatId, "menu", deps, tr("note.unknown", lang));
+    return;
+  }
+  await handleV2Note(chatId, "support", deps);
+}
+
+/** A one-line note over a screen the webhook route asks for. */
+export type V2Note = "authOk" | "authLinked" | "codeGone" | "support";
+
+const NOTE_KEY: Readonly<Record<V2Note, "note.authOk" | "note.authLinked" | "note.codeGone" | "note.support">> = {
+  authOk: "note.authOk",
+  authLinked: "note.authLinked",
+  codeGone: "note.codeGone",
+  support: "note.support",
+};
+
+/**
+ * Sign-in and link results, an unknown /start parameter, and messages nobody
+ * reads, as a v2 screen at the bottom (the previous live one goes): the menu
+ * with the note, or Help for "support".
+ */
+export async function handleV2Note(chatId: number, note: V2Note, deps: BotV2Deps = defaultBotV2Deps()): Promise<void> {
+  const s = await openSession(chatId, deps);
+  const text = tr(NOTE_KEY[note], s.lang);
+  if (note === "support") {
+    await clearAwaits(chatId);
+    await showNew(s, helpScreen(s.lang, text));
+    return;
+  }
+  await handleV2Command(chatId, "menu", deps, text);
 }

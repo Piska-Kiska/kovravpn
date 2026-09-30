@@ -47,7 +47,7 @@ function productLine(p: NoticeProduct, lang: BotLang): string {
 export function renderNotice(notice: UserNotice, lang: BotLang, pendingPay: PendingPay | null = null): Screen {
   const open = [{ text: tr("btn.open", lang), web_app: { url: miniAppPageUrl(lang) } }];
   const devices = [{ text: tr("btn.devices", lang), callback_data: cb({ a: "devs" }) }];
-  const renew = [{ text: tr("btn.renew", lang), callback_data: cb({ a: "renew" }) }];
+  const renew = [{ text: tr("btn.renew", lang), callback_data: cb({ a: "renew", from: "w" }) }];
   switch (notice.kind) {
     case "topup": {
       const kb: Keyboard = [];

@@ -74,6 +74,16 @@ function isActive(v: AccountView): boolean {
   return v.activeUntil > 0;
 }
 
+/** Where Back leads from the first screen of a purchase flow started at `from`. */
+function originParent(from: Origin): V2Action {
+  return from === "c" ? { a: "home" } : from === "d" ? { a: "devs" } : { a: "wallet" };
+}
+
+/** "Extra slot" is sold only on top of a running plan (lib/wallet-purchase.ts). */
+function slotButton(v: AccountView, lang: BotLang, from: Origin): InlineButton | null {
+  return v.planKind ? b(tr("btn.addslot", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }), { a: "slot", from }) : null;
+}
+
 export function planName(kind: PlanKind, lang: BotLang): string {
   return tr(kind === "plan3" ? "plan.plan3" : "plan.plan1", lang);
 }
@@ -164,6 +174,7 @@ export function connectScreen(v: AccountView, lang: BotLang): Screen {
   if (!isActive(v) || v.activeSlots === 0) return plansScreen(v, lang, "c");
   const free = v.activeSlots - v.devices.length;
   if (free <= 0) {
+    const slot = slotButton(v, lang, "c");
     return {
       text: lines(
         tr("connect.title", lang),
@@ -171,7 +182,7 @@ export function connectScreen(v: AccountView, lang: BotLang): Screen {
         tr("connect.full", lang, { used: v.devices.length, slots: v.activeSlots, price: fmtUsdShort(SLOT_MONTH_CENTS) }),
       ),
       kb: [
-        [b(tr("btn.addslot", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }), { a: "slot", from: "c" })],
+        slot ? [slot] : [b(tr("btn.buy", lang), { a: "plans", from: "c" })],
         [b(tr("btn.devices", lang), { a: "devs" })],
         back(lang, { a: "home" }),
       ],
@@ -184,9 +195,13 @@ export function connectScreen(v: AccountView, lang: BotLang): Screen {
   };
 }
 
-/** While the device is being created: one short line and no buttons. */
+/**
+ * While the device is being created: one short line and a way out. Back is
+ * harmless meanwhile (the creation finishes and draws the device anyway), and
+ * a chat is never left on a frame without buttons if the request dies.
+ */
 export function creatingScreen(device: DeviceKind, lang: BotLang): Screen {
-  return { text: tr("connect.creating", lang, { dev: deviceName(device, lang) }), kb: [] };
+  return { text: tr("connect.creating", lang, { dev: deviceName(device, lang) }), kb: [back(lang, { a: "devs" })] };
 }
 
 export type CreateFailure = "busy" | "unavailable";
@@ -223,9 +238,13 @@ export function devicesScreen(v: AccountView, lang: BotLang, notice?: string): S
   );
   const kb: Keyboard = [...pairs(deviceButtons)];
   // A plan that ended: renew it. Never had one: "Connect" leads to the plans.
-  if (!isActive(v) && (v.lastPlanKind || v.lastExpiry > 0)) kb.push([b(tr("btn.renew", lang), { a: "renew" })]);
+  // All slots in use: one more slot, on top of a running plan.
+  if (!isActive(v) && (v.lastPlanKind || v.lastExpiry > 0)) kb.push([b(tr("btn.renew", lang), { a: "renew", from: "d" })]);
   else if (!isActive(v) || used < v.activeSlots) kb.push([b(tr("btn.connect", lang), { a: "connect" })]);
-  else kb.push([b(tr("btn.addslot", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }), { a: "slot", from: "w" })]);
+  else {
+    const slot = slotButton(v, lang, "d");
+    kb.push([slot ?? b(tr("btn.buy", lang), { a: "plans", from: "d" })]);
+  }
   kb.push(back(lang, { a: "home" }));
   return { text: withNotice(notice, body), kb };
 }
@@ -252,7 +271,7 @@ export function deviceScreen(v: AccountView, d: DeviceDetail, lang: BotLang, not
   );
   const dl = happDownloads(d.kind);
   const kb: Keyboard = [];
-  if (!isActive(v)) kb.push([b(tr("btn.renew", lang), { a: "renew" })]);
+  if (!isActive(v)) kb.push([b(tr("btn.renew", lang), { a: "renew", from: "d" })]);
   if (!tv) kb.push([url(tr("btn.addHapp", lang), addToHappUrl(d.subToken, lang))]);
   if (dl.main) kb.push([url(tr("btn.getHapp", lang), dl.main), b(tr("btn.qr", lang), { a: "qr", uuid: d.uuid })]);
   else {
@@ -277,8 +296,14 @@ export function deleteConfirmScreen(d: DeviceView, lang: BotLang): Screen {
   };
 }
 
+/** While a device is being removed. Back is harmless (see creatingScreen). */
 export function deletingScreen(label: string, lang: BotLang): Screen {
-  return { text: tr("del.progress", lang, { dev: label }), kb: [] };
+  return { text: tr("del.progress", lang, { dev: label }), kb: [back(lang, { a: "devs" })] };
+}
+
+/** The QR code could not be sent: back to the device, where the link is. */
+export function qrFailScreen(uuid: string, lang: BotLang): Screen {
+  return { text: tr("qr.fail", lang), kb: [back(lang, { a: "dev", uuid })] };
 }
 
 // ─── Balance & plans ────────────────────────────────────────────────────────
@@ -299,12 +324,14 @@ export function walletScreen(v: AccountView, lang: BotLang): Screen {
     "",
     tr("bal.note", lang),
   );
-  const main = v.planKind || v.lastPlanKind ? b(tr("btn.renew", lang), { a: "renew" }) : b(tr("btn.buy", lang), { a: "plans", from: "w" });
+  const main =
+    v.planKind || v.lastPlanKind ? b(tr("btn.renew", lang), { a: "renew", from: "w" }) : b(tr("btn.buy", lang), { a: "plans", from: "w" });
+  const slot = slotButton(v, lang, "w");
   return {
     text,
     kb: [
       [main],
-      [b(tr("btn.addslot", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }), { a: "slot", from: "w" })],
+      ...(slot ? [[slot]] : []),
       [b(tr("btn.topup", lang), { a: "topup" }), b(tr("btn.promo", lang), { a: "promo" })],
       [b(tr("btn.invite", lang), { a: "invite" })],
       back(lang, { a: "home" }),
@@ -312,7 +339,7 @@ export function walletScreen(v: AccountView, lang: BotLang): Screen {
   };
 }
 
-/** The plan choice. Parent: home from "Connect" (c), Balance & plans (w). */
+/** The plan choice. Parent: home from "Connect" (c), Balance & plans (w), the devices (d). */
 export function plansScreen(v: AccountView, lang: BotLang, from: Origin): Screen {
   const kinds: readonly PlanKind[] = ["plan1", "plan3"];
   const text = lines(
@@ -330,7 +357,7 @@ export function plansScreen(v: AccountView, lang: BotLang, from: Origin): Screen
     text,
     kb: [
       kinds.map((k) => b(`${PLAN_ICON[k]} ${planName(k, lang)}`, { a: "terms", kind: k, from })),
-      back(lang, from === "c" ? { a: "home" } : { a: "wallet" }),
+      back(lang, originParent(from)),
     ],
   };
 }
@@ -352,14 +379,14 @@ export function termsScreen(v: AccountView, kind: PlanKind, lang: BotLang, from:
         : tr("btn.termN", lang, { n: term, total, per: fmtUsd(perMonthCents(kind, term)) });
     return [b(text, { a: "order", product: kind, term, from })];
   });
-  const parent: V2Action = renewal ? (from === "c" ? { a: "home" } : { a: "wallet" }) : { a: "plans", from };
+  const parent: V2Action = renewal ? originParent(from) : { a: "plans", from };
   return {
     text: lines(head, tr("terms.balance", lang, { bal: fmtUsd(v.balanceCents) }), "", tr("terms.pick", lang)),
     kb: [...rows, back(lang, parent)],
   };
 }
 
-/** An extra device slot, 1/6/12 months. Parent: connect (c) or wallet (w). */
+/** An extra device slot, 1/6/12 months. Parent: connect (c), wallet (w) or the devices (d). */
 export function slotScreen(v: AccountView, lang: BotLang, from: Origin): Screen {
   const buttons = TERMS.map((term) => {
     const total = fmtUsd(productCents("slot", term));
@@ -372,7 +399,7 @@ export function slotScreen(v: AccountView, lang: BotLang, from: Origin): Screen 
       tr("slot.text", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }),
       tr("terms.balance", lang, { bal: fmtUsd(v.balanceCents) }),
     ),
-    kb: [...buttons.map((x) => [x]), back(lang, from === "c" ? { a: "connect" } : { a: "wallet" })],
+    kb: [...buttons.map((x) => [x]), back(lang, from === "c" ? { a: "connect" } : originParent(from))],
   };
 }
 
@@ -427,7 +454,7 @@ export function paidScreen(v: AccountView, product: ProductKey, term: Term, lang
   return { text, kb };
 }
 
-export type PayProblem = "other_plan" | "refunded" | "stuck" | "failed";
+export type PayProblem = "other_plan" | "no_plan" | "refunded" | "stuck" | "failed";
 
 /** A purchase that did not go through. Parent: the order's own parent. */
 export function payProblemScreen(
@@ -444,6 +471,12 @@ export function payProblemScreen(
         [b(tr("btn.addslot", lang, { price: fmtUsdShort(SLOT_MONTH_CENTS) }), { a: "slot", from: "w" })],
         back(lang, { a: "wallet" }),
       ],
+    };
+  }
+  if (problem === "no_plan") {
+    return {
+      text: tr("pay.noPlan", lang),
+      kb: [[b(tr("btn.buy", lang), { a: "plans", from: "w" })], back(lang, { a: "wallet" })],
     };
   }
   const key: V2Key = problem === "refunded" ? "pay.refunded" : problem === "stuck" ? "pay.stuck" : "pay.failed";
@@ -652,10 +685,10 @@ export function inviteScreen(x: InviteView, lang: BotLang): Screen {
   };
 }
 
-/** Parent: home. */
-export function helpScreen(lang: BotLang): Screen {
+/** Parent: home. `notice` goes above (e.g. "this chat is not read by a person"). */
+export function helpScreen(lang: BotLang, notice?: string): Screen {
   return {
-    text: lines(
+    text: withNotice(notice, lines(
       tr("help.title", lang),
       "",
       tr("help.fixTitle", lang),
@@ -664,7 +697,7 @@ export function helpScreen(lang: BotLang): Screen {
       tr("help.fix3", lang),
       "",
       tr("help.support", lang, { email: SUPPORT_EMAIL }),
-    ),
+    )),
     kb: [
       [url(tr("btn.guides", lang), HELP_LINKS.guides), url(tr("btn.troubleshoot", lang), HELP_LINKS.troubleshooting)],
       [url(tr("btn.terms", lang), HELP_LINKS.terms), url(tr("btn.privacy", lang), HELP_LINKS.privacy)],

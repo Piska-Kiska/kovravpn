@@ -56,6 +56,7 @@ import {
   handleV2Callback,
   handleV2Command,
   handleV2Fallback,
+  handleV2Note,
   handleV2Reply,
   handleV2Start,
   parseCommand,
@@ -939,6 +940,13 @@ async function tryLink(code: string, chatId: number): Promise<boolean> {
   return true;
 }
 
+/** A message a person sent that is not text: a photo, a file, a voice or video note, a sticker. */
+function isPersonalMedia(message: Record<string, unknown>): boolean {
+  return ["photo", "document", "video", "voice", "video_note", "audio", "sticker", "animation"].some(
+    (k) => message[k] !== undefined && message[k] !== null,
+  );
+}
+
 async function handleCode(code: string, chatId: number): Promise<"auth" | "link" | false> {
   if (await tryAuth(code, chatId)) return "auth";
   if (await tryLink(code, chatId)) return "link";
@@ -1131,7 +1139,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!message?.text) return NextResponse.json({ ok: true });
+    if (!message?.text) {
+      // A photo, a screenshot, a voice message… In the new interface it gets
+      // Help (nobody reads this chat, here is support), not silence.
+      const mChat = message?.chat;
+      if (
+        mChat?.type === "private" &&
+        typeof mChat.id === "number" &&
+        String(mChat.id) !== ADMIN_TG_ID &&
+        isPersonalMedia(message) &&
+        (await isBotV2(mChat.id))
+      ) {
+        await handleV2Note(mChat.id, "support");
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     const chatId: number = message.chat.id;
     const text: string = message.text.trim();
@@ -1141,6 +1163,10 @@ export async function POST(req: NextRequest) {
       const maybeCode = text.toUpperCase();
       if (/^[A-Z0-9]{6}$/.test(maybeCode)) {
         const result = await handleCode(maybeCode, chatId);
+        if (result !== false && (await isBotV2(chatId))) {
+          await handleV2Note(chatId, result === "auth" ? "authOk" : "authLinked");
+          return NextResponse.json({ ok: true });
+        }
         if (result === "auth") {
           const lang = await resolveLang(await getUserId(chatId));
           await send(chatId, t("auth.ok", lang), [[{ text: t("common.menu", lang), callback_data: "menu" }]]);
@@ -1166,6 +1192,16 @@ export async function POST(req: NextRequest) {
       const param = text.replace("/start ", "").trim();
       // Referral and payment-return links; a login code goes on below.
       if (v2 && (await handleV2Start(chatId, param)) === "handled") return NextResponse.json({ ok: true });
+      if (v2) {
+        // A login or link code, else any other parameter (an ad or partner
+        // link, an old sign-in link): the menu, never a dead end.
+        const result = await handleCode(param.toUpperCase(), chatId);
+        if (result === "auth") await handleV2Note(chatId, "authOk");
+        else if (result === "link") await handleV2Note(chatId, "authLinked");
+        else if (/^[A-Za-z0-9]{6}$/.test(param)) await handleV2Note(chatId, "codeGone");
+        else await handleV2Command(chatId, "menu");
+        return NextResponse.json({ ok: true });
+      }
       const lang = await resolveLang(await getUserId(chatId));
 
       // Referral link: /start ref_CODE
@@ -1398,7 +1434,7 @@ export async function POST(req: NextRequest) {
 
     // User fallback
     if (v2) {
-      await handleV2Fallback(chatId);
+      await handleV2Fallback(chatId, text);
       return NextResponse.json({ ok: true });
     }
     const lang = await resolveLang(await getUserId(chatId));

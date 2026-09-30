@@ -50,7 +50,11 @@ export function happDownloads(device: DeviceKind | null): { androidTv?: string; 
   }
 }
 
-/** The setup guide for a device (English guides; the TV has the general one). */
+/**
+ * The setup guide for a device (English guides). A TV goes to the Android TV
+ * and Google TV part of the Android guide, the only guide that covers a TV;
+ * an unknown device to the general guide.
+ */
 export function setupGuideUrl(device: DeviceKind | null): string {
   switch (device) {
     case "iphone":
@@ -59,6 +63,7 @@ export function setupGuideUrl(device: DeviceKind | null): string {
     case "windows":
       return `${SITE_ORIGIN}/guides/how-to-set-up-vpn-on-${device}`;
     case "tv":
+      return `${SITE_ORIGIN}/guides/how-to-set-up-vpn-on-android#tv`;
     case null:
       return `${SITE_ORIGIN}/guide`;
   }

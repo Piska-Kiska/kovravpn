@@ -205,7 +205,12 @@ describe("connecting a device", () => {
     await tap(USER, "k:new:tv");
     assert.equal(createCalls, 1);
     const edits = calls("editMessageText");
-    assert.equal(edits.at(-2).body.reply_markup.inline_keyboard.length, 0, "the progress edit has no buttons");
+    // The progress frame is never a dead end: Back to the devices (harmless while it runs).
+    assert.deepEqual(
+      edits.at(-2).body.reply_markup.inline_keyboard.flat().map((b) => b.callback_data),
+      ["k:devs"],
+      "the progress edit has only Back",
+    );
     assert.ok(edits.at(-1).body.text.includes("c0ffee00c0ffee00c0ffee00c0ffee00"));
     assert.equal(calls("sendChatAction").length, 1);
   });
@@ -242,6 +247,7 @@ describe("paying from the balance", () => {
   });
 
   test("an old one-tap purchase button now opens the order and charges nothing", async () => {
+    activePlan(`tg_${USER}`, "plan1", 1);
     mem.store.set(`balance_usd:tg_${USER}`, "5000");
     await tap(USER, "buyterm_plan1_1");
     await tap(USER, "adddev_1");
@@ -339,5 +345,130 @@ describe("notices from the payment webhooks", () => {
   test("an account without Telegram: nothing sent", async () => {
     assert.equal(await notifyUser("em_someone", { kind: "expired" }, "x"), false);
     assert.equal(tg.length, 0);
+  });
+});
+
+describe("review fixes of 30.09", () => {
+  const home = (body) => buttons(body).some((b) => b.callback_data === "k:connect");
+
+  test("/start with an unknown parameter opens the menu, never a dead end", async () => {
+    await say(USER, "/start tiktok");
+    const body = last("sendMessage");
+    assert.ok(home(body), "the menu");
+    assert.ok(!body.text.includes(oldT("auth.notfound", "de")));
+  });
+
+  test("/start with an expired sign-in code: the menu, saying so", async () => {
+    await say(USER, "/start ABCDEF");
+    const body = last("sendMessage");
+    assert.ok(home(body));
+    assert.ok(body.text.startsWith(DE["note.codeGone"]));
+  });
+
+  test("a sign-in code confirmed in a v2 chat is a v2 screen, and the old menu goes", async () => {
+    mem.store.set("auth:QWERTY", JSON.stringify({ verified: false }));
+    mem.store.set(`kovra:bot:live:${USER}`, "321");
+    await say(USER, "/start QWERTY");
+    assert.equal(JSON.parse(mem.store.get("auth:QWERTY")).verified, true);
+    const body = last("sendMessage");
+    assert.ok(body.text.startsWith(DE["note.authOk"]));
+    assert.ok(home(body));
+    assert.deepEqual(last("deleteMessage"), { chat_id: USER, message_id: 321 });
+  });
+
+  test("a link code typed as a message in a v2 chat: the v2 menu with the note", async () => {
+    mem.store.set("link_tg:ZXCVBN", JSON.stringify({ userId: "em_x@example.test", verified: false }));
+    await say(USER, "zxcvbn");
+    assert.ok(last("sendMessage").text.startsWith(DE["note.authLinked"]));
+  });
+
+  test("a question typed into the chat gets Help with the support address", async () => {
+    await say(USER, "my vpn does not work, help please");
+    const body = last("sendMessage");
+    assert.ok(body.text.startsWith(DE["note.support"]));
+    assert.ok(body.text.includes("support@kovravpn.com"));
+  });
+
+  test("a screenshot sent to the bot is answered too", async () => {
+    await hook({ message: { message_id: 8, chat: { id: USER, type: "private" }, from: from(USER), photo: [{ file_id: "x" }] } });
+    assert.ok(last("sendMessage").text.startsWith(DE["note.support"]));
+  });
+
+  test("an unknown command gets the menu with the hint", async () => {
+    await say(USER, "/foo");
+    assert.ok(last("sendMessage").text.startsWith(DE["note.unknown"]));
+  });
+
+  test("the promo prompt does not swallow a sentence, and closes", async () => {
+    await tap(USER, "k:promo");
+    await say(USER, "how?");
+    assert.ok(last("sendMessage").text.startsWith(DE["note.support"]));
+    assert.equal(mem.store.get(`promo_await:${USER}`), undefined);
+  });
+
+  test("a code that is not found keeps the prompt for a corrected one", async () => {
+    await tap(USER, "k:promo");
+    await say(USER, "NOSUCHCODE");
+    assert.equal(mem.store.get(`promo_await:${USER}`), "1");
+  });
+
+  test("no plan: no extra-slot button, and a forged slot order says a plan comes first", async () => {
+    mem.store.set(`balance_usd:tg_${USER}`, "10000");
+    await tap(USER, "k:wallet");
+    assert.ok(!buttons(last("editMessageText")).some((b) => b.callback_data?.startsWith("k:slot")));
+    await tap(USER, "k:ord:slot:1");
+    assert.equal(last("editMessageText").text, DE["pay.noPlan"]);
+    await tap(USER, "k:pay:slot:1:abcdefgh");
+    assert.equal(mem.store.get(`balance_usd:tg_${USER}`), "10000");
+    assert.equal(mem.store.get(`subs:tg_${USER}`), undefined);
+  });
+
+  test("Renew from a device and a slot from the devices come back to the devices", async () => {
+    mem.store.set(`profiles:tg_${USER}`, JSON.stringify([profile(U_UUID)]));
+    mem.store.set(`subs:tg_${USER}`, JSON.stringify([{ id: "s0", kind: "plan1", slots: 1, createdAt: 1, expiresAt: Date.now() - 86_400_000 }]));
+    await tap(USER, `k:dev:${U_UUID}`);
+    const renew = buttons(last("editMessageText")).find((b) => b.callback_data?.startsWith("k:renew"));
+    assert.equal(renew.callback_data, "k:renew:d");
+    await tap(USER, renew.callback_data);
+    // The plan ended: its terms, Back to the plan choice (a tier can change), Back to the devices.
+    const toPlans = buttons(last("editMessageText")).find((b) => b.text === DE["btn.back"]);
+    assert.equal(toPlans.callback_data, "k:plans:d");
+    await tap(USER, toPlans.callback_data);
+    assert.ok(buttons(last("editMessageText")).some((b) => b.text === DE["btn.back"] && b.callback_data === "k:devs"));
+
+    activePlan(`tg_${USER}`, "plan1", 1);
+    await tap(USER, "k:devs");
+    const slot = buttons(last("editMessageText")).find((b) => b.callback_data?.startsWith("k:slot"));
+    assert.equal(slot.callback_data, "k:slot:d");
+    await tap(USER, slot.callback_data);
+    assert.ok(buttons(last("editMessageText")).some((b) => b.text === DE["btn.back"] && b.callback_data === "k:devs"));
+  });
+
+  test("a button on a notice makes it the live screen; the old menu goes", async () => {
+    mem.store.set(`kovra:bot:live:${USER}`, "321");
+    await hook({ callback_query: { id: "cb-notice", from: from(USER), data: "k:wallet", message: { chat: { id: USER }, message_id: 555 } } });
+    assert.deepEqual(last("deleteMessage"), { chat_id: USER, message_id: 321 });
+    assert.equal(mem.store.get(`kovra:bot:live:${USER}`), "555");
+  });
+
+  test("a friend's link is recorded at /start, before any purchase", async () => {
+    mem.store.set("ref_lookup:abcd1234", "tg_100000099");
+    await say(USER, "/start ref_abcd1234");
+    assert.equal(mem.store.get(`ref_by:tg_${USER}`), "tg_100000099");
+    assert.equal(JSON.parse(mem.store.get("ref_list:tg_100000099"))[0].userId, `tg_${USER}`);
+  });
+
+  test("the payment return does not claim the money arrived", async () => {
+    await say(USER, "/start paid");
+    const text = last("sendMessage").text;
+    assert.ok(text.startsWith(DE["note.paid"]));
+    assert.ok(!/erhalten/i.test(DE["note.paid"]));
+  });
+
+  test("the TV instructions lead to the TV part of the guide", async () => {
+    activePlan(`tg_${USER}`);
+    mem.store.set(`profiles:tg_${USER}`, JSON.stringify([profile(U_UUID, "tv")]));
+    await tap(USER, `k:dev:${U_UUID}`);
+    assert.ok(buttons(last("editMessageText")).some((b) => b.url === "https://kovravpn.com/guides/how-to-set-up-vpn-on-android#tv"));
   });
 });

@@ -27,9 +27,10 @@ const PRODUCT_KEYS: readonly ProductKey[] = ["plan1", "plan3", "slot"];
 
 /**
  * Where a purchase flow started, for its Back buttons: "c" from "Connect a
- * device" (back ends on the menu), "w" from "Balance & plans".
+ * device" (back ends on the menu), "w" from "Balance & plans", "d" from the
+ * device list or a device (back ends on the device list).
  */
-export type Origin = "c" | "w";
+export type Origin = "c" | "w" | "d";
 
 export type LavaCurrencyChoice = "USD" | "EUR";
 
@@ -52,7 +53,7 @@ export type V2Action =
   | { a: "slot"; from: Origin }
   | { a: "order"; product: ProductKey; term: Term; from: Origin }
   | { a: "pay"; product: ProductKey; term: Term; nonce: string; from: Origin }
-  | { a: "renew" }
+  | { a: "renew"; from: Origin }
   | { a: "topup" }
   | { a: "topfor"; product: ProductKey; term: Term; from: Origin }
   | { a: "topm"; method: TopupMethod }
@@ -110,7 +111,7 @@ function parseLegacyDollars(v: string | undefined): number | null {
 }
 function parseOrigin(v: string | undefined): Origin | null {
   if (v === undefined || v === "w") return "w";
-  return v === "c" ? "c" : null;
+  return v === "c" || v === "d" ? v : null;
 }
 function parseLavaMethod(v: string | undefined): LavaMethodId | null {
   if (v === undefined) return null;
@@ -132,7 +133,7 @@ export function cb(action: V2Action): string {
 }
 
 function withOrigin(body: string, from: Origin): string {
-  return from === "c" ? `${body}:c` : body;
+  return from === "w" ? body : `${body}:${from}`;
 }
 
 function encodeBody(x: V2Action): string {
@@ -142,13 +143,14 @@ function encodeBody(x: V2Action): string {
     case "devs":
     case "qrhide":
     case "wallet":
-    case "renew":
     case "topup":
     case "promo":
     case "invite":
     case "help":
     case "lang":
       return x.a;
+    case "renew":
+      return withOrigin("renew", x.from);
     case "new":
       return `new:${x.device}`;
     case "dev":
@@ -187,7 +189,7 @@ const SIMPLE: Readonly<Record<string, V2Action>> = {
   devs: { a: "devs" },
   qrhide: { a: "qrhide" },
   wallet: { a: "wallet" },
-  renew: { a: "renew" },
+  renew: { a: "renew", from: "w" },
   topup: { a: "topup" },
   promo: { a: "promo" },
   invite: { a: "invite" },
@@ -211,6 +213,10 @@ function parseV2(body: string): V2Action | null {
     case "plans": {
       const from = p.length <= 2 ? parseOrigin(p[1]) : null;
       return from ? { a: "plans", from } : null;
+    }
+    case "renew": {
+      const from = p.length <= 2 ? parseOrigin(p[1]) : null;
+      return from ? { a: "renew", from } : null;
     }
     case "terms": {
       const from = p.length <= 3 ? parseOrigin(p[2]) : null;
