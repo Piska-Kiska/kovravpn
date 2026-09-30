@@ -46,7 +46,8 @@ export default async function HappImportPage({ params }: PageProps) {
   const safeDeepLink = deepLink?.replace(/"/g, "&quot;") ?? "";
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    // Russian only; the boot script sets <html lang="ru"> too (KP-08).
+    <div lang="ru" className="min-h-screen flex items-center justify-center p-6">
       <div className="nm-raised p-8 max-w-md w-full text-center">
         <div className="nm-circle w-16 h-16 mx-auto mb-5 flex items-center justify-center text-3xl">
           🚀

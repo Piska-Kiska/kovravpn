@@ -1,27 +1,29 @@
 // src/i18n/useLang.ts
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { detectLang, LANG_CHANGE_EVENT } from "./runtime";
 import type { Lang } from "./dict";
 
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener(LANG_CHANGE_EVENT, onChange);
+  window.addEventListener("popstate", onChange);
+  return () => {
+    window.removeEventListener(LANG_CHANGE_EVENT, onChange);
+    window.removeEventListener("popstate", onChange);
+  };
+}
+
+function serverLang(): Lang {
+  return "en";
+}
+
 /**
- * Current UI language for client components.
- * SSR/first paint returns "ru" (server renders RU — SEO parity); after mount it
- * resolves the real preference and re-renders on every LANG_CHANGE_EVENT.
+ * Current UI language for client components (LegalView on /terms and
+ * /privacy). The server render and hydration are English, the pages' default
+ * and what <html lang> says on the server; right after, it is the visitor's
+ * language (runtime.detectLang), and it follows every LANG_CHANGE_EVENT.
  */
 export function useLang(): Lang {
-  const [lang, setLang] = useState<Lang>("ru");
-
-  useEffect(() => {
-    setLang(detectLang());
-    const onChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ lang?: Lang }>).detail;
-      setLang(detail?.lang ?? detectLang());
-    };
-    window.addEventListener(LANG_CHANGE_EVENT, onChange);
-    return () => window.removeEventListener(LANG_CHANGE_EVENT, onChange);
-  }, []);
-
-  return lang;
+  return useSyncExternalStore(subscribe, detectLang, serverLang);
 }

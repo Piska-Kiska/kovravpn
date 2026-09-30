@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     title: `${TITLE} | Kovra`,
     description: DESC,
     url: "/guide",
+    locale: "ru_RU",
     images: [OG_IMAGE],
   },
   twitter: {
@@ -153,7 +154,10 @@ const HOW_TO_MACOS = buildHowToSchema({
 
 export default function GuidePage() {
   return (
-    <div className="min-h-screen">
+    // The server text is Russian (what Yandex and Google index, see the
+    // schemas below); the Localizer switches it to the visitor's language
+    // and moves this lang with it (KP-08).
+    <div className="min-h-screen" data-lang-scope lang="ru">
       {/* HowTo / FAQ / Breadcrumb structured data — kept in RU. Server-
           rendered Russian markup is what Yandex/Google index, so the
           schemas mirror it. The visible page text swaps to EN client-

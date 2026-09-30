@@ -557,7 +557,7 @@ async function screenGuide(chatId: number, msgId: number) {
     [
       { text: "🍎 iOS/macOS", url: "https://apps.apple.com/us/app/v2raytun/id6476628951" },
     ],
-    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide` }],
+    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide?lang=${lang}` }],
     backBtn("menu", lang),
   ]);
 }
@@ -589,8 +589,8 @@ async function screenDocs(chatId: number, msgId: number) {
     ``,
     t("docs.text", lang),
   ].join("\n"), [
-    [{ text: t("docs.btn.terms", lang), url: `${SITE_URL}/terms` }],
-    [{ text: t("docs.btn.privacy", lang), url: `${SITE_URL}/privacy` }],
+    [{ text: t("docs.btn.terms", lang), url: `${SITE_URL}/terms?lang=${lang}` }],
+    [{ text: t("docs.btn.privacy", lang), url: `${SITE_URL}/privacy?lang=${lang}` }],
     backBtn("help", lang),
   ]);
 }

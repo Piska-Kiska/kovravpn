@@ -86,6 +86,12 @@ export default function Localizer() {
       document.documentElement.setAttribute("lang", lang);
       document.documentElement.setAttribute("data-lang", lang);
       observer?.disconnect();
+      // A page whose server text is in another language than <html lang>
+      // (the Russian SSR of /guide) wraps it in [data-lang-scope lang="ru"];
+      // once translated, that text is in `lang`.
+      document.querySelectorAll<HTMLElement>("[data-lang-scope]").forEach((el) => {
+        if (el.getAttribute("lang") !== lang) el.setAttribute("lang", lang);
+      });
       applyTranslations(lang, dict);
       observer?.takeRecords();
       if (observer) observer.observe(document.body, OBSERVER_OPTS);

@@ -19,7 +19,7 @@
 // es/de/fr blocks carry en text for those keys).
 
 import type { Lang } from "./dict";
-import { isCabinetPath, resolveCabinetLang } from "./resolve";
+import { isRussianOnlyPath, isVisitorLangPath, resolveCabinetLang } from "./resolve";
 
 export const STORAGE_KEY = "kovra_lang"; // unified with landing + dashboard
 /** "1" once the visitor picked a language in a switcher (see src/i18n/resolve.ts). */
@@ -34,12 +34,16 @@ function isLang(v: string | null | undefined): v is Lang {
 
 /**
  * Read current language preference. Safe to call on the client only.
- * Cabinet pages (/login, /register, /dashboard) resolve through
- * resolveCabinetLang(); every other page keeps the original logic below.
+ * The cabinet and the pages translated into every language (/terms,
+ * /privacy, /guide) resolve the visitor's language through
+ * resolveCabinetLang(); the Russian-only pages are Russian; every other page
+ * keeps the original logic below.
  */
 export function detectLang(): Lang {
   if (typeof window === "undefined") return "ru";
-  if (isCabinetPath(window.location.pathname)) return resolveCabinetLang();
+  const path = window.location.pathname;
+  if (isVisitorLangPath(path)) return resolveCabinetLang();
+  if (isRussianOnlyPath(path)) return "ru";
   try {
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("lang");

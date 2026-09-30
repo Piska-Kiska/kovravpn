@@ -53,9 +53,10 @@ export function happDownloads(device: DeviceKind | null): { androidTv?: string; 
 /**
  * The setup guide for a device (English guides). A TV goes to the Android TV
  * and Google TV part of the Android guide, the only guide that covers a TV;
- * an unknown device to the general guide.
+ * an unknown device to the general guide, in the bot's language (the page
+ * reads ?lang first).
  */
-export function setupGuideUrl(device: DeviceKind | null): string {
+export function setupGuideUrl(device: DeviceKind | null, lang: BotLang): string {
   switch (device) {
     case "iphone":
     case "android":
@@ -65,16 +66,23 @@ export function setupGuideUrl(device: DeviceKind | null): string {
     case "tv":
       return `${SITE_ORIGIN}/guides/how-to-set-up-vpn-on-android#tv`;
     case null:
-      return `${SITE_ORIGIN}/guide`;
+      return `${SITE_ORIGIN}/guide?lang=${lang}`;
   }
 }
 
 export const HELP_LINKS = {
   guides: `${SITE_ORIGIN}/guides`,
   troubleshooting: `${SITE_ORIGIN}/guides/vpn-connected-but-no-internet`,
-  terms: `${SITE_ORIGIN}/terms`,
-  privacy: `${SITE_ORIGIN}/privacy`,
 } as const;
+
+/**
+ * The Terms or the Privacy policy in the bot's language. Both pages exist in
+ * every bot language and read ?lang first; without it they follow the
+ * browser, which in Telegram's in-app browser need not be the bot's language.
+ */
+export function legalUrl(doc: "terms" | "privacy", lang: BotLang): string {
+  return `${SITE_ORIGIN}/${doc}?lang=${lang}`;
+}
 
 /** The referral link: a /start payload in the bot. Codes are 8 hex characters. */
 export function referralLink(code: string): string {
