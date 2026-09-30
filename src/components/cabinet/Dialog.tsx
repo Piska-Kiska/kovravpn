@@ -8,6 +8,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useShellT } from "@/lib/i18n-shell";
+import { useBackLayer } from "./back-stack";
 import { Button } from "./Button";
 import { cx } from "./util";
 
@@ -37,6 +38,11 @@ export function Dialog({ open, onClose, title, children, labelledBy, size = "md"
     openRef.current = open;
     onCloseRef.current = onClose;
     lockedRef.current = locked;
+  });
+
+  // A host with its own Back (the Telegram Mini App) closes the dialog with it.
+  useBackLayer(open, () => {
+    if (!lockedRef.current) onCloseRef.current();
   });
 
   useEffect(() => {
