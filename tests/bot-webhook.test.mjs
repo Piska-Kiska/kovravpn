@@ -161,6 +161,11 @@ describe("buying from the wallet in the bot", () => {
   });
 
   test("not enough money shows how much to top up and charges nothing", async () => {
+    // An extra device sits on a running plan.
+    mem.store.set(
+      `subs:tg_${ATTACKER}`,
+      JSON.stringify([{ id: "s1", kind: "plan1", slots: 1, createdAt: 1, expiresAt: Date.now() + 10 * 86_400_000 }]),
+    );
     mem.store.set(`balance_usd:tg_${ATTACKER}`, "100");
     await hook(callbackUpdate(ATTACKER, "adddev_6"));
     assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "100");

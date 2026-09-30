@@ -84,6 +84,11 @@ describe("POST /api/wallet/purchase", () => {
 
   test("cookie session works the same; a repeat is replayed", async () => {
     mem.store.set(BAL, "3000");
+    // A device slot sits on a running plan.
+    mem.store.set(
+      `subs:${USER}`,
+      JSON.stringify([{ id: "p0", kind: "plan1", slots: 1, createdAt: 1, expiresAt: Date.now() + 5 * 86_400_000 }]),
+    );
     const first = await buy({ kind: "device", term: 6, requestId: "req-cookie-dev6" }, { cookie: sid });
     assert.equal(first.status, 200);
     assert.equal(first.body.priceCents, 3000);

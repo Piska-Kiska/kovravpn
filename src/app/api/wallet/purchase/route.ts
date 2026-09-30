@@ -11,7 +11,8 @@
 // Answers (always Cache-Control: no-store):
 //   200 { ok: true, product, priceCents, balanceCents, replayed }
 //   402 { ok: false, error: "insufficient_balance", priceCents, balanceCents, needCents }
-//   409 { ok: false, error: "busy" | "in_progress" | "request_reused" | "other_plan_active", activePlan? }
+//   409 { ok: false, error: "busy" | "in_progress" | "request_reused" | "other_plan_active" | "no_plan", activePlan? }
+//       ("no_plan": an extra device slot is sold only on top of a running plan)
 //   400 { ok: false, error: "invalid_request" }   401 unauthorized   429 rate limited
 //   500 { ok: false, error: "grant_failed", refunded } | { ok: false, error: "internal" }
 

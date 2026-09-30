@@ -19,8 +19,13 @@
 //   says REFUND FAILED — that case needs a person.
 // • "Insufficient" writes nothing, so the same requestId works after a top-up.
 //
-// Expiry sync with the VPN panels runs after the lock is released: it is slow
-// (network), it never throws, and it is not part of the money transaction.
+// • An extra device slot is sold only on top of a running plan: without one
+//   it would cost more than a plan and switch every old device back on.
+//
+// After the lock is released, outside the money transaction: the expiry sync
+// with the VPN panels (slow, network, never throws) and the referral reward,
+// once per referred person (the first paid purchase, as the payment webhooks
+// do for a card or crypto purchase).
 
 import { redis } from "./redis";
 import { acquireLock } from "./ratelimit";
@@ -74,7 +79,7 @@ export type WalletPurchaseResult =
     }
   | {
       status: "conflict";
-      reason: "busy" | "in_progress" | "request_reused" | "other_plan_active";
+      reason: "busy" | "in_progress" | "request_reused" | "other_plan_active" | "no_plan";
       /** For `other_plan_active`: the tier that is running (renew that one). */
       activePlan?: PlanKind;
     }
@@ -90,6 +95,8 @@ export interface WalletPurchaseDeps {
   grantPlan(userId: string, kind: PlanKind, term: Term): Promise<void>;
   grantDevice(userId: string, term: Term): Promise<void>;
   syncExpiry(userId: string): Promise<void>;
+  /** The referral reward for this purchase (idempotent per referred user). */
+  rewardReferrer(userId: string): Promise<void>;
   now(): number;
 }
 
@@ -103,6 +110,12 @@ const defaultDeps: WalletPurchaseDeps = {
     await applyDeviceAddonTerm(userId, term);
   },
   syncExpiry: syncAllExpiry,
+  async rewardReferrer(userId) {
+    // Loaded on use: the reward notifies the referrer through the bot, and
+    // the bot's screens import this module (prices).
+    const { rewardReferrerForPurchase } = await import("./referral-reward");
+    await rewardReferrerForPurchase(userId);
+  },
   now: () => Date.now(),
 };
 
@@ -239,6 +252,11 @@ export async function purchaseFromWallet(
     } catch (err) {
       console.error("[wallet] expiry sync failed after purchase:", err instanceof Error ? err.message : err);
     }
+    try {
+      await deps.rewardReferrer(userId);
+    } catch (err) {
+      console.error("[wallet] referral reward failed after purchase:", err instanceof Error ? err.message : err);
+    }
   }
   return result;
 }
@@ -268,12 +286,13 @@ async function chargeAndGrantLocked(a: LockedArgs): Promise<WalletPurchaseResult
   }
 
   // 2. While a plan runs, only that tier can be bought (it renews). Same rule
-  //    as the bot's and the cabinet's buy screens.
-  if (product.kind !== "device") {
-    const running = activePlanKindOf(await getSubscriptions(userId), deps.now());
-    if (running !== null && running !== product.kind) {
-      return { status: "conflict", reason: "other_plan_active", activePlan: running };
-    }
+  //    as the bot's and the cabinet's buy screens. A device slot needs a
+  //    running plan to sit on.
+  const running = activePlanKindOf(await getSubscriptions(userId), deps.now());
+  if (product.kind === "device") {
+    if (running === null) return { status: "conflict", reason: "no_plan" };
+  } else if (running !== null && running !== product.kind) {
+    return { status: "conflict", reason: "other_plan_active", activePlan: running };
   }
 
   // 3. Enough money? Nothing is written when not.

@@ -44,6 +44,14 @@ const deps = (extra = {}) => ({
 function setBalance(cents) {
   mem.store.set(BAL, String(cents));
 }
+/** A running plan1 (a device slot needs one to sit on). */
+function givePlan(kind = "plan1", days = 20) {
+  const now = Date.now();
+  mem.store.set(
+    `subs:${USER}`,
+    JSON.stringify([{ id: "p0", kind, slots: kind === "plan3" ? 3 : 1, createdAt: now - DAY, expiresAt: now + days * DAY }]),
+  );
+}
 function subs() {
   const raw = mem.store.get(`subs:${USER}`);
   return raw ? JSON.parse(raw) : [];
@@ -179,6 +187,7 @@ describe("purchaseFromWallet", () => {
   });
 
   test("an empty wallet is insufficient with the full price needed", async () => {
+    givePlan();
     const r = await buy({ kind: "device", term: 1 }, "req-empty-1");
     assert.equal(r.status, "insufficient");
     assert.equal(r.needCents, 500);
@@ -206,11 +215,12 @@ describe("purchaseFromWallet", () => {
   });
 
   test("two different requests are two purchases", async () => {
+    givePlan();
     setBalance(1000);
     assert.equal((await buy({ kind: "device", term: 1 }, "req-two-a")).status, "ok");
     assert.equal((await buy({ kind: "device", term: 1 }, "req-two-b")).status, "ok");
     assert.equal(await getBalanceCents(USER), 0);
-    assert.equal(subs().length, 2);
+    assert.equal(subs().filter((x) => x.kind === "device").length, 2);
   });
 
   test("race: a second purchase while the first holds the lock is busy and changes nothing", async () => {
@@ -336,12 +346,13 @@ describe("purchaseFromWallet", () => {
   });
 
   test("a device add-on for 6 months is ONE slot for 180 days at $30", async () => {
+    givePlan();
     setBalance(3000);
     const before = Date.now();
     const r = await buy({ kind: "device", term: 6 }, "req-dev6-1");
     assert.equal(r.status, "ok");
     assert.equal(r.priceCents, 3000);
-    const s = subs();
+    const s = subs().filter((x) => x.kind === "device");
     assert.equal(s.length, 1);
     assert.equal(s[0].kind, "device");
     assert.equal(s[0].slots, 1);
