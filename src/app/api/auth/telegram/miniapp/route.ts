@@ -80,14 +80,23 @@ export async function POST(req: NextRequest) {
     // one after the other: both rewrite the same `user:` record, and on
     // Vercel a promise left running after the response is lost. A failure
     // here must not block the sign-in.
+    //
+    // The account's language (the bot's, or Telegram's on first contact) goes
+    // back to the page: a Mini App opened without `?lang=` (a startapp link,
+    // the return from a payment) must speak the language the bot speaks.
+    let accountLang: string | null = null;
     try {
       await syncTelegramIdentity(userId, {
         username: check.user.username,
         first_name: check.user.first_name,
         last_name: check.user.last_name,
       });
+      accountLang = normalizeLang(await getUserLang(userId));
       const tgLang = normalizeLang(check.user.language_code);
-      if (tgLang && !(await getUserLang(userId))) await setUserLang(userId, tgLang);
+      if (!accountLang && tgLang) {
+        await setUserLang(userId, tgLang);
+        accountLang = tgLang;
+      }
     } catch (e) {
       console.warn("[tgminiapp] identity/lang sync failed:", e instanceof Error ? e.message : e);
     }
@@ -107,6 +116,8 @@ export async function POST(req: NextRequest) {
         // the page decides what to do with them.
         startParam: check.startParam ?? null,
         languageCode: check.user.language_code ?? null,
+        // One of the bot's languages, or null when neither is known.
+        lang: accountLang,
       },
       { headers: NO_STORE },
     );

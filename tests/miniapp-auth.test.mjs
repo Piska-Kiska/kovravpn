@@ -223,6 +223,8 @@ describe("POST /api/auth/telegram/miniapp", () => {
     assert.equal(body.isNewUser, true);
     assert.equal(body.startParam, "paid");
     assert.equal(body.languageCode, "es");
+    // First contact: the account takes Telegram's language and says so.
+    assert.equal(body.lang, "es");
 
     const session = json(`session:${body.token}`);
     assert.equal(session.userId, `tg_${TG_ID}`);
@@ -244,6 +246,20 @@ describe("POST /api/auth/telegram/miniapp", () => {
     const res = await miniappPost(miniappRequest({ initData: signedInitData() }));
     assert.equal(res.status, 200);
     assert.equal(json(`user:tg_${TG_ID}`).lang, "fr");
+    // The page gets the account's language, not Telegram's.
+    const body = await res.json();
+    assert.equal(body.lang, "fr");
+    assert.equal(body.languageCode, "es");
+  });
+
+  test("a Telegram language the bot does not speak: lang is null, nothing stored", async () => {
+    const initData = signedInitData({
+      user: JSON.stringify({ id: TG_ID, first_name: "Test", username: "Tester", language_code: "it" }),
+    });
+    const res = await miniappPost(miniappRequest({ initData }));
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).lang, null);
+    assert.equal(json(`user:tg_${TG_ID}`).lang, undefined);
   });
 
   test("forged, stale or other-bot initData: 401 and nothing written but rate counters", async () => {
