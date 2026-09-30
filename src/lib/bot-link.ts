@@ -6,6 +6,17 @@
 // NEXT_PUBLIC_BOT_USERNAME, both spellings used across the code, and falls
 // back to Kovra's own bot. Telegram usernames are case-insensitive, so
 // "kovravpn_bot" and "KovraVPN_bot" are the same bot.
+//
+// Mini App links (`?startapp=`) go to one of two apps:
+//   • TELEGRAM_MINIAPP_SHORT_NAME set: the direct-link Mini App made with
+//     @BotFather /newapp, `https://t.me/<bot>/<short name>?startapp=…`. It
+//     is not put on the bot's profile, so it keeps the owner-first rollout:
+//     only people who already use the Mini App (from the gated bot buttons)
+//     come back through it.
+//   • otherwise: the bot's main Mini App, `https://t.me/<bot>?startapp=…`
+//     (Bot Settings → Configure Mini App). Configuring it puts an "Open"
+//     button on the bot's profile for EVERYONE, so it belongs to the moment
+//     the new bot interface opens for all.
 
 /** Kovra's bot, as the site spells it everywhere. */
 export const KOVRA_BOT_USERNAME_FALLBACK = "KovraVPN_bot";
@@ -15,6 +26,9 @@ const USERNAME_RE = /^[A-Za-z0-9_]{5,32}$/;
 
 /** `?start=` / `?startapp=` payloads: 1–64 of [A-Za-z0-9_-]. */
 const PAYLOAD_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** Short names of direct-link Mini Apps (@BotFather /newapp): 3–30 of [A-Za-z0-9_]. */
+const SHORT_NAME_RE = /^[A-Za-z0-9_]{3,30}$/;
 
 /** The environment variables read here (process.env satisfies it). */
 export type BotLinkEnv = Readonly<Record<string, string | undefined>>;
@@ -28,8 +42,16 @@ export function botUsername(env: BotLinkEnv = process.env): string {
   return KOVRA_BOT_USERNAME_FALLBACK;
 }
 
-function withPayload(param: "start" | "startapp", payload: string | undefined, env: BotLinkEnv): string {
-  const base = `https://t.me/${botUsername(env)}`;
+/**
+ * The direct-link Mini App's short name, or null for the main Mini App. A
+ * malformed value counts as unset: it must never leak into a URL.
+ */
+export function miniAppShortName(env: BotLinkEnv = process.env): string | null {
+  const name = (env.TELEGRAM_MINIAPP_SHORT_NAME ?? "").trim();
+  return SHORT_NAME_RE.test(name) ? name : null;
+}
+
+function withPayload(param: "start" | "startapp", payload: string | undefined, base: string): string {
   if (payload === undefined) return base;
   if (!PAYLOAD_RE.test(payload)) throw new Error(`bot-link: invalid ${param} payload`);
   return `${base}?${param}=${payload}`;
@@ -37,17 +59,20 @@ function withPayload(param: "start" | "startapp", payload: string | undefined, e
 
 /** Chat with the bot, optionally with a `/start <payload>`. */
 export function botChatUrl(start?: string, env: BotLinkEnv = process.env): string {
-  return withPayload("start", start, env);
+  return withPayload("start", start, `https://t.me/${botUsername(env)}`);
 }
 
 /**
- * Open the bot's main Mini App, optionally with a start parameter that
- * arrives in initData as `start_param`. Works only when the Mini App is
- * configured in @BotFather (Bot Settings → Configure Mini App).
+ * Open the Mini App, optionally with a start parameter that arrives in
+ * initData as `start_param`: the direct-link app when
+ * TELEGRAM_MINIAPP_SHORT_NAME is set, else the bot's main Mini App (see the
+ * header). Either works only once it exists in @BotFather.
  */
 export function miniAppUrl(startapp?: string, env: BotLinkEnv = process.env): string {
-  if (startapp === undefined) return `https://t.me/${botUsername(env)}?startapp`;
-  return withPayload("startapp", startapp, env);
+  const shortName = miniAppShortName(env);
+  const base = `https://t.me/${botUsername(env)}${shortName ? `/${shortName}` : ""}`;
+  if (startapp === undefined) return `${base}?startapp`;
+  return withPayload("startapp", startapp, base);
 }
 
 /** Where a payment provider sends the person back after paying or cancelling. */
