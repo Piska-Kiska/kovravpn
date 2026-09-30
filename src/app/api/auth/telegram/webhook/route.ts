@@ -39,8 +39,9 @@ import { chargeIn, formatCharge } from "@/lib/lava-price";
 import { rememberCharge } from "@/lib/lava-purchase";
 import { buildTopupOrderId as buildLavaTopupOrderId } from "@/lib/bot-wallet";
 import { createCardPayment } from "@/lib/cashera-order";
-import { getBalanceUsd, addBalanceUsd, chargeBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
-import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddonTerm, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
+import { getBalanceUsd, addBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
+import { PLAN_PRICES, activePlanKindOf, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
+import { purchaseFromWallet, type WalletProduct } from "@/lib/wallet-purchase";
 import { createCryptoBotInvoice } from "@/lib/cryptobot";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
@@ -586,11 +587,7 @@ async function screenPricing(chatId: number, msgId: number) {
 // switch the buy flow into renewal mode and lock it to that tier; extra device
 // capacity comes from the Add-device add-on, not from re-buying the plan.
 async function activePlanKind(userId: string): Promise<PlanKind | null> {
-  const now = Date.now();
-  const subs = await getSubscriptions(userId);
-  if (subs.some((s) => s.kind === "plan3" && s.expiresAt > now)) return "plan3";
-  if (subs.some((s) => s.kind === "plan1" && s.expiresAt > now)) return "plan1";
-  return null;
+  return activePlanKindOf(await getSubscriptions(userId));
 }
 
 async function screenBuyPlan(chatId: number, msgId: number) {
@@ -631,16 +628,11 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
   }
 }
 
-async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term) {
-  const lang = await resolveLang(await getUserId(chatId));
+async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term: Term, requestId: string) {
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("menu", lang)]); return; }
-  const plan = resolvePlan(kind, term);
-  if (!plan) { await edit(chatId, msgId, t("buy.err", lang), [backBtn("menu", lang)]); return; }
-  await chargeAndGrant(chatId, msgId, lang, userId, plan.price, async () => {
-    await applyPlanPurchase(userId, plan);
-    return t(`shop.sum.${kind}`, lang, { term });
-  }, `buyplan_${kind}`);
+  const lang = await resolveLang(userId);
+  await buyFromWallet(chatId, msgId, lang, userId, { kind, term }, requestId,
+    t(`shop.sum.${kind}`, lang, { term }), `buyplan_${kind}`);
 }
 
 // ─── Add-device (1/6/12 mo × $5) ─────────────────────
@@ -654,58 +646,45 @@ async function screenAddDevice(chatId: number, msgId: number) {
   await edit(chatId, msgId, t("dev.title", lang), rows);
 }
 
-async function handleAddDevice(chatId: number, msgId: number, term: Term) {
-  const lang = await resolveLang(await getUserId(chatId));
+async function handleAddDevice(chatId: number, msgId: number, term: Term, requestId: string) {
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("account", lang)]); return; }
-  const price = DEVICE_ADDON_PRICE * term;
-  await chargeAndGrant(chatId, msgId, lang, userId, price, async () => {
-    await applyDeviceAddonTerm(userId, term);
-    return t("shop.sum.device", lang, { days: term * 30 });
-  }, "adddev");
+  const lang = await resolveLang(userId);
+  await buyFromWallet(chatId, msgId, lang, userId, { kind: "device", term }, requestId,
+    t("shop.sum.device", lang, { days: term * 30 }), "adddev");
 }
 
 /**
- * Atomic charge-then-grant. Checks balance, charges, runs grant(); on grant
- * failure refunds. Renders insufficient/success. `backTo` is the retry target.
+ * Pay from the wallet (lib/wallet-purchase.ts: lock, idempotency by the
+ * callback id, charge then grant, refund on failure) and render the outcome.
+ * `backTo` is the retry target.
  */
-async function chargeAndGrant(
+async function buyFromWallet(
   chatId: number, msgId: number, lang: BotLang, userId: string,
-  price: number, grant: () => Promise<string>, backTo: string,
+  product: WalletProduct, requestId: string, summary: string, backTo: string,
 ) {
-  const bal = await getBalanceUsd(userId);
-  if (bal < price) {
-    const need = price - bal;
+  const r = await purchaseFromWallet({ userId, product, requestId, source: "bot" });
+  const usd = (cents: number) => (cents / 100).toFixed(2);
+  if (r.status === "ok") {
     await edit(chatId, msgId,
-      t("shop.insufficient", lang, { price: price.toFixed(2), bal: bal.toFixed(2), need: need.toFixed(2) }),
+      t("shop.ok", lang, { summary, bal: usd(r.balanceCents) }),
       [
-        [{ text: t("shop.topup.btn", lang, { need: need.toFixed(2) }), callback_data: "topup" }],
+        [{ text: t("menu.devices", lang), callback_data: "profiles" }],
+        backBtn("menu", lang),
+      ]);
+    return;
+  }
+  if (r.status === "insufficient") {
+    await edit(chatId, msgId,
+      t("shop.insufficient", lang, { price: usd(r.priceCents), bal: usd(r.balanceCents), need: usd(r.needCents) }),
+      [
+        [{ text: t("shop.topup.btn", lang, { need: usd(r.needCents) }), callback_data: "topup" }],
         backBtn(backTo, lang),
       ]);
     return;
   }
-  const charged = await chargeBalanceUsd(userId, price);
-  if (!charged) {
-    await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
-    return;
-  }
-  let summary: string;
-  try {
-    summary = await grant();
-    await syncAllExpiry(userId);
-  } catch (err) {
-    console.error("[bot] grant failed, refunding:", err);
-    await addBalanceUsd(userId, price); // refund
-    await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
-    return;
-  }
-  const newBal = await getBalanceUsd(userId);
-  await edit(chatId, msgId,
-    t("shop.ok", lang, { summary, bal: newBal.toFixed(2) }),
-    [
-      [{ text: t("menu.devices", lang), callback_data: "profiles" }],
-      backBtn("menu", lang),
-    ]);
+  // A second tap while the first purchase runs: that one renders the result.
+  if (r.status === "conflict" && (r.reason === "busy" || r.reason === "in_progress")) return;
+  await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
 }
 
 // ─── Top-up balance (USD) ────────────────────────────
@@ -1034,13 +1013,13 @@ export async function POST(req: NextRequest) {
       else if (data.startsWith("buyterm_")) {
         const [, k, tm] = data.split("_");
         if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12"))
-          await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term);
+          await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term, `tgcb-${cb.id}`);
       }
       else if (data === "buyplan") await screenBuyPlan(chatId, msgId);
       else if (data === "adddev") await screenAddDevice(chatId, msgId);
       else if (data.startsWith("adddev_")) {
         const tm = data.slice("adddev_".length);
-        if (tm === "1" || tm === "6" || tm === "12") await handleAddDevice(chatId, msgId, Number(tm) as Term);
+        if (tm === "1" || tm === "6" || tm === "12") await handleAddDevice(chatId, msgId, Number(tm) as Term, `tgcb-${cb.id}`);
       }
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");

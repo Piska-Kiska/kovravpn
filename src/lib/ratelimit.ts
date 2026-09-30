@@ -45,7 +45,9 @@ export async function acquireLock(
   ttlSeconds = 10
 ): Promise<(() => Promise<void>) | null> {
   const lockKey = `lock:${key}`;
-  const token = randomBytes(8).toString("hex");
+  // Letter prefix: an all-digit hex token would come back from Upstash's
+  // automatic JSON parsing as a number and never match on release.
+  const token = `t${randomBytes(8).toString("hex")}`;
 
   // SET NX EX — atomic
   const result = await redis.set(lockKey, token, { nx: true, ex: ttlSeconds });
