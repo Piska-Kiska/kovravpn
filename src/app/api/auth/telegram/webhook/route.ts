@@ -44,7 +44,7 @@ import { PLAN_PRICES, activePlanKindOf, DEVICE_ADDON_PRICE, summarize, getSubscr
 import { purchaseFromWallet, type WalletProduct } from "@/lib/wallet-purchase";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
-import { randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import {
   tryHandleAdminCallback,
   tryHandleAdminText,
@@ -633,10 +633,22 @@ async function screenBuyPlan(chatId: number, msgId: number) {
   ]);
 }
 
+/**
+ * One-use value in the callback_data of a screen that pays at once: the
+ * purchase's requestId is `tgb-{chatId}-{nonce}`, so a double tap on the same
+ * button replays the first purchase instead of charging twice (the callback
+ * id is new on every tap and cannot do that). Hex: "_" splits callback_data.
+ */
+function buyNonce(): string {
+  return randomBytes(5).toString("hex");
+}
+const BUY_NONCE_RE = /^[0-9a-f]{10}$/;
+
 async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
   const now = Date.now();
+  const nonce = buyNonce();
   const subs = await getSubscriptions(userId);
   const planSub = subs
     .filter((s) => s.kind === kind && s.expiresAt > now)
@@ -647,7 +659,7 @@ async function screenBuyTerm(chatId: number, msgId: number, kind: PlanKind) {
     const pr = PLAN_PRICES[kind][term];
     return [{
       text: t(`buy.term.${term}`, lang, { total: pr.total.toFixed(2), perMonth: pr.perMonth.toFixed(2) }),
-      callback_data: `buyterm_${kind}_${term}`,
+      callback_data: `buyterm_${kind}_${term}_${nonce}`,
     }];
   });
   rows.push(backBtn(isRenewal ? "menu" : "buyplan", lang));
@@ -668,10 +680,20 @@ async function handleBuyPlan(chatId: number, msgId: number, kind: PlanKind, term
 
 // ─── Add-device (1/6/12 mo × $5) ─────────────────────
 async function screenAddDevice(chatId: number, msgId: number) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  // An extra device sits on a running plan (lib/wallet-purchase.ts refuses it otherwise).
+  if (!(await activePlanKind(userId))) {
+    await edit(chatId, msgId, t("buy.noplan", lang), [
+      [{ text: t("acc.buy", lang), callback_data: "buyplan" }],
+      backBtn("account", lang),
+    ]);
+    return;
+  }
+  const nonce = buyNonce();
   const rows: InlineBtn[][] = ([1, 6, 12] as Term[]).map((term) => {
     const total = DEVICE_ADDON_PRICE * term;
-    return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}` }];
+    return [{ text: t(`dev.term.${term}`, lang, { total: total.toFixed(2) }), callback_data: `adddev_${term}_${nonce}` }];
   });
   rows.push(backBtn("account", lang));
   await edit(chatId, msgId, t("dev.title", lang), rows);
@@ -686,7 +708,8 @@ async function handleAddDevice(chatId: number, msgId: number, term: Term, reques
 
 /**
  * Pay from the wallet (lib/wallet-purchase.ts: lock, idempotency by the
- * callback id, charge then grant, refund on failure) and render the outcome.
+ * nonce of the screen the button sits on, charge then grant, refund on
+ * failure) and render the outcome.
  * `backTo` is the retry target.
  */
 async function buyFromWallet(
@@ -715,6 +738,13 @@ async function buyFromWallet(
   }
   // A second tap while the first purchase runs: that one renders the result.
   if (r.status === "conflict" && (r.reason === "busy" || r.reason === "in_progress")) return;
+  if (r.status === "conflict" && r.reason === "no_plan") {
+    await edit(chatId, msgId, t("buy.noplan", lang), [
+      [{ text: t("acc.buy", lang), callback_data: "buyplan" }],
+      backBtn("account", lang),
+    ]);
+    return;
+  }
   await edit(chatId, msgId, t("buy.err", lang), [backBtn(backTo, lang)]);
 }
 
@@ -1010,15 +1040,25 @@ export async function POST(req: NextRequest) {
       }
       else if (data === "topup") await screenTopup(chatId, msgId);
       else if (data.startsWith("buyterm_")) {
-        const [, k, tm] = data.split("_");
-        if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12"))
-          await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term, `tgcb-${cb.id}`);
+        // buyterm_<kind>_<term>_<nonce>. A button without the nonce (sent
+        // before it existed) shows the terms again instead of charging.
+        const [, k, tm, nonce] = data.split("_");
+        if ((k === "plan1" || k === "plan3") && (tm === "1" || tm === "6" || tm === "12")) {
+          if (nonce !== undefined && BUY_NONCE_RE.test(nonce))
+            await handleBuyPlan(chatId, msgId, k as PlanKind, Number(tm) as Term, `tgb-${chatId}-${nonce}`);
+          else await screenBuyTerm(chatId, msgId, k as PlanKind);
+        }
       }
       else if (data === "buyplan") await screenBuyPlan(chatId, msgId);
       else if (data === "adddev") await screenAddDevice(chatId, msgId);
       else if (data.startsWith("adddev_")) {
-        const tm = data.slice("adddev_".length);
-        if (tm === "1" || tm === "6" || tm === "12") await handleAddDevice(chatId, msgId, Number(tm) as Term, `tgcb-${cb.id}`);
+        // adddev_<term>_<nonce>; without the nonce: the term list again.
+        const [tm, nonce] = data.slice("adddev_".length).split("_");
+        if (tm === "1" || tm === "6" || tm === "12") {
+          if (nonce !== undefined && BUY_NONCE_RE.test(nonce))
+            await handleAddDevice(chatId, msgId, Number(tm) as Term, `tgb-${chatId}-${nonce}`);
+          else await screenAddDevice(chatId, msgId);
+        }
       }
       else if (data === "topup_m_crypto") await screenTopupAmount(chatId, msgId, "crypto");
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");

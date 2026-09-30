@@ -7,7 +7,8 @@
 //   • a forged `cdel_<uuid>` / `del_<uuid>` for someone else's device changes
 //     nothing (it used to remove the victim's client from the panels);
 //   • buying from the wallet goes through lib/wallet-purchase.ts, keyed by
-//     the callback id;
+//     the nonce of the screen the button sits on (a double tap is one
+//     purchase);
 //   • the identity and first-contact language are both written.
 //
 // Ids, tokens and secrets are made up.
@@ -142,9 +143,27 @@ describe("device deletion is scoped to the caller", () => {
 });
 
 describe("buying from the wallet in the bot", () => {
-  test("buyterm charges the wallet once per callback id and grants the plan", async () => {
+  const NONCE = "0a1b2c3d4e";
+  const activePlan = (uid, kind = "plan1") =>
+    mem.store.set(
+      `subs:${uid}`,
+      JSON.stringify([{ id: "s1", kind, slots: kind === "plan3" ? 3 : 1, createdAt: 1, expiresAt: Date.now() + 10 * 86_400_000 }]),
+    );
+  const lastButtons = () =>
+    (tgCalls.filter((c) => c.method === "editMessageText").at(-1)?.body.reply_markup?.inline_keyboard ?? []).flat();
+
+  test("the term buttons carry a nonce from their screen", async () => {
+    await hook(callbackUpdate(ATTACKER, "buyplan_plan1"));
+    const data = lastButtons().map((b) => b.callback_data).filter((d) => d.startsWith("buyterm_"));
+    assert.equal(data.length, 3);
+    for (const d of data) assert.match(d, /^buyterm_plan1_(1|6|12)_[0-9a-f]{10}$/);
+    assert.equal(new Set(data.map((d) => d.split("_")[3])).size, 1, "one nonce per screen");
+  });
+
+  test("a double tap on the same button charges once and grants once", async () => {
     mem.store.set(`balance_usd:tg_${ATTACKER}`, "700");
-    const u = callbackUpdate(ATTACKER, "buyterm_plan1_1", "5550001112223334445");
+    const data = `buyterm_plan1_1_${NONCE}`;
+    const u = callbackUpdate(ATTACKER, data, "5550001112223334445");
     await hook(u);
     assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "200");
     const subs = JSON.parse(mem.store.get(`subs:tg_${ATTACKER}`));
@@ -154,22 +173,44 @@ describe("buying from the wallet in the bot", () => {
 
     // Telegram re-delivers the same update: deduped by update_id.
     await hook(u);
-    // The same callback id arriving in another update: replayed, not charged.
-    await hook({ ...u, update_id: updateSeq++ });
+    // A second tap: a new callback id, the same button (same nonce): replayed.
+    await hook(callbackUpdate(ATTACKER, data, "5550001112223334999"));
     assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "200");
-    assert.equal(JSON.parse(mem.store.get(`subs:tg_${ATTACKER}`))[0].kind, "plan1");
+    const after = JSON.parse(mem.store.get(`subs:tg_${ATTACKER}`));
+    assert.equal(after.length, 1);
+    assert.ok(after[0].expiresAt < Date.now() + 31 * 86_400_000, "30 days, not 60");
+  });
+
+  test("an old button without a nonce shows the terms again and charges nothing", async () => {
+    mem.store.set(`balance_usd:tg_${ATTACKER}`, "700");
+    await hook(callbackUpdate(ATTACKER, "buyterm_plan1_1"));
+    await hook(callbackUpdate(ATTACKER, "adddev_1"));
+    assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "700");
+    assert.equal(mem.store.get(`subs:tg_${ATTACKER}`), undefined);
+  });
+
+  test("a forged nonce of the wrong shape is not a purchase", async () => {
+    mem.store.set(`balance_usd:tg_${ATTACKER}`, "700");
+    await hook(callbackUpdate(ATTACKER, "buyterm_plan1_1_NOT-HEX!!"));
+    assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "700");
   });
 
   test("not enough money shows how much to top up and charges nothing", async () => {
-    // An extra device sits on a running plan.
-    mem.store.set(
-      `subs:tg_${ATTACKER}`,
-      JSON.stringify([{ id: "s1", kind: "plan1", slots: 1, createdAt: 1, expiresAt: Date.now() + 10 * 86_400_000 }]),
-    );
+    activePlan(`tg_${ATTACKER}`);
     mem.store.set(`balance_usd:tg_${ATTACKER}`, "100");
-    await hook(callbackUpdate(ATTACKER, "adddev_6"));
+    await hook(callbackUpdate(ATTACKER, `adddev_6_${NONCE}`));
     assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "100");
     assert.match(lastEditText(), /29\.00/);
+  });
+
+  test("an extra device without a plan is not sold: the plan comes first", async () => {
+    mem.store.set(`balance_usd:tg_${ATTACKER}`, "10000");
+    await hook(callbackUpdate(ATTACKER, "adddev"));
+    assert.equal(lastEditText(), t("buy.noplan", "de"));
+    assert.ok(lastButtons().some((b) => b.callback_data === "buyplan"));
+    await hook(callbackUpdate(ATTACKER, `adddev_1_${NONCE}`));
+    assert.equal(mem.store.get(`balance_usd:tg_${ATTACKER}`), "10000");
+    assert.equal(mem.store.get(`subs:tg_${ATTACKER}`), undefined);
   });
 });
 

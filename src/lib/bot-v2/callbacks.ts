@@ -309,7 +309,8 @@ function parseLegacy(data: string): V2Action | null {
       return isPlanKind(kind) && term !== null ? { a: "order", product: kind, term, from: "w" } : null;
     }
     case "adddev": {
-      const term = parseTerm(rest);
+      // adddev_<term> or adddev_<term>_<nonce>
+      const term = parseTerm(rest.split("_")[0]);
       return term !== null ? { a: "order", product: "slot", term, from: "w" } : null;
     }
     case "topup": {
