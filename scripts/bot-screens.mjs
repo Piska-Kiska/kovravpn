@@ -50,7 +50,8 @@ const { tr } = await import("../src/lib/bot-v2/i18n.ts");
 
 const NOW = Date.UTC(2026, 8, 30, 12, 0, 0);
 const DAY = 86_400_000;
-const TOKEN = "3f9c2a7e5b1d4c6f8a0e2b4d6f8a1c3e";
+// A made-up subscription token for the fixtures, not a secret.
+const TOKEN = "3f9c2a7e5b1d4c6f8a0e2b4d6f8a1c3e"; // gitleaks:allow
 const profiles = (types) =>
   types.map((t, i) => ({ uuid: `0b1c2d3e-0000-4000-8000-00000000000${i}`, deviceType: t, clientEmail: "", vlessUrl: "", createdAt: i }));
 
@@ -131,15 +132,28 @@ function screensFor(lang) {
   add("home-active-nodevice", "Home · active, no devices", S.homeScreen({ ...V("active"), devices: [] }, lang, NOW));
   add("home-ended", "Home · plan ended", S.homeScreen(V("ended"), lang, NOW));
   add("home-ref", "Home · after /start ref_…", S.homeScreen(V("newcomer"), lang, NOW, tr("note.ref", lang, { days: 14 })));
+  add("home-paid", "Home · back from a payment page", S.homeScreen(V("newcomer"), lang, NOW, tr("note.paid", lang)));
+  add("home-auth", "Home · signed in on the site", S.homeScreen(V("active"), lang, NOW, tr("note.authOk", lang)));
+  add("home-codegone", "Home · expired sign-in code", S.homeScreen(V("newcomer"), lang, NOW, tr("note.codeGone", lang)));
   add("connect-pick", "Connect · pick a device", S.connectScreen(V("active"), lang));
   add("connect-noplan", "Connect · no plan (plan choice)", S.connectScreen(V("newcomer"), lang));
   add("connect-full", "Connect · all slots used", S.connectScreen(V("full"), lang));
+  add(
+    "connect-full-noplan",
+    "Connect · all slots used, no plan (a referral bonus only)",
+    S.connectScreen({ ...V("full"), planKind: null, lastPlanKind: null }, lang),
+  );
   add("creating", "Connect · creating", S.creatingScreen("iphone", lang));
   add("create-failed", "Connect · servers down", S.createFailedScreen("iphone", "unavailable", lang));
   add("devices", "My devices", S.devicesScreen(V("active"), lang));
   add("devices-empty", "My devices · none", S.devicesScreen(V("newcomer"), lang));
   add("devices-paused", "My devices · plan ended", S.devicesScreen(V("ended"), lang));
   add("devices-full", "My devices · all slots used", S.devicesScreen(V("full"), lang));
+  add(
+    "devices-removefail",
+    "My devices · a panel did not confirm the removal",
+    S.deviceScreen(V("active"), detail(V("active"), 0), lang, tr("devs.removeFailed", lang)),
+  );
   const active = V("active");
   add("device", "Device · iPhone", S.deviceScreen(active, detail(active, 0), lang));
   add("device-new", "Device · just created", S.deviceScreen(active, detail(active, 0), lang, tr("dev.ready", lang, { dev: active.devices[0].label })));
@@ -148,6 +162,7 @@ function screensFor(lang) {
   const ended = V("ended");
   add("device-paused", "Device · plan ended", S.deviceScreen(ended, detail(ended, 1), lang));
   add("qr", "QR photo caption", S.qrPhoto("iPhone", lang));
+  add("qr-fail", "QR could not be sent", S.qrFailScreen(active.devices[0].uuid, lang));
   add("delete-confirm", "Remove · confirm", S.deleteConfirmScreen(active.devices[0], lang));
   add("deleting", "Remove · in progress", S.deletingScreen(active.devices[0].label, lang));
   add("wallet-new", "Balance & plans · new", S.walletScreen(V("newcomer"), lang));
@@ -155,8 +170,10 @@ function screensFor(lang) {
   add("wallet-ended", "Balance & plans · ended", S.walletScreen(V("ended"), lang));
   add("plans", "Plans", S.plansScreen(V("newcomer"), lang, "w"));
   add("terms", "Terms · 3 devices", S.termsScreen(V("newcomer"), "plan3", lang, "w"));
+  add("plans-from-device", "Plans · from a device (Back to the devices)", S.plansScreen(V("ended"), lang, "d"));
   add("terms-renew", "Terms · renewal", S.termsScreen(V("active"), "plan3", lang, "w"));
   add("slot", "Extra slot", S.slotScreen(V("full"), lang, "w"));
+  add("slot-from-devices", "Extra slot · from the devices (Back to the devices)", S.slotScreen(V("full"), lang, "d"));
   add("order-enough", "Order · enough balance", S.orderScreen(V("rich"), "plan3", 6, "n0nceAbc", lang, "w"));
   add("order-short", "Order · not enough", S.orderScreen(V("active"), "plan3", 6, "n0nceAbc", lang, "w"));
   add("order-renew", "Order · renewal", S.orderScreen({ ...V("active"), balanceCents: 20_000 }, "plan3", 12, "n0nceAbc", lang, "w"));
@@ -164,6 +181,7 @@ function screensFor(lang) {
   add("paid", "Paid", S.paidScreen({ ...V("active"), devices: [] }, "plan3", 6, lang));
   add("pay-other-plan", "Pay · other plan runs", S.payProblemScreen("other_plan", lang, { a: "wallet" }, "plan1"));
   add("pay-refunded", "Pay · refunded", S.payProblemScreen("refunded", lang, { a: "wallet" }, null));
+  add("pay-no-plan", "Pay · extra slot without a plan", S.payProblemScreen("no_plan", lang, { a: "wallet" }, null));
   add("topup", "Top up · methods", S.topupScreen(V("active"), METHODS, lang, null));
   add("topup-for", "Top up · for an order", S.topupScreen(V("active"), METHODS, lang, { product: "plan3", term: 6, needCents: 4144, from: "w" }));
   add("topup-none", "Top up · nothing configured", S.topupScreen(V("active"), [], lang, null));
@@ -197,6 +215,7 @@ function screensFor(lang) {
   add("promo-used", "Promo · already used", S.promoResultScreen({ ok: false, error: "already_used" }, lang));
   add("invite", "Invite friends", S.inviteScreen({ link: "https://t.me/KovraVPN_bot?start=ref_a1b2c3d4", total: 3, paid: 1 }, lang));
   add("help", "Help", S.helpScreen(lang));
+  add("help-support", "Help · after a typed question or a screenshot", S.helpScreen(lang, tr("note.support", lang)));
   add("language", "Language", S.languageScreen(lang));
   add("error", "Error", S.errorScreen(lang));
   add("nt-topup", "Notice · top-up", renderNotice({ kind: "topup", amountCents: 2000, balanceCents: 3250 }, lang));
@@ -289,7 +308,12 @@ async function walkWebhook() {
   await text("Types a promo code", "NOSUCHCODE");
   await tap("Old-interface button: buyterm_plan1_1 (now an order, not a charge)", "buyterm_plan1_1");
   await text("/help", "/help");
-  await text("Random text", "hello?");
+  await text("Random text (a question nobody reads)", "hello?");
+  await post("A screenshot", { message: { message_id: 10 + update, chat: { id: CHAT, type: "private" }, from, photo: [{ file_id: "x" }] } });
+  await text("/start with an ad parameter", "/start tiktok");
+  await text("/start with an expired sign-in code", "/start ABCDEF");
+  await tap("Promo code, then a sentence", "k:promo");
+  await text("Types a sentence at the promo prompt", "how do I connect?");
   await text("/whoami (not the owner)", "/whoami");
 
   // Notices, as the payment webhooks send them.
