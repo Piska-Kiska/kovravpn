@@ -206,7 +206,7 @@ export async function addSubscription(
   slots: number,
 ): Promise<Subscription[]> {
   const now = Date.now();
-  let subs = prune(await getSubscriptions(userId));
+  const subs = prune(await getSubscriptions(userId));
 
   if (kind === "plan1" || kind === "plan3") {
     const existing = subs.find((s) => s.kind === kind && s.expiresAt > now);
