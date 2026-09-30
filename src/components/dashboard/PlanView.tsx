@@ -3,18 +3,24 @@
 // on the right; the balance, extra-slot and subscriptions panels sit under the
 // plan panel. Below: plan -> billing period -> summary -> balance -> slot ->
 // subscriptions.
+//
+// Inside the Mini App (`embedded`) the kicker above the title and the balance
+// panel go (the balance chip sits in the top bar), and the extra slot is
+// offered only while a plan runs (it is sold on top of one).
 "use client";
 
 import { useState, type ReactNode } from "react";
 import { Check, Plus } from "lucide-react";
 import { Button, Icon, cx } from "@/components/cabinet";
+import type { DashHost } from "./host";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
 import { fmtDate, fmtUsd } from "@/lib/dashboard/format";
-import { buildPayOptions, choosePayKey, readPayMethod, writePayMethod, type PayRoute } from "@/lib/dashboard/pay-methods";
+import { WALLET_KEY, buildPayOptions, choosePayKey, readPayMethod, writePayMethod, type PayRoute } from "@/lib/dashboard/pay-methods";
 import { usdToCentsClient } from "@/lib/dashboard/wallet";
 import type { AccountData, PlanKind, Pricing, Term } from "@/lib/dashboard/types";
-import { OrderSummary } from "./OrderSummary";
+import { OrderSummary, type OrderPaid, type OrderPending } from "./OrderSummary";
+import { fmtCents } from "./WalletPanel";
 import { SubsList } from "./SubsList";
 import { TermRadios, discountOf, termLabel } from "./TermRadios";
 import { WalletPanel } from "./WalletPanel";
@@ -38,13 +44,25 @@ export interface PlanViewProps {
   /** A control under the error (e.g. "Top up" when the balance fell short). */
   planErrorAction?: ReactNode;
   onDismissPlanError(): void;
-  /** Success after paying from the balance, shown in the summary. */
-  planDone: string | null;
-  onDismissPlanDone(): void;
+  /** Paid from the balance: the summary shows the result instead of the form. */
+  planPaid: OrderPaid | null;
+  onPlanPaidDone(): void;
+  /** After a purchase with a free slot: set up a device. */
+  onSetupDevice?: () => void;
+  /** A payment page of this plan is open in the browser (Mini App). */
+  pending: OrderPending | null;
   onBuySlot(): void;
   /** The unified balance in cents; null while unknown (no balance UI). */
   balanceCents: number | null;
   onTopup(): void;
+  /** Top up exactly what the selected term is missing. */
+  onTopupNeed(needCents: number): void;
+  /** Inside the Telegram Mini App. */
+  embedded: boolean;
+  /** Telegram's bottom button binder (host), when there is one. */
+  mainButton?: DashHost["mainButton"];
+  /** A dialog is open over the view. */
+  suspended: boolean;
 }
 
 const KINDS: readonly PlanKind[] = ["plan3", "plan1"];
@@ -56,8 +74,9 @@ export function PlanView(p: PlanViewProps) {
   const [picked, setPicked] = useState<string | null>(null);
   const [remembered] = useState<string | null>(() => (typeof window === "undefined" ? null : readPayMethod()));
 
+  const kicker = p.embedded ? undefined : t.billing_kicker;
   if (!pricing) {
-    return <ViewHead kicker={t.billing_kicker} title={t.plan_title} />;
+    return <ViewHead kicker={kicker} title={t.plan_title} />;
   }
 
   const prices = p.effectiveKind === "plan3" ? pricing.plan3 : pricing.plan1;
@@ -78,7 +97,15 @@ export function PlanView(p: PlanViewProps) {
   const onSelect = (k: string) => {
     setPicked(k);
     writePayMethod(k);
+    // Another method is another payment: the page opened for this one is not reopened.
+    p.pending?.onForget();
   };
+
+  // The balance row shows but does not cover the price: offer the missing amount.
+  const walletRow = options.find((o) => o.key === WALLET_KEY);
+  const needCents = walletRow?.disabled && priceCents !== null && p.balanceCents !== null ? priceCents - p.balanceCents : 0;
+  const topupNeed =
+    needCents > 0 ? { label: fmt(t.wallet_topup_need, { amount: fmtCents(needCents, lang) }), onClick: () => p.onTopupNeed(needCents) } : null;
 
   const r1 = rise(1);
   const r2 = rise(2);
@@ -86,7 +113,7 @@ export function PlanView(p: PlanViewProps) {
 
   return (
     <>
-      <ViewHead kicker={t.billing_kicker} title={t.plan_title} />
+      <ViewHead kicker={kicker} title={t.plan_title} />
       <div className="kc-plan-grid">
         <section className={cx("kc-panel kc-plan-main", r1.className)} style={r1.style} aria-labelledby="kc-plan-choose">
           {p.isRenewal ? (
@@ -151,13 +178,21 @@ export function PlanView(p: PlanViewProps) {
             error={p.planError}
             errorAction={p.planErrorAction}
             onDismissError={p.onDismissPlanError}
-            done={p.planDone}
-            onDismissDone={p.onDismissPlanDone}
+            paid={p.planPaid}
+            onPaidDone={p.onPlanPaidDone}
+            onSetupDevice={p.onSetupDevice}
+            pending={p.pending}
+            topupNeed={topupNeed}
+            mainButton={p.mainButton}
+            suspended={p.suspended}
           />
         </div>
 
         <div className={cx("kc-plan-extra", r3.className)} style={r3.style}>
-          {p.balanceCents !== null ? <WalletPanel t={t} lang={lang} balanceCents={p.balanceCents} onTopup={p.onTopup} disabled={p.busy} /> : null}
+          {p.balanceCents !== null && !p.embedded ? (
+            <WalletPanel t={t} lang={lang} balanceCents={p.balanceCents} onTopup={p.onTopup} disabled={p.busy} />
+          ) : null}
+          {p.isRenewal ? (
           <section className="kc-panel kc-slotpanel" aria-labelledby="kc-slot-title">
             <div className="kc-slotpanel-text">
               <h2 id="kc-slot-title" className="kc-h3">
@@ -170,6 +205,7 @@ export function PlanView(p: PlanViewProps) {
               {t.slot_buy}
             </Button>
           </section>
+          ) : null}
           {account ? <SubsList t={t} lang={lang} subs={account.subs} /> : null}
         </div>
       </div>

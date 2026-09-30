@@ -32,6 +32,33 @@ export interface DashHost {
    * (Telegram's `activated`, Bot API 8.0). Returns the unsubscribe.
    */
   onResume?(fn: () => void): () => void;
+  /**
+   * Telegram's bottom button (Bot API 6.0+): show it with this spec, or hide
+   * it (null). Returns the unbind. Absent on the site and on clients without
+   * it; the page then keeps its own gold button.
+   */
+  mainButton?(spec: HostMainButton | null): () => void;
+  /** Share a link through Telegram's own chat picker (the Mini App). */
+  share?(url: string, text: string): void;
+  /**
+   * Who Telegram says is signed in, for DISPLAY only (initDataUnsafe, not
+   * verified here; the session itself comes from the signed initData).
+   */
+  readonly telegramUser?: HostTelegramUser | null;
+}
+
+export interface HostMainButton {
+  text: string;
+  active: boolean;
+  loading: boolean;
+  onClick(): void;
+}
+
+export interface HostTelegramUser {
+  /** First and last name as the person set them in Telegram. */
+  name: string;
+  /** @username without the @, or null. */
+  username: string | null;
 }
 
 /** The site. */

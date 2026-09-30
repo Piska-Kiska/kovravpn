@@ -6,7 +6,7 @@
 // own (the balance that does not cover the price) and still explains why.
 "use client";
 
-import { useId, useState } from "react";
+import { Fragment, useId, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Icon, cx } from "@/components/cabinet";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
@@ -22,6 +22,8 @@ export interface PaymentMethodPickerProps {
   value: string;
   onChange(key: string): void;
   disabled: boolean;
+  /** Something to show right under one row (e.g. "Top up $66.58" under the balance that falls short). */
+  after?: { key: string; node: ReactNode } | null;
 }
 
 function Row({ o, name, checked, disabled, onChange }: { o: PayOption<{ kind: string }>; name: string; checked: boolean; disabled: boolean; onChange(key: string): void }) {
@@ -48,7 +50,7 @@ function Row({ o, name, checked, disabled, onChange }: { o: PayOption<{ kind: st
   );
 }
 
-export function PaymentMethodPicker({ t, lang, name, options, value, onChange, disabled }: PaymentMethodPickerProps) {
+export function PaymentMethodPicker({ t, lang, name, options, value, onChange, disabled, after = null }: PaymentMethodPickerProps) {
   const uid = useId();
   const moreId = `${uid}-more`;
   const legendId = `${uid}-legend`;
@@ -68,7 +70,10 @@ export function PaymentMethodPicker({ t, lang, name, options, value, onChange, d
       </legend>
       <div className="kc-pay-list">
         {[...primary, ...promoted].map((o) => (
-          <Row key={o.key} o={o} name={name} checked={o.key === value} disabled={disabled} onChange={onChange} />
+          <Fragment key={o.key}>
+            <Row o={o} name={name} checked={o.key === value} disabled={disabled} onChange={onChange} />
+            {after && after.key === o.key ? after.node : null}
+          </Fragment>
         ))}
       </div>
       {more.length > 0 && (open || hiddenCount > 0) ? (

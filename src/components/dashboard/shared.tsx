@@ -94,13 +94,13 @@ export function Count({ value, className }: { value: number; className?: string 
 
 /* ── view header (kicker + h1) ─────────────────────────────────────────── */
 
-export function ViewHead({ kicker, title, aside }: { kicker: string; title: string; aside?: ReactNode }) {
+export function ViewHead({ kicker, title, aside }: { kicker?: string; title: string; aside?: ReactNode }) {
   const rise = useRise();
   const r = rise(0);
   return (
     <header className={cx("kc-view-head", r.className)} style={r.style}>
       <div className="kc-view-head-text">
-        <p className="kc-kicker">{kicker}</p>
+        {kicker ? <p className="kc-kicker">{kicker}</p> : null}
         <h1 className="kc-h1 kc-view-title" tabIndex={-1} data-view-title="">
           {title}
         </h1>

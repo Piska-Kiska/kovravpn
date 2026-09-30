@@ -128,6 +128,7 @@ describe("purchase answers", () => {
     assert.deepEqual(purchaseOutcome(409, { error: "busy" }), { kind: "busy" });
     assert.deepEqual(purchaseOutcome(409, { error: "in_progress" }), { kind: "busy" });
     assert.deepEqual(purchaseOutcome(409, { error: "request_reused" }), { kind: "reused" });
+    assert.deepEqual(purchaseOutcome(409, { error: "no_plan" }), { kind: "no_plan" });
     assert.deepEqual(purchaseOutcome(409, { error: "other_plan_active", activePlan: "plan1" }), { kind: "other_plan", activePlan: "plan1" });
     assert.deepEqual(purchaseOutcome(409, { error: "other_plan_active", activePlan: "plan9" }), { kind: "other_plan", activePlan: null });
   });
@@ -262,11 +263,26 @@ describe("top-up methods", () => {
     assert.deepEqual(keys("en", []), []);
   });
 
-  test("minimums per line", () => {
+  test("minimums per line, and per lava.top row", () => {
     const o = buildTopupOptions({ lang: "en", t: DASH_DICT.en, amountUsd: 20, methods: all });
     const crypto = o.find((x) => x.key === "crypto");
-    assert.equal(topupMinUsd(crypto.route, all), 8);
-    assert.equal(topupMinUsd({ kind: "lava", id: "card", currency: "USD" }, all), 5);
+    assert.equal(topupMinUsd(crypto, all), 8);
+    assert.equal(topupMinUsd({ route: { kind: "lava", id: "card", currency: "USD" } }, all), 5);
+    // A euro row: €5.50 at the fixed rate is more than the line's $5.
+    const sepa = o.find((x) => x.key === "lava:sepa");
+    assert.ok(topupMinUsd(sepa, all) > 5.9 && topupMinUsd(sepa, all) < 6.1, String(topupMinUsd(sepa, all)));
+  });
+
+  test("the rows do not change with the amount: a row below its floor stays, marked", () => {
+    const at = (amountUsd) => buildTopupOptions({ lang: "en", t: DASH_DICT.en, amountUsd, methods: all });
+    const k25 = at(25).map((o) => o.key);
+    assert.deepEqual(at(2).map((o) => o.key), k25, "same rows at $2");
+    assert.deepEqual(at(undefined).map((o) => o.key), k25, "same rows with no amount");
+    const card2 = at(2).find((o) => o.key === "lava:card");
+    assert.equal(card2.amount, undefined, "no charge below the floor");
+    assert.match(card2.sub, /from \$5/);
+    assert.equal(card2.disabled, undefined, "still selectable: the amount check explains the minimum");
+    assert.equal(choosePayKey(at(2), "lava:card", null), "lava:card", "the choice stays");
   });
 
   test("lava.top rows carry the exact charge", () => {

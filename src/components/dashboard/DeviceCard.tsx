@@ -1,7 +1,8 @@
 // src/components/dashboard/DeviceCard.tsx
 // One device: platform icon, name, added date, a "more" menu (TV scanner,
 // reset binding, delete), its subscription link, Open in Happ and QR code in
-// one row, and the per-device result notices.
+// one row, and the per-device result notices. While no plan runs the card
+// says the device works again after a renewal, and offers no "Open in Happ".
 "use client";
 
 import { useRef } from "react";
@@ -22,7 +23,10 @@ export interface DeviceCardProps {
   name: string;
   /** "" when the profile has no subscription token. */
   subUrl: string;
-  happEncrypted: boolean;
+  /** "Open in Happ" target (the /add bridge in the Mini App), or null for none. */
+  happUrl: string | null;
+  /** No plan runs: the device is paused. */
+  paused: boolean;
   resetDone: boolean;
   error: string | null;
   onRequestReset(): void;
@@ -30,7 +34,7 @@ export interface DeviceCardProps {
   onDismissError(): void;
 }
 
-export function DeviceCard({ t, lang, profile, name, subUrl, happEncrypted, resetDone, error, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
+export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, resetDone, error, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
   const shell = useShellT();
   const def = isDeviceId(profile.deviceType) ? DEVICE_DEFS[profile.deviceType] : null;
   const qrRef = useRef<QrToggleHandle>(null);
@@ -44,8 +48,8 @@ export function DeviceCard({ t, lang, profile, name, subUrl, happEncrypted, rese
   ];
 
   const openInHapp =
-    happEncrypted && subUrl ? (
-      <ButtonLink variant="ghost" size="sm" href={subUrl} iconEnd={ArrowUpRight} iconSize={16} target="_blank" rel="noopener noreferrer">
+    happUrl && !paused ? (
+      <ButtonLink variant="ghost" size="sm" href={happUrl} iconEnd={ArrowUpRight} iconSize={16} target="_blank" rel="noopener noreferrer">
         {t.open_in_happ}
       </ButtonLink>
     ) : null;
@@ -58,7 +62,7 @@ export function DeviceCard({ t, lang, profile, name, subUrl, happEncrypted, rese
         </span>
         <div className="kc-dev-title">
           <h3 className="kc-h3">{name}</h3>
-          <p className="kc-dev-meta">{fmt(t.added_on, { date: fmtDate(profile.createdAt, lang) })}</p>
+          <p className="kc-dev-meta">{paused ? t.dev_paused : fmt(t.added_on, { date: fmtDate(profile.createdAt, lang) })}</p>
         </div>
         <Menu
           label={fmt(t.more_actions, { name })}

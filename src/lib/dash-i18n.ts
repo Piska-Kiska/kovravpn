@@ -303,7 +303,6 @@ export interface DashDict {
   pay_balance_cta: Str;
   renew_balance_cta: Str;
   paying: Str;
-  wallet_paid_plan: Str;
   wallet_paid_slot: Str;
   wallet_err_short: Str;
   wallet_err_busy: Str;
@@ -340,6 +339,17 @@ export interface DashDict {
   tg_err_auth: Str;
   tg_close: Str;
   err_delete_retry: Str;
+  wallet_err_no_plan: Str;
+  m_from: Str;
+  plan_paid_title: Str;
+  plan_paid_body: Str;
+  wallet_topup_need: Str;
+  pay_pending_embedded: Str;
+  pay_reopen: Str;
+  support_mail: Str;
+  link_email_add: Str;
+  dev_paused: Str;
+  hero_title_soon: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -619,7 +629,6 @@ const en: DashDict = {
   pay_balance_cta: "Pay {amount} from balance",
   renew_balance_cta: "Renew for {amount} from balance",
   paying: "Paying…",
-  wallet_paid_plan: "Done: {amount} paid from your balance. Your plan is updated.",
   wallet_paid_slot: "Done: {amount} paid from your balance. The extra slot is ready.",
   wallet_err_short: "Not enough on the balance: {need} short. Top up or pick another way to pay.",
   wallet_err_busy: "Your previous payment is still going through. Try again in a few seconds.",
@@ -654,6 +663,17 @@ const en: DashDict = {
   tg_err_auth: "We couldn’t sign you in. Close this window and open it again from the bot.",
   tg_close: "Close",
   err_delete_retry: "Could not remove the device from our servers. Nothing was changed. Try again in a minute.",
+  wallet_err_no_plan: "An extra slot is added to a plan. Choose a plan first.",
+  m_from: "from {amount}",
+  plan_paid_title: "Paid",
+  plan_paid_body: "{amount} paid from your balance. Your plan is active until {date}.",
+  wallet_topup_need: "Top up {amount}",
+  pay_pending_embedded: "Finish paying in the browser. This page updates by itself.",
+  pay_reopen: "Open the payment page again",
+  support_mail: "Write to {email}",
+  link_email_add: "Add e-mail sign-in",
+  dev_paused: "Works again after you renew your plan.",
+  hero_title_soon: "Your plan ends soon",
 };
 
 const ru: DashDict = {
@@ -935,7 +955,6 @@ const ru: DashDict = {
   pay_balance_cta: "Оплатить {amount} с баланса",
   renew_balance_cta: "Продлить за {amount} с баланса",
   paying: "Оплачиваем…",
-  wallet_paid_plan: "Готово: {amount} списано с баланса. Тариф обновлён.",
   wallet_paid_slot: "Готово: {amount} списано с баланса. Дополнительный слот добавлен.",
   wallet_err_short: "На балансе не хватает {need}. Пополните баланс или выберите другой способ оплаты.",
   wallet_err_busy: "Предыдущая оплата ещё проходит. Попробуйте через несколько секунд.",
@@ -970,6 +989,17 @@ const ru: DashDict = {
   tg_err_auth: "Не получилось войти. Закройте окно и откройте его снова из бота.",
   tg_close: "Закрыть",
   err_delete_retry: "Не удалось удалить устройство с наших серверов. Ничего не изменилось. Повторите через минуту.",
+  wallet_err_no_plan: "Дополнительный слот добавляется к тарифу. Сначала выберите тариф.",
+  m_from: "от {amount}",
+  plan_paid_title: "Оплачено",
+  plan_paid_body: "С баланса оплачено {amount}. Тариф действует до {date}.",
+  wallet_topup_need: "Пополнить на {amount}",
+  pay_pending_embedded: "Завершите оплату в браузере. Здесь всё обновится само.",
+  pay_reopen: "Открыть страницу оплаты снова",
+  support_mail: "Напишите на {email}",
+  link_email_add: "Добавить вход по почте",
+  dev_paused: "Заработает после продления тарифа.",
+  hero_title_soon: "Тариф скоро закончится",
 };
 
 const es: DashDict = {
@@ -1246,7 +1276,6 @@ const es: DashDict = {
   pay_balance_cta: "Pagar {amount} con el saldo",
   renew_balance_cta: "Renovar por {amount} con el saldo",
   paying: "Pagando…",
-  wallet_paid_plan: "Listo: {amount} pagados con tu saldo. Tu plan está actualizado.",
   wallet_paid_slot: "Listo: {amount} pagados con tu saldo. El espacio extra ya está disponible.",
   wallet_err_short: "No tienes saldo suficiente: faltan {need}. Recarga o elige otra forma de pago.",
   wallet_err_busy: "Tu pago anterior aún se está procesando. Inténtalo de nuevo en unos segundos.",
@@ -1281,6 +1310,17 @@ const es: DashDict = {
   tg_err_auth: "No pudimos iniciar tu sesión. Cierra esta ventana y ábrela de nuevo desde el bot.",
   tg_close: "Cerrar",
   err_delete_retry: "No se pudo eliminar el dispositivo de nuestros servidores. No se ha cambiado nada. Inténtalo en un minuto.",
+  wallet_err_no_plan: "El espacio extra se añade a un plan. Primero elige un plan.",
+  m_from: "desde {amount}",
+  plan_paid_title: "Pagado",
+  plan_paid_body: "{amount} pagado con tu saldo. Tu plan está activo hasta el {date}.",
+  wallet_topup_need: "Recargar {amount}",
+  pay_pending_embedded: "Termina el pago en el navegador. Esta página se actualiza sola.",
+  pay_reopen: "Abrir de nuevo la página de pago",
+  support_mail: "Escribe a {email}",
+  link_email_add: "Añadir acceso por correo",
+  dev_paused: "Vuelve a funcionar cuando renueves tu plan.",
+  hero_title_soon: "Tu plan termina pronto",
 };
 
 const de: DashDict = {
@@ -1557,7 +1597,6 @@ const de: DashDict = {
   pay_balance_cta: "{amount} vom Guthaben zahlen",
   renew_balance_cta: "Für {amount} vom Guthaben verlängern",
   paying: "Wird bezahlt…",
-  wallet_paid_plan: "Erledigt: {amount} vom Guthaben bezahlt. Dein Tarif ist aktualisiert.",
   wallet_paid_slot: "Erledigt: {amount} vom Guthaben bezahlt. Der Zusatzplatz ist bereit.",
   wallet_err_short: "Dein Guthaben reicht nicht: Es fehlen {need}. Lade auf oder wähle eine andere Zahlungsart.",
   wallet_err_busy: "Deine vorherige Zahlung läuft noch. Versuch es in ein paar Sekunden erneut.",
@@ -1592,6 +1631,17 @@ const de: DashDict = {
   tg_err_auth: "Die Anmeldung hat nicht geklappt. Schließe dieses Fenster und öffne es erneut aus dem Bot.",
   tg_close: "Schließen",
   err_delete_retry: "Das Gerät konnte nicht von unseren Servern entfernt werden. Nichts wurde geändert. Versuch es in einer Minute erneut.",
+  wallet_err_no_plan: "Ein zusätzlicher Platz gehört zu einem Tarif. Wähle zuerst einen Tarif.",
+  m_from: "ab {amount}",
+  plan_paid_title: "Bezahlt",
+  plan_paid_body: "{amount} vom Guthaben bezahlt. Dein Tarif ist aktiv bis {date}.",
+  wallet_topup_need: "{amount} aufladen",
+  pay_pending_embedded: "Schließ die Zahlung im Browser ab. Diese Seite aktualisiert sich von selbst.",
+  pay_reopen: "Zahlungsseite erneut öffnen",
+  support_mail: "Schreib an {email}",
+  link_email_add: "Anmeldung per E-Mail hinzufügen",
+  dev_paused: "Funktioniert wieder, sobald du deinen Tarif verlängerst.",
+  hero_title_soon: "Dein Tarif endet bald",
 };
 
 const fr: DashDict = {
@@ -1868,7 +1918,6 @@ const fr: DashDict = {
   pay_balance_cta: "Payer {amount} avec le solde",
   renew_balance_cta: "Renouveler pour {amount} avec le solde",
   paying: "Paiement en cours…",
-  wallet_paid_plan: "C’est fait : {amount} payés avec votre solde. Votre forfait est à jour.",
   wallet_paid_slot: "C’est fait : {amount} payés avec votre solde. L’emplacement supplémentaire est prêt.",
   wallet_err_short: "Solde insuffisant : il manque {need}. Rechargez ou choisissez un autre moyen de paiement.",
   wallet_err_busy: "Votre paiement précédent est encore en cours. Réessayez dans quelques secondes.",
@@ -1903,6 +1952,17 @@ const fr: DashDict = {
   tg_err_auth: "La connexion a échoué. Fermez cette fenêtre et rouvrez-la depuis le bot.",
   tg_close: "Fermer",
   err_delete_retry: "Impossible de supprimer l’appareil de nos serveurs. Rien n’a été modifié. Réessayez dans une minute.",
+  wallet_err_no_plan: "Un emplacement supplémentaire s’ajoute à un forfait. Choisissez d’abord un forfait.",
+  m_from: "dès {amount}",
+  plan_paid_title: "Payé",
+  plan_paid_body: "{amount} payé avec votre solde. Votre forfait est actif jusqu’au {date}.",
+  wallet_topup_need: "Recharger {amount}",
+  pay_pending_embedded: "Terminez le paiement dans le navigateur. Cette page se met à jour toute seule.",
+  pay_reopen: "Rouvrir la page de paiement",
+  support_mail: "Écrivez à {email}",
+  link_email_add: "Ajouter la connexion par e-mail",
+  dev_paused: "Refonctionne dès que vous renouvelez votre forfait.",
+  hero_title_soon: "Votre forfait se termine bientôt",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };

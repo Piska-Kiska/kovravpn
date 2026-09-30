@@ -48,6 +48,7 @@ import {
   keepsRequestId,
   purchaseOutcome,
   requestIdFor,
+  usdToCentsClient,
   type KeyValueStore,
   type PurchaseOutcome,
   type WalletProduct,
@@ -166,7 +167,8 @@ const MOCK_ACCOUNT: AccountData = {
   maxExpiry: MOCK_NOW + 186 * 864e5, nextExpiry: MOCK_NOW + 186 * 864e5,
   daysRemaining: 186, devices: 2,
   subs: [{ id: "sub_demo1", kind: "plan3", slots: 3, createdAt: MOCK_NOW - 30 * 864e5, expiresAt: MOCK_NOW + 186 * 864e5 }],
-  features: { happEncrypted: true },
+  // As in production (lib/feature-flags.ts): the encrypted /p link is off for everyone.
+  features: { happEncrypted: false },
 };
 const MOCK_PRICING: Pricing = {
   plan1: { "1": { term: 1, total: 5, perMonth: 5, refMonthly: 5 }, "6": { term: 6, total: 22.5, perMonth: 3.75, refMonthly: 5 }, "12": { term: 12, total: 33, perMonth: 2.75, refMonthly: 5 } },
@@ -179,7 +181,7 @@ const MOCK_PROFILES: Profile[] = [
   { uuid: "6f9c2d54-demo-4a1b-9c1e-aaaaaaaaaaaa", clientEmail: "vpn_web_demo_1", vlessUrl: "vless://demo@nl.kovravpn.com:443?security=reality&sni=example.com#Kovra-NL", createdAt: MOCK_NOW - 20 * 864e5, deviceType: "iphone", subToken: "demoToken1" },
   { uuid: "1b2e7c10-demo-4f00-8d2a-bbbbbbbbbbbb", clientEmail: "vpn_web_demo_2", vlessUrl: "vless://demo@de.kovravpn.com:443?security=reality&sni=example.com#Kovra-DE", createdAt: MOCK_NOW - 5 * 864e5, deviceType: "android", subToken: "demoToken2" },
 ];
-const MOCK_REFERRAL: ReferralData = { code: "45288149", link: "https://kovravpn.com/register?ref=45288149", botLink: "https://t.me/kovravpn_bot?start=45288149", total: 3, rewarded: 1, pending: 2 };
+const MOCK_REFERRAL: ReferralData = { code: "45288149", link: "https://kovravpn.com/register?ref=45288149", botLink: "https://t.me/KovraVPN_bot?start=ref_45288149", total: 3, rewarded: 1, pending: 2 };
 const MOCK_TOPUP: TopupConfig = {
   methods: [
     { id: "card", minUsd: 5, enabled: true },
@@ -210,7 +212,7 @@ function mockData(state: string | null): { account: AccountData; profiles: Profi
     case "new":
     case "none":
       return {
-        account: { plan: "free", activeSlots: 0, hasActive: false, maxExpiry: 0, nextExpiry: 0, daysRemaining: 0, devices: 0, subs: [], features: { happEncrypted: true } },
+        account: { plan: "free", activeSlots: 0, hasActive: false, maxExpiry: 0, nextExpiry: 0, daysRemaining: 0, devices: 0, subs: [], features: { happEncrypted: false } },
         profiles: [],
       };
     case "expiring": {
@@ -286,7 +288,8 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
 
   // purchase UI
   const [planKind, setPlanKind] = useState<PlanKind>("plan3");
-  const [term, setTerm] = useState<Term>(12);
+  /** The term the person picked; null: the default (see `term` below). */
+  const [pickedTerm, setPickedTerm] = useState<Term | null>(null);
   const [buying, setBuying] = useState(false);
   const [buyingDevice, setBuyingDevice] = useState(false);
   const [buyingCard, setBuyingCard] = useState(false);
@@ -300,7 +303,8 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
 
   // the unified balance
   const [walletBusy, setWalletBusy] = useState<"plan" | "slot" | null>(null);
-  const [planDone, setPlanDone] = useState<string | null>(null);
+  /** Paid from the balance: the plan summary shows the result instead of the form. */
+  const [planPaid, setPlanPaid] = useState<{ amountCents: number } | null>(null);
   const [slotDone, setSlotDone] = useState<string | null>(null);
   /** Cents missing for the last balance purchase that did not fit (offers a top-up). */
   const [shortCents, setShortCents] = useState<number | null>(null);
@@ -343,6 +347,13 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   const [paidFromUrl, setPaidFromUrl] = useState(false);
   const [paidBaseline, setPaidBaseline] = useState<PaidBaseline | null>(null);
   const [paidSlow, setPaidSlow] = useState(false);
+  /**
+   * Mini App: the payment page opened in the browser for this check. The
+   * order's action reopens it instead of creating a second invoice.
+   */
+  const [openedPayment, setOpenedPayment] = useState<{ url: string; kind: PaidKind } | null>(null);
+  /** The view a link or a bot button opened (?view=): Telegram's Back leads home from it. */
+  const [entryView, setEntryView] = useState<DashView | null>(null);
   // When the dashboard opened: a subscription created within 30 minutes before
   // it counts as the payment the user is returning from.
   const [mountTs] = useState(() => Date.now());
@@ -386,8 +397,10 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
       if (v === "topup") {
         url.hash = "plan";
         setTopupWanted(true);
+        setEntryView("plan");
       } else if (isDashView(v)) {
         url.hash = v;
+        setEntryView(v);
       }
     }
     if (changed) replaceDashUrl(`${url.pathname}${url.search}${url.hash}`);
@@ -533,8 +546,14 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
     if (!paidKind) return;
     // Seen: a later ?paid= must not compare against this payment's baseline.
     saveBaseline(null);
+    setOpenedPayment(null);
     host.haptic?.("success");
   }, [paidKind, host]);
+
+  // Stopped checking (30 minutes): no page to reopen any more.
+  useEffect(() => {
+    if (paidSlow) setOpenedPayment(null);
+  }, [paidSlow]);
 
   /**
    * Leave for a payment page. The baseline is saved first. On the site the
@@ -555,7 +574,15 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
       setPaidBaseline(base);
       setPaidFromUrl(false);
       setPaidPending(true);
+      setOpenedPayment({ url, kind });
     }
+  };
+
+  /** Mini App: open the same payment page again (no second invoice). */
+  const reopenPayment = () => {
+    if (!openedPayment) return;
+    if (MOCK) console.info("[dash-mock] payment page again:", openedPayment.url);
+    else host.openPayment(openedPayment.url);
   };
 
   const handleBuyPlan = async () => {
@@ -666,6 +693,8 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         return t.wallet_err_busy;
       case "other_plan":
         return t.wallet_err_other_plan;
+      case "no_plan":
+        return t.wallet_err_no_plan;
       case "refunded":
         return t.wallet_err_refunded;
       case "stuck":
@@ -685,8 +714,9 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   const payFromBalance = async (target: "plan" | "slot") => {
     const product: WalletProduct = target === "plan" ? { kind: effectiveKind, term } : { kind: "device", term: 1 };
     const setErr = target === "plan" ? setPlanError : setSlotError;
-    const setDone = target === "plan" ? setPlanDone : setSlotDone;
-    setErr(null); setDone(null); setShortCents(null);
+    setErr(null); setShortCents(null);
+    if (target === "plan") setPlanPaid(null);
+    else setSlotDone(null);
     setWalletBusy(target);
     const store = sessionStore();
     const requestId = requestIdFor(store, product, requestIds.current);
@@ -708,8 +738,12 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
       if (!keepsRequestId(o)) clearRequestId(store, product, requestIds.current);
       if (o.kind === "ok") {
         setWallet((w) => (w ? { ...w, balanceCents: o.balanceCents } : w));
-        const amount = fmtCents(o.priceCents, lang);
-        setDone(fmt(target === "plan" ? t.wallet_paid_plan : t.wallet_paid_slot, { amount }));
+        if (target === "plan") {
+          setPlanPaid({ amountCents: o.priceCents });
+          // The lower balance must not move the default term under the result.
+          setPickedTerm(product.term);
+        }
+        else setSlotDone(fmt(t.wallet_paid_slot, { amount: fmtCents(o.priceCents, lang) }));
         trackEvent("wallet_purchase", { kind: product.kind, term: product.term, cents: o.priceCents, source: embedded ? "miniapp" : "web" });
         host.haptic?.("success");
         await fetchAccount();
@@ -877,6 +911,19 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
     : null;
   const isRenewal = activePlanKind !== null;
   const effectiveKind: PlanKind = isRenewal && activePlanKind ? activePlanKind : planKind;
+
+  // The term: the one picked, else the longest the balance covers (so the
+  // unified balance pays in one tap), else 12 months.
+  const coveredTerm: Term | null = (() => {
+    if (!pricing || !wallet) return null;
+    const prices = effectiveKind === "plan3" ? pricing.plan3 : pricing.plan1;
+    for (const tm of [12, 6, 1] as const) {
+      const cents = usdToCentsClient(prices[String(tm)]?.total ?? Number.NaN);
+      if (cents !== null && cents > 0 && wallet.balanceCents >= cents) return tm;
+    }
+    return null;
+  })();
+  const term: Term = pickedTerm ?? coveredTerm ?? 12;
   const lastPlan: SubItem | undefined = (account?.subs || [])
     .filter((s) => s.kind === "plan1" || s.kind === "plan3")
     .sort((a, b) => b.expiresAt - a.expiresAt)[0];
@@ -894,12 +941,22 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   };
   const subUrlOf = (p: Profile) =>
     p.subToken ? (happEnabled ? `https://kovravpn.com/p/${p.subToken}` : `https://kovravpn.com/api/sub/${p.subToken}`) : "";
+  /**
+   * "Open in Happ". In the Mini App: the /add bridge the bot uses (it opens
+   * happ://add/<the plain link> from the browser, for everyone). On the site:
+   * the encrypted /p page, only where that feed is switched on.
+   */
+  const happUrlOf = (p: Profile): string | null => {
+    if (!p.subToken) return null;
+    if (embedded) return `https://kovravpn.com/add/${encodeURIComponent(p.subToken)}?lang=${lang}`;
+    return happEnabled ? `https://kovravpn.com/p/${p.subToken}` : null;
+  };
 
   const payBusy =
     buying || buyingCard || buyingAlt || buyingDevice || buyingCardDevice || buyingAltDevice || buyingLava !== null || walletBusy !== null || topupBusy;
 
   const payPlan = (route: PayRoute) => {
-    setPlanDone(null);
+    setPlanPaid(null);
     switch (route.kind) {
       case "wallet": return void payFromBalance("plan");
       case "platega": return void handleBuyPlan();
@@ -932,11 +989,25 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   useEffect(() => (showDevicePicker ? backStack.push(() => setShowDevicePicker(false)) : undefined), [showDevicePicker, backStack]);
   useEffect(() => (lastCreatedDevice ? backStack.push(() => setLastCreatedDevice(null)) : undefined), [lastCreatedDevice, backStack]);
   const layers = useBackStackSize(backStack);
+  // The tabs are equals: on a tab Telegram shows Close, not Back. Back is for
+  // layers (a sheet, the device picker, the setup steps) and for a view that
+  // a link or a bot button opened directly (?view=), where it leads home.
+  useEffect(() => {
+    if (entryView !== null && view !== null && view !== entryView) setEntryView(null);
+  }, [view, entryView]);
   useEffect(() => {
     if (!host.bindBack) return;
-    const handler = layers > 0 ? () => void backStack.back() : view !== null && view !== "devices" ? () => navigate("devices") : null;
+    const handler =
+      layers > 0
+        ? () => void backStack.back()
+        : entryView !== null && view === entryView && view !== "devices"
+          ? () => {
+              setEntryView(null);
+              navigate("devices");
+            }
+          : null;
     return host.bindBack(handler);
-  }, [host, layers, view, navigate, backStack]);
+  }, [host, layers, view, entryView, navigate, backStack]);
 
   // The Mini App tells the account when the person switches the language.
   const reportedLang = useRef<Lang | null>(null);
@@ -972,6 +1043,13 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
     : null;
 
   const openSlotDialog = () => { setSlotError(null); setSlotDone(null); setShortCents(null); setSlotDialogOpen(true); };
+  /** Something covers the view (a sheet or a confirmation): Telegram's bottom button steps aside. */
+  const overlayOpen = slotDialogOpen || topupOpen || confirmReset !== null || confirmDelete !== null;
+  /** A payment page of this kind is open in the browser (Mini App): what the order's action says and does. */
+  const pendingFor = (kind: PaidKind) =>
+    openedPayment?.kind === kind && paidPending && !paidDone && !paidSlow
+      ? { note: t.pay_pending_embedded, onReopen: reopenPayment, onForget: () => setOpenedPayment(null) }
+      : null;
   const topupFromShort = () => openTopup(shortCents);
   const shortAction = (visible: boolean) =>
     visible && shortCents !== null && wallet ? (
@@ -1007,7 +1085,8 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
           profiles={profiles}
           slots={slots}
           canCreate={canCreate}
-          happEncrypted={happEnabled}
+          paused={account !== null && !account.hasActive}
+          countInHero={(hState === "active" || hState === "expiring") && slots > 0}
           showPicker={showDevicePicker}
           creating={creating}
           pendingDevice={pendingDevice}
@@ -1020,6 +1099,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
           headingRef={devicesHeadingRef}
           devLabel={devLabel}
           subUrlOf={subUrlOf}
+          happUrlOf={happUrlOf}
           onStartSetup={() => void handleCreate()}
           onPick={(id) => { setPendingDevice(id); void handleCreate(id); }}
           onCancelPick={() => setShowDevicePicker(false)}
@@ -1045,19 +1125,25 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         effectiveKind={effectiveKind}
         planKind={planKind}
         term={term}
-        onPlanKind={(k) => { setPlanKind(k); setPlanError(null); setShortCents(null); }}
-        onTerm={(tm) => { setTerm(tm); setPlanError(null); setShortCents(null); }}
+        onPlanKind={(k) => { setPlanKind(k); setPlanError(null); setShortCents(null); setOpenedPayment(null); }}
+        onTerm={(tm) => { setPickedTerm(tm); setPlanError(null); setShortCents(null); setOpenedPayment(null); }}
         busy={payBusy}
         isLoading={planLoading}
         onPay={payPlan}
         planError={planError}
         planErrorAction={shortAction(!slotDialogOpen)}
         onDismissPlanError={() => { setPlanError(null); setShortCents(null); }}
-        planDone={planDone}
-        onDismissPlanDone={() => setPlanDone(null)}
+        planPaid={planPaid ? { amount: fmtCents(planPaid.amountCents, lang), date: account?.hasActive ? fmtDate(account.maxExpiry, lang) : "" } : null}
+        onPlanPaidDone={() => setPlanPaid(null)}
+        onSetupDevice={canCreate ? () => { setPlanPaid(null); navigate("devices"); setShowDevicePicker(true); } : undefined}
+        pending={pendingFor("plan")}
         onBuySlot={openSlotDialog}
         balanceCents={wallet ? wallet.balanceCents : null}
         onTopup={() => openTopup(null)}
+        onTopupNeed={(need) => openTopup(need)}
+        embedded={embedded}
+        mainButton={host.mainButton}
+        suspended={overlayOpen}
       />
     );
   } else if (view === "rewards") {
@@ -1070,11 +1156,20 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         promoLoading={promoLoading}
         promoMsg={promoMsg}
         onApplyPromo={() => void handlePromo()}
+        shareInTelegram={host.share}
       />
     );
   } else if (view === "account") {
     content = (
-      <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} embedded={embedded} />
+      <AccountView
+        t={t}
+        userId={userId}
+        userInfo={userInfo}
+        onUserUpdate={refreshUser}
+        onLogout={() => void handleLogout()}
+        embedded={embedded}
+        telegramUser={host.telegramUser ?? null}
+      />
     );
   }
 
@@ -1096,14 +1191,16 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         )}
         <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
           <div className="kc-dash-wrap">
-            {paidPending ? (
+            {paidPending && !(view === "plan" && pendingFor("plan")) ? (
+              // On the Plan view the open payment page is shown next to its action instead.
               <PaymentReturnNotice
                 t={t}
                 state={paidKind ?? (paidSlow ? "slow" : "pending")}
                 kind={paidBaseline?.kind ?? null}
                 balance={wallet ? fmtCents(wallet.balanceCents, lang) : null}
+                inBrowser={embedded && !paidFromUrl}
                 dismissLabel={shell.dismiss}
-                onDismiss={() => setPaidPending(false)}
+                onDismiss={() => { setPaidPending(false); setOpenedPayment(null); }}
               />
             ) : null}
             {loadError ? (
@@ -1178,6 +1275,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
             onDismissError={() => { setSlotError(null); setShortCents(null); }}
             balanceCents={wallet ? wallet.balanceCents : null}
             done={slotDone}
+            pending={pendingFor("slot")}
           />
         ) : null}
         {wallet ? (

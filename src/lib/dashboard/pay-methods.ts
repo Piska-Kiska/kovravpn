@@ -12,7 +12,7 @@ import { Coins, CreditCard, Landmark, QrCode, Send, Smartphone, Wallet, WalletMi
 import type { Lang } from "@/i18n/dict";
 import { fmt } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
-import { lavaMethodChoices, type LavaCurrency, type LavaMethodId } from "@/lib/lava-methods";
+import { LAVA_MIN_AMOUNT, lavaMethodChoices, lavaTakesAmount, type LavaCurrency, type LavaMethodId } from "@/lib/lava-methods";
 import { chargeIn } from "@/lib/lava-price";
 import { fmtMoney } from "@/lib/dashboard/format";
 
@@ -48,6 +48,8 @@ export interface PayOption<R extends { kind: string } = PayRoute> {
   group: "primary" | "more";
   /** Shown but not selectable (the balance that does not cover the price). */
   disabled?: boolean;
+  /** Top-up rows: the smallest amount this row takes, in USD, when above the line's own. */
+  minUsd?: number;
 }
 
 /** The wallet as the checkout sees it, in integer cents. */
@@ -226,10 +228,24 @@ export interface TopupMethodInfo {
   enabled: boolean;
 }
 
+/** The smallest top-up in USD whose charge in `currency` lava.top accepts. */
+export function lavaFloorUsd(currency: LavaCurrency): number {
+  const floor = LAVA_MIN_AMOUNT[currency];
+  if (currency === "USD") return floor;
+  // The smallest whole-cent USD amount whose charge reaches the floor.
+  let cents = Math.ceil((floor / chargeIn(1, currency)) * 100);
+  while (!lavaTakesAmount(currency, chargeIn(cents / 100, currency))) cents += 1;
+  return cents / 100;
+}
+
 /**
  * Methods of the top-up sheet for `amountUsd`: the lines that are configured
- * here, lava.top rows that take the amount, in the order a person of this
- * language expects (ru: rubles first; everyone else: card and PayPal).
+ * here and every lava.top row, in the order a person of this language expects
+ * (ru: rubles first; everyone else: card and PayPal).
+ *
+ * The rows do not come and go with the amount: a lava.top row below its
+ * floor stays, with "from €5.50" instead of a charge and its own `minUsd`,
+ * so a person's choice never switches to another method while they type.
  */
 export function buildTopupOptions(a: {
   lang: Lang;
@@ -241,22 +257,31 @@ export function buildTopupOptions(a: {
   const on = (id: TopupMethodInfo["id"]) => methods.some((m) => m.id === id && m.enabled);
   const ru = lang === "ru";
 
-  const chips = on("lava") ? lavaChips(amountUsd, true) : [];
+  const chips = on("lava") ? lavaMethodChoices("USD").filter((c) => LAVA_LABEL[c.id] !== undefined) : [];
   const lava = (id: LavaMethodId, group: PayOption["group"]): PayOption<TopupRoute> | null => {
     const c = chips.find((x) => x.id === id);
     const labelKey = LAVA_LABEL[id];
-    if (!c || !labelKey || typeof amountUsd !== "number") return null;
-    const amount = fmtMoney(chargeIn(amountUsd, c.currency), c.currency, lang);
-    return {
+    if (!c || !labelKey) return null;
+    const base = {
       key: `lava:${id}`,
-      route: { kind: "lava", id, currency: c.currency },
+      route: { kind: "lava", id, currency: c.currency } as const,
       icon: LAVA_ICON[id] ?? CreditCard,
       label: str(t, labelKey),
+      group,
+      minUsd: lavaFloorUsd(c.currency),
+    };
+    const takes = typeof amountUsd === "number" && lavaTakesAmount(c.currency, chargeIn(amountUsd, c.currency));
+    if (!takes) {
+      const from = fmt(t.m_from, { amount: fmtMoney(LAVA_MIN_AMOUNT[c.currency], c.currency, lang) });
+      return { ...base, sub: id === "card" ? `${fmt(t.m_lava_card_sub, { currency: c.currency })} · ${from}` : from, note: from };
+    }
+    const amount = fmtMoney(chargeIn(amountUsd, c.currency), c.currency, lang);
+    return {
+      ...base,
       sub: id === "card" ? fmt(t.m_lava_card_sub, { currency: c.currency }) : "",
       amount,
       amountLabel: fmt(t.m_lava_sub, { amount }),
       note: fmt(t.m_lava_note, { amount }),
-      group,
     };
   };
 
@@ -276,8 +301,9 @@ export function buildTopupOptions(a: {
   return out.filter((o): o is PayOption<TopupRoute> => o !== null);
 }
 
-/** Minimum of the line behind a top-up option, in USD. */
-export function topupMinUsd(route: TopupRoute, methods: readonly TopupMethodInfo[]): number {
-  const id: TopupMethodInfo["id"] = route.kind;
-  return methods.find((m) => m.id === id)?.minUsd ?? 5;
+/** Minimum of a top-up option in USD: its line's, or the row's own floor when higher. */
+export function topupMinUsd(option: Pick<PayOption<TopupRoute>, "route" | "minUsd">, methods: readonly TopupMethodInfo[]): number {
+  const id: TopupMethodInfo["id"] = option.route.kind;
+  const line = methods.find((m) => m.id === id)?.minUsd ?? 5;
+  return Math.max(line, option.minUsd ?? 0);
 }

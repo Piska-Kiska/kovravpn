@@ -12,6 +12,9 @@ export type TelegramColorScheme = "light" | "dark";
 export interface TelegramWebAppUser {
   id: number;
   language_code?: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
 }
 
 export interface TelegramViewportChange {
@@ -24,6 +27,26 @@ export interface TelegramBackButton {
   readonly isVisible: boolean;
   show(): void;
   hide(): void;
+  onClick(handler: () => void): void;
+  offClick(handler: () => void): void;
+}
+
+export interface TelegramMainButtonParams {
+  text?: string;
+  color?: string;
+  text_color?: string;
+  is_active?: boolean;
+  is_visible?: boolean;
+}
+
+/** Bot API 6.0+: the wide button at the bottom of Telegram's window. */
+export interface TelegramMainButton {
+  readonly isVisible: boolean;
+  setParams(params: TelegramMainButtonParams): void;
+  show(): void;
+  hide(): void;
+  showProgress(leaveActive?: boolean): void;
+  hideProgress(): void;
   onClick(handler: () => void): void;
   offClick(handler: () => void): void;
 }
@@ -61,6 +84,7 @@ export interface TelegramWebApp {
   readonly safeAreaInset?: TelegramInsets;
   readonly contentSafeAreaInset?: TelegramInsets;
   readonly BackButton?: TelegramBackButton;
+  readonly MainButton?: TelegramMainButton;
   readonly HapticFeedback?: TelegramHapticFeedback;
   ready(): void;
   expand(): void;
@@ -304,6 +328,79 @@ export function bindBackButton(wa: TelegramWebApp, handler: (() => void) | null)
       // Client gone or unsupported.
     }
   };
+}
+
+/** Kovra's gold action colours (globals.css --k-accent / --k-on-accent), the same in both schemes. */
+export const KOVRA_CTA = { color: "#C6A983", text: "#141210" } as const;
+
+/** What Telegram's bottom button shows and does. */
+export interface MainButtonSpec {
+  text: string;
+  /** False: shown greyed out (another request runs). */
+  active: boolean;
+  /** Telegram's own spinner on the button. */
+  loading: boolean;
+  onClick(): void;
+}
+
+/** Telegram's bottom button exists on this client. */
+export function hasMainButton(wa: TelegramWebApp | null): boolean {
+  return !!wa?.MainButton && atLeast(wa, "6.0");
+}
+
+/**
+ * Show Telegram's bottom button with `spec` (Kovra's gold), or hide it
+ * (null). Returns an unbind that removes the click handler and hides the
+ * button, so a view that goes away never leaves a live button behind.
+ */
+export function bindMainButton(wa: TelegramWebApp, spec: MainButtonSpec | null): () => void {
+  const button = wa.MainButton;
+  if (!button || !hasMainButton(wa)) return () => undefined;
+  const hide = (): void => {
+    try {
+      button.hideProgress();
+      button.hide();
+    } catch {
+      // Client gone.
+    }
+  };
+  if (!spec) {
+    hide();
+    return () => undefined;
+  }
+  const handler = (): void => spec.onClick();
+  try {
+    button.setParams({
+      // Telegram cuts the label at 64 characters.
+      text: spec.text.slice(0, 64),
+      color: KOVRA_CTA.color,
+      text_color: KOVRA_CTA.text,
+      is_active: spec.active && !spec.loading,
+      is_visible: true,
+    });
+    if (spec.loading) button.showProgress(false);
+    else button.hideProgress();
+    button.onClick(handler);
+  } catch {
+    return () => undefined;
+  }
+  return () => {
+    try {
+      button.offClick(handler);
+    } catch {
+      // Client gone.
+    }
+    hide();
+  };
+}
+
+/**
+ * Telegram's own chat picker to share a link (t.me/share/url): present on
+ * every client, unlike `navigator.share` in Telegram's webviews.
+ */
+export function shareViaTelegram(wa: TelegramWebApp | null, url: string, text: string): void {
+  const share = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+  openOutside(wa, share);
 }
 
 export type HapticKind = "select" | "success" | "error" | "tap";

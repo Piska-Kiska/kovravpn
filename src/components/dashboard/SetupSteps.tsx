@@ -16,13 +16,14 @@ export interface SetupStepsProps {
   t: DashDict;
   device: DeviceId;
   subUrl: string;
-  happEncrypted: boolean;
+  /** "Open in Happ" target (the /add bridge in the Mini App), or null for none. */
+  happUrl: string | null;
   copied: boolean;
   onCopy(): void;
   onDone(): void;
 }
 
-export function SetupSteps({ t, device, subUrl, happEncrypted, copied, onCopy, onDone }: SetupStepsProps) {
+export function SetupSteps({ t, device, subUrl, happUrl, copied, onCopy, onDone }: SetupStepsProps) {
   const shell = useShellT();
   const def = DEVICE_DEFS[device];
   const name = t[def.nameKey];
@@ -72,8 +73,8 @@ export function SetupSteps({ t, device, subUrl, happEncrypted, copied, onCopy, o
             <p className="kc-h3">{t.step2_t}</p>
             <p className="kc-small">{t.step2_b}</p>
             <div className="kc-step-actions">
-              {happEncrypted && subUrl ? (
-                <ButtonLink variant="ghost" size="sm" href={subUrl} iconEnd={ArrowUpRight} iconSize={16} target="_blank" rel="noopener noreferrer">
+              {happUrl ? (
+                <ButtonLink variant="ghost" size="sm" href={happUrl} iconEnd={ArrowUpRight} iconSize={16} target="_blank" rel="noopener noreferrer">
                   {t.open_in_happ}
                 </ButtonLink>
               ) : null}

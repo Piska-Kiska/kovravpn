@@ -24,7 +24,10 @@ export interface DevicesSectionProps {
   profiles: readonly Profile[];
   slots: number;
   canCreate: boolean;
-  happEncrypted: boolean;
+  /** No plan runs: the cards say their devices are paused. */
+  paused: boolean;
+  /** The hero above already shows "used / slots": no second count here. */
+  countInHero: boolean;
   showPicker: boolean;
   creating: boolean;
   pendingDevice: DeviceId | null;
@@ -38,6 +41,8 @@ export interface DevicesSectionProps {
   headingRef?: Ref<HTMLHeadingElement>;
   devLabel(i: number): string;
   subUrlOf(p: Profile): string;
+  /** "Open in Happ" target for a profile, or null. */
+  happUrlOf(p: Profile): string | null;
   onStartSetup(): void;
   onPick(id: DeviceId): void;
   onCancelPick(): void;
@@ -85,7 +90,7 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
         <h2 id="kc-devices-title" ref={headingRef} tabIndex={-1} className="kc-h2">
           {t.devices_title}
         </h2>
-        {slots > 0 ? (
+        {slots > 0 && !p.countInHero ? (
           <span className="kc-count">
             <span aria-hidden="true">
               {profiles.length} / {slots}
@@ -106,7 +111,8 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
               profile={pr}
               name={p.devLabel(i)}
               subUrl={subUrl}
-              happEncrypted={p.happEncrypted}
+              happUrl={p.happUrlOf(pr)}
+              paused={p.paused}
               resetDone={p.resetDoneId === pr.uuid}
               error={p.deviceError[pr.uuid] ?? null}
               onRequestReset={() => p.onRequestReset(pr.uuid)}
@@ -119,7 +125,7 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
                   t={t}
                   device={setupDevice}
                   subUrl={setupUrl}
-                  happEncrypted={p.happEncrypted}
+                  happUrl={p.happUrlOf(setupProfile)}
                   copied={p.copiedId === setupProfile.uuid}
                   onCopy={() => setupUrl && p.onCopyLink(setupUrl, setupProfile.uuid)}
                   onDone={p.onSetupDone}

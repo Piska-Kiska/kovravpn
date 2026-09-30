@@ -31,6 +31,8 @@ export interface ExtraSlotDialogProps {
   balanceCents: number | null;
   /** Paid from the balance: the confirmation replaces the form. */
   done: string | null;
+  /** Mini App: the payment page of this slot is open in the browser. */
+  pending: { note: string; onReopen(): void; onForget(): void } | null;
 }
 
 export function ExtraSlotDialog(p: ExtraSlotDialogProps) {
@@ -55,6 +57,7 @@ export function ExtraSlotDialog(p: ExtraSlotDialogProps) {
   const onSelect = (k: string) => {
     setPicked(k);
     writePayMethod(k);
+    p.pending?.onForget();
   };
 
   return (
@@ -75,12 +78,30 @@ export function ExtraSlotDialog(p: ExtraSlotDialogProps) {
               <span className="kc-small">{fmt(t.slot_days, { days: p.days })}</span>
             </p>
             <PaymentMethodPicker t={t} lang={lang} name="kc-pay-slot" options={options} value={selected.key} onChange={onSelect} disabled={p.busy} />
-            <Button variant="cta" block loading={loading} disabled={p.busy} onClick={() => p.onPay(selected.route)}>
-              {loading ? (fromBalance ? t.paying : t.redirecting) : fmt(fromBalance ? t.pay_balance_cta : t.slot_cta, { amount })}
+            <Button
+              variant="cta"
+              block
+              loading={loading}
+              disabled={p.busy}
+              onClick={() => (p.pending ? p.pending.onReopen() : p.onPay(selected.route))}
+            >
+              {loading
+                ? fromBalance
+                  ? t.paying
+                  : t.redirecting
+                : p.pending
+                  ? t.pay_reopen
+                  : fmt(fromBalance ? t.pay_balance_cta : t.slot_cta, { amount })}
             </Button>
-            <p className="kc-small kc-fineprint" aria-live="polite">
-              {selected.note}
-            </p>
+            {p.pending ? (
+              <Notice tone="pending" onDismiss={p.pending.onForget} dismissLabel={shell.dismiss}>
+                {p.pending.note}
+              </Notice>
+            ) : (
+              <p className="kc-small kc-fineprint" aria-live="polite">
+                {selected.note}
+              </p>
+            )}
             {p.error ? (
               <Notice tone="error" onDismiss={p.onDismissError} dismissLabel={shell.dismiss} action={p.errorAction}>
                 {p.error}

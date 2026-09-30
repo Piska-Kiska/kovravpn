@@ -26,8 +26,8 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import type { DashHost } from "@/components/dashboard/host";
 import { botChatUrl } from "@/lib/bot-link";
 import { syncCabinetLang, type Lang } from "@/lib/cabinet-lang";
-import { useDashLang } from "@/lib/dash-i18n";
-import { useShellT } from "@/lib/i18n-shell";
+import { DASH_DICT, useDashLang } from "@/lib/dash-i18n";
+import { SHELL, useShellT } from "@/lib/i18n-shell";
 import { LANG_EXPLICIT_STORAGE_KEY, LANG_STORAGE_KEY } from "@/i18n/resolve";
 import { pickMiniAppLang, searchWithLang } from "@/lib/miniapp-lang";
 import { parseStartParam, startActionQuery } from "@/lib/payment-return";
@@ -36,12 +36,16 @@ import { installMiniAppFetch, type MiniAppAuth } from "./miniapp-fetch";
 import {
   TG_SDK_URL,
   bindBackButton,
+  bindMainButton,
   bindTelegramTheme,
   bindViewport,
+  getWebApp,
+  hasMainButton,
   haptic,
   interceptLinks,
   lockVerticalSwipes,
   openOutside,
+  shareViaTelegram,
   type TelegramWebApp,
 } from "./telegram-webapp-client";
 import { useMiniAppBoot, type MiniAppPhase, type MiniAppPrepared } from "./use-miniapp-boot";
@@ -177,8 +181,14 @@ export default function TgShell() {
     if (phase.kind !== "ready") return null;
     const wa = phase.wa;
     const isMock = phase.value.mock;
+    const u = wa.initDataUnsafe.user;
+    const name = [u?.first_name, u?.last_name].filter((x): x is string => typeof x === "string" && x.trim() !== "").join(" ").trim();
+    const username = typeof u?.username === "string" && /^[A-Za-z0-9_]{3,32}$/.test(u.username) ? u.username : null;
     return {
       embedded: true,
+      telegramUser: name || username ? { name: name.slice(0, 64), username } : null,
+      mainButton: hasMainButton(wa) ? (spec) => bindMainButton(wa, spec) : undefined,
+      share: (url, text) => shareViaTelegram(wa, url, text),
       openPayment: (url) => openOutside(wa, url),
       onAuthLost: failAuth,
       bindBack: (handler) => bindBackButton(wa, handler),
@@ -214,11 +224,48 @@ export default function TgShell() {
 
 type ShellPhase = Exclude<MiniAppPhase<ShellValue>, { kind: "ready" }>;
 
+/**
+ * The language of the shell's own screens, decided the way the cabinet's is
+ * (lib/miniapp-lang.ts) minus the account, which is not known yet: the bot's
+ * `?lang=`, then Telegram's language_code, then an explicit choice stored
+ * here. Null until Telegram's script is there (or it is clear it will not
+ * be), so the screen never flashes the phone's language first.
+ */
+function useShellLang(settled: boolean): Lang | null {
+  const [lang, setLang] = useState<Lang | null>(null);
+  useEffect(() => {
+    const urlLang = new URLSearchParams(window.location.search).get("lang");
+    const decide = (): boolean => {
+      const wa = getWebApp();
+      if (!wa && !settled && !urlLang) return false;
+      setLang(
+        pickMiniAppLang({
+          urlLang,
+          accountLang: null,
+          telegramLang: wa?.initDataUnsafe.user?.language_code ?? null,
+          storedExplicit: storedExplicitLang(),
+        }),
+      );
+      return true;
+    };
+    if (decide()) return;
+    const id = window.setInterval(() => {
+      if (decide()) window.clearInterval(id);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [settled]);
+  return lang;
+}
+
 /** Loading, "open in Telegram" and error screens, in Kovra's look. */
 function ShellScreen({ phase, onRetry, onClose }: { phase: ShellPhase | null; onRetry(): void; onClose(): void }) {
-  const { t } = useDashLang();
-  const shell = useShellT();
+  const { t: pageT } = useDashLang();
+  const pageShell = useShellT();
   const kind = phase?.kind ?? "loading";
+  const shellLang = useShellLang(kind !== "loading");
+  // Outside Telegram with no hint at all, the page's own language stands.
+  const t = shellLang ? DASH_DICT[shellLang] : pageT;
+  const shell = shellLang ? SHELL[shellLang] : pageShell;
   return (
     <CabinetRoot variant="dash" className="kc-embedded kc-tgshell">
       <main id="kc-main" className="kc-tgshell-main" aria-busy={kind === "loading" || undefined}>
@@ -227,7 +274,7 @@ function ShellScreen({ phase, onRetry, onClose }: { phase: ShellPhase | null; on
           {kind === "loading" ? (
             <p className="kc-tgshell-status" role="status">
               <span className="kc-spin" aria-hidden="true" />
-              <span>{t.tg_loading}</span>
+              <span>{shellLang ? t.tg_loading : ""}</span>
             </p>
           ) : kind === "outside" ? (
             <>

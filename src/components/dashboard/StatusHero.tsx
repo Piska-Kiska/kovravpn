@@ -63,7 +63,8 @@ export function StatusHero({ t, lang, state, planLabel, days, date, used, total,
     state === "active"
       ? t.hero_title_active
       : state === "expiring"
-        ? plural(lang, days, t.hero_title_expiring)
+        ? // the figure right below says how many days: the title does not repeat it
+          t.hero_title_soon
         : state === "expired"
           ? t.hero_title_expired
           : t.hero_title_none;

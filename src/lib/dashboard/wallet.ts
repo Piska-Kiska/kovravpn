@@ -97,6 +97,8 @@ export type PurchaseOutcome =
   | { kind: "busy" }
   /** A different plan is running; only that one can be renewed. */
   | { kind: "other_plan"; activePlan: PlanKind | null }
+  /** An extra slot without a running plan: a plan comes first. */
+  | { kind: "no_plan" }
   /** The grant failed and the money went back to the balance. */
   | { kind: "refunded" }
   /** The grant failed and the refund too: a person has to look (support). */
@@ -139,6 +141,7 @@ export function purchaseOutcome(status: number, body: unknown): PurchaseOutcome 
       const ap = b.activePlan === "plan1" || b.activePlan === "plan3" ? b.activePlan : null;
       return { kind: "other_plan", activePlan: ap };
     }
+    if (b.error === "no_plan") return { kind: "no_plan" };
   }
   if (status === 500 && b.error === "grant_failed") return b.refunded === true ? { kind: "refunded" } : { kind: "stuck" };
   return { kind: "error" };

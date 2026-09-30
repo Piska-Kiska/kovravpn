@@ -630,3 +630,23 @@ html:has(.kc-embedded) body { overscroll-behavior-y: none; }
 @media (max-width: 767px) {
   .kc-embedded .kc-dialog-panel { padding-bottom: max(24px, var(--kc-safe-b)); }
 }
+
+/* touch targets of at least 44px inside Telegram: the balance chip, the small
+   buttons (Open in Happ, QR, Share, Top up) and the QR circle */
+.kc-embedded { --kc-control-sm: 44px; }
+.kc-embedded .kc-wchip { height: 44px; padding-left: 14px; }
+.kc-embedded .kc-wchip-plus { width: 32px; height: 32px; }
+
+/* ── 12. Plan summary states ───────────────────────────────────────────── */
+/* paid from the balance: the result replaces the form until "Done" */
+.kc-summary--paid { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.kc-summary-paid-icon {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--k-accent-wash); color: var(--k-accent-ink);
+}
+.kc-summary-paid-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kc-summary-paid-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 4px; }
+/* "Top up $66.58" right under the balance row that falls short */
+.kc-summary-topup { padding: 0 0 6px 44px; }
+@media (max-width: 479px) { .kc-summary-topup { padding-left: 40px; } }
+.kc-summary-pending { margin-top: -2px; }

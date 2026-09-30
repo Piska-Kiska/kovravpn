@@ -85,19 +85,26 @@ function TopupForm(p: TopupDialogProps) {
   const uid = useId();
   const firstMin = Math.min(...config.methods.filter((m) => m.enabled).map((m) => m.minUsd), 5);
   const [text, setText] = useState(() => amountText(initialUsd(p.suggestCents, firstMin, config.maxUsd)));
+  // The rows are priced for the last amount that parsed: typing through
+  // "", "2", "25" never rebuilds the list from nothing.
+  const [rowsUsd, setRowsUsd] = useState(() => initialUsd(p.suggestCents, firstMin, config.maxUsd));
   const [touched, setTouched] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [remembered] = useState<string | null>(readRemembered);
 
-  // Options depend on the amount (lava.top rows show the exact charge and
-  // drop out below their floor); a malformed amount keeps the last good rows.
-  const loose = checkTopupAmount(text, 0, config.maxUsd);
-  const amountForRows = loose.ok ? loose.amountUsd : undefined;
-  const options = buildTopupOptions({ lang, t, amountUsd: amountForRows, methods: config.methods });
+  // Options show the exact charge for the amount; a row below its floor
+  // stays with "from …" (buildTopupOptions), and a malformed amount keeps the
+  // rows of the last one that parsed, so the chosen method never jumps.
+  const options = buildTopupOptions({ lang, t, amountUsd: rowsUsd, methods: config.methods });
   const key = options.length > 0 ? choosePayKey(options, picked, remembered) : null;
   const selected = options.find((o) => o.key === key) ?? null;
 
-  const minUsd = selected ? topupMinUsd(selected.route, config.methods) : firstMin;
+  const minUsd = selected ? topupMinUsd(selected, config.methods) : firstMin;
+  const setAmountText = (v: string) => {
+    setText(v);
+    const loose = checkTopupAmount(v, 0, config.maxUsd);
+    if (loose.ok && loose.amountUsd > 0) setRowsUsd(loose.amountUsd);
+  };
   const check = checkTopupAmount(text, minUsd, config.maxUsd);
   const money = (usd: number) => fmtMoney(usd, "USD", lang);
   const amountError = check.ok
@@ -152,7 +159,7 @@ function TopupForm(p: TopupDialogProps) {
                 checked={current === usd}
                 disabled={p.busy}
                 onChange={() => {
-                  setText(amountText(usd));
+                  setAmountText(amountText(usd));
                   setTouched(false);
                 }}
               />
@@ -174,7 +181,7 @@ function TopupForm(p: TopupDialogProps) {
         disabled={p.busy}
         error={touched ? (amountError ?? undefined) : undefined}
         onChange={(e) => {
-          setText(e.target.value);
+          setAmountText(e.target.value);
           setTouched(true);
         }}
       />
