@@ -31,6 +31,7 @@ import { acquireLock } from "./ratelimit";
 import { syncAllExpiry } from "./balance";
 import { getBalanceCents } from "./bot-wallet";
 import { moveMoney, type MoveResult } from "./tg-link-merge";
+import { getSubscriptions } from "./subscriptions";
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
 
@@ -383,11 +384,56 @@ export interface WipeOptions {
   force?: boolean;
 }
 
+/** Money one id holds, as the wipe confirmation shows it. */
+export interface WipeMoneyEntry {
+  userId: string;
+  /** balance_usd, integer cents (may be 0). */
+  walletCents: number;
+  /** Subscriptions still running now. */
+  runningSubs: { id: string; kind: string; slots: number; expiresAt: number }[];
+  /** Stored subscriptions in all, or -1 when the list cannot be read. */
+  storedSubs: number;
+}
+
 export interface WipePlan {
   userId: string;
   redisKeys: string[];
   vpnClients: { uuid: string; clientEmail: string }[];
   aliasSources: string[]; // identities that alias TO this userId (e.g. tg_X → em_Y)
+  /**
+   * The USD wallet and subscriptions the wipe deletes (the account's and its
+   * linked Telegram id's, which can hold money that reached it after a link),
+   * shown in the confirmation so money is never deleted silently (KM-08).
+   */
+  money: WipeMoneyEntry[];
+}
+
+async function moneyOf(userId: string, now: number): Promise<WipeMoneyEntry> {
+  const walletCents = await getBalanceCents(userId);
+  try {
+    const subs = await getSubscriptions(userId);
+    return {
+      userId,
+      walletCents,
+      runningSubs: subs
+        .filter((s) => s.expiresAt > now)
+        .map((s) => ({ id: s.id, kind: s.kind, slots: s.slots, expiresAt: s.expiresAt })),
+      storedSubs: subs.length,
+    };
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err;
+    return { userId, walletCents, runningSubs: [], storedSubs: -1 };
+  }
+}
+
+/**
+ * What the confirmation showed about money, so the wipe can refuse when it
+ * changed in between (a top-up or a purchase landed after the admin looked).
+ */
+export function wipeMoneyFingerprint(money: readonly WipeMoneyEntry[]): string {
+  return money
+    .map((m) => `${m.userId}:${m.walletCents}:${m.storedSubs}:${m.runningSubs.map((s) => `${s.id}@${s.expiresAt}`).join(",")}`)
+    .join("|");
 }
 
 /**
@@ -403,6 +449,9 @@ export async function planWipe(userId: string): Promise<WipePlan> {
     `account:${userId}`,
     `user:${userId}`,
     `profiles:${userId}`,
+    // Money: shown in the confirmation (plan.money), then deleted with the rest.
+    `balance_usd:${userId}`,
+    `subs:${userId}`,
     `alias:${userId}`, // sometimes the userId itself is aliased (rare, but possible)
     `has_topup:${userId}`,
     `ref_code:${userId}`,
@@ -442,6 +491,11 @@ export async function planWipe(userId: string): Promise<WipePlan> {
   if (user?.telegramId) {
     aliasSources.push(`tg_${user.telegramId}`);
     directKeys.push(`alias:tg_${user.telegramId}`);
+    // Money that reached the linked Telegram id after the link (a re-link
+    // would sweep it): goes too, and is shown.
+    if (`tg_${user.telegramId}` !== userId) {
+      directKeys.push(`balance_usd:tg_${user.telegramId}`, `subs:tg_${user.telegramId}`);
+    }
   }
   if (user?.email) {
     aliasSources.push(`em_${user.email}`);
@@ -454,11 +508,16 @@ export async function planWipe(userId: string): Promise<WipePlan> {
     clientEmail: p.clientEmail,
   }));
 
+  const now = Date.now();
+  const moneyIds = dedupe([userId, ...aliasSources.filter((id) => id.startsWith("tg_") && id !== userId)]);
+  const money = await Promise.all(moneyIds.map((id) => moneyOf(id, now)));
+
   return {
     userId,
     redisKeys: dedupe(directKeys),
     vpnClients,
     aliasSources,
+    money,
   };
 }
 
@@ -504,6 +563,7 @@ export async function executeWipe(
 
   await audit("wipe", {
     userId: plan.userId,
+    money: plan.money.map((m) => ({ userId: m.userId, walletCents: m.walletCents, runningSubs: m.runningSubs.length })),
     redisDeleted,
     vpnDeleted,
     vpnFailed,
