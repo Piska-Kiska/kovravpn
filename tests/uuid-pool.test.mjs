@@ -3,7 +3,7 @@
 // The reserve of device UUIDs (src/lib/uuid-pool.ts, uuid-pool-body.ts) as
 // the site uses it: /api/vpn/create takes one, every build of the PRO nodes'
 // list (src/lib/node-uuids.ts, GET /api/internal/node-uuids) lists it from
-// the instance's view (refilled and rotated at most every POOL_REFRESH_MS),
+// a view of the reserve the build reads itself (refilled and rotated),
 // and a node's 304 counts as its confirmation. Runs on the in-memory Redis,
 // with the JS twins of the scripts (tests/uuid-pool-lua.test.mjs proves them
 // against the real Lua).
@@ -174,6 +174,10 @@ describe("sizes and timings", () => {
   test("a UUID is handed out only after every served list carries it", () => {
     // A view lives POOL_REFRESH_MS, a cached list REBUILD_EVERY_MS on top.
     assert.ok(POOL_MIN_AGE_MS > POOL_REFRESH_MS + REBUILD_EVERY_MS + SEEN_MARGIN_MS);
+  });
+
+  test("a view lives no longer than the list cache: every list build reads the reserve afresh", () => {
+    assert.ok(POOL_REFRESH_MS <= REBUILD_EVERY_MS);
   });
 
   test("reserve lines are dated at most 6 h ahead, and move once an hour", () => {
@@ -386,10 +390,29 @@ describe("the node list carries the reserve", () => {
     assert.equal(zset(READY).size, 3);
   });
 
-  test("the view is refreshed at most every POOL_REFRESH_MS: one script per 5 minutes, not per build", async () => {
+  test("every list build refreshes the view: one script per build, and a build at most once a minute", async () => {
     for (let t = NOW; t <= NOW + 12 * MIN; t += REBUILD_EVERY_MS) await rebuild(t);
-    assert.equal(mem.calls.get("eval"), 3, "at 0, 5 and 10 minutes");
+    assert.equal(mem.calls.get("eval"), 13, "0 to 12 minutes");
     assert.equal(mem.calls.get("zrange") ?? 0, 0, "no plain reads while the script works");
+    for (let t = NOW + 13 * MIN; t < NOW + 14 * MIN; t += 5_000) await answer(t);
+    assert.equal(mem.calls.get("eval"), 14, "within the list cache: one build, one script");
+  });
+
+  test("a refill made by another instance is listed at this instance's next build", async () => {
+    // This instance builds at t0. Two minutes later another instance refills
+    // the reserve after a few takes (as its MAINTAIN_LUA would). An agent that
+    // got that instance's list must not see the new UUIDs vanish on this one.
+    await answer(NOW);
+    const refill = [u(0x301), u(0x302), u(0x303)];
+    for (const [i, id] of [...zset(READY).keys()].slice(0, refill.length).entries()) {
+      zset(READY).delete(id);
+      mem.zsets.set(SPENT, zset(SPENT).set(id, NOW + MIN)); // taken, recorded, released
+      zset(READY).set(refill[i], NOW + 2 * MIN);
+    }
+    const t = NOW + REBUILD_EVERY_MS + 2 * MIN;
+    const { read, lines } = await rebuild(t);
+    assert.equal(read.poolAt, t, "a view of its own, read by this build");
+    for (const id of refill) assert.equal(lines.get(id), poolLineUntil(t), "listed ahead");
   });
 
   test("the view log is written when it changes, not on every build", async () => {
@@ -666,7 +689,7 @@ describe("the device record decides: the reserve keeps no one alive", () => {
     assert.equal(lines.get(Q), NOW + 30 * DAY);
   });
 
-  test("a pool device deleted in its first day leaves by the clock; with a stale view it lingers one view at most", async () => {
+  test("a pool device deleted in its first day leaves by the clock at the next list build", async () => {
     const P = u(0x61);
     seedReady([[P, NOW - DAY]]);
     const agent = new Agent();
@@ -676,14 +699,12 @@ describe("the device record decides: the reserve keeps no one alive", () => {
     await releaseTakenMark(P, NOW + MIN);
     setUser(USER, [], [plan(1, NOW + 30 * DAY)]);
 
-    // The view read at NOW still says "ready": the deleted UUID stays listed until it is renewed.
-    let { lines } = await rebuild(NOW + 2 * MIN);
-    assert.equal(lines.get(P), poolLineUntil(NOW + 2 * MIN));
-    assert.deepEqual(agent.poll(lines, NOW + 2 * MIN), []);
-
-    ({ lines } = await rebuild(NOW + POOL_REFRESH_MS));
+    // The view read at NOW said "ready"; the next build reads its own and
+    // sees P spent: listed with its release time, so the node removes it by
+    // the clock within one list cache plus a poll, like any deleted device.
+    const { lines } = await rebuild(NOW + 2 * MIN);
     assert.equal(lines.get(P), NOW + MIN, "spent: its release time, past");
-    assert.deepEqual(agent.poll(lines, NOW + POOL_REFRESH_MS), [], "an expiry, not a drop");
+    assert.deepEqual(agent.poll(lines, NOW + 2 * MIN), [], "an expiry, not a drop");
     assert.ok(!agent.live.has(P));
   });
 

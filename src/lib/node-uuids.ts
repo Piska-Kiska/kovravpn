@@ -17,9 +17,10 @@
 // i.e. about four commands for today's ~20 users (O(users) in data). Six
 // nodes asking every 120 s would be ~4 300 rebuilds a day, so each result is
 // kept in memory for REBUILD_EVERY_MS per serverless instance: a new purchase
-// reaches the nodes within a minute plus the node's poll step. The reserve
-// adds nothing per rebuild: its view is refreshed at most every
-// POOL_REFRESH_MS per instance (lib/uuid-pool.ts currentUuidPool).
+// reaches the nodes within a minute plus the node's poll step. A node build
+// adds one script for the reserve: each build refreshes its view of it
+// (lib/uuid-pool.ts currentUuidPool), so at most one EVAL a minute per
+// instance.
 //
 // Hysteria2 asks on every connect, and connects come in bursts (a phone that
 // wakes up opens several at once), so callers that find the copy stale at the

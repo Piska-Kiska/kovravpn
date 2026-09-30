@@ -27,7 +27,12 @@
 // still disappear at once:
 //   * the reserve lines themselves, if the site stops listing them (a
 //     rollback of this code): at most the reserve size, POOL_SIZE_DEFAULT = 5,
-//     which leaves room for 5 ordinary drops in the same poll.
+//     which leaves room for 5 ordinary drops in the same poll;
+//   * UUIDs a refill added, when an agent's next poll lands on an instance
+//     whose list was built before that refill: at most the reserve size too,
+//     and only within one list cache (60 s), since every list build reads
+//     the reserve afresh (POOL_REFRESH_MS). Device deletions flicker between
+//     instances the same way.
 // Create/delete churn on reserve UUIDs is not a drop: a pool device deleted
 // in its first day is listed with a past date (the `spent` set below). And
 // should an agent refuse anyway, its reserve lines are dated at most
@@ -68,15 +73,17 @@
 // spent), and any view of the sets, however old, shows it at a stage at or
 // before the real one, which is listed ahead or decided by the device records
 // read after it. A stale view costs one thing: a pool device created and
-// deleted within one view (POOL_REFRESH_MS) stays on the nodes until the
-// next view.
+// deleted after the view was read stays on the nodes until the next view,
+// which is the next list build (at most one list cache, like any device
+// deletion).
 //
 // ── Cost ────────────────────────────────────────────────
-// Each serverless instance refreshes its view at most every POOL_REFRESH_MS
-// with MAINTAIN_LUA (rotate, forget, refill, read: one EVAL); list builds in
-// between reuse it. If the script fails, the sets are read with plain ZRANGEs
-// instead (in the order a UUID moves, so none is missed between two reads):
-// the node list never depends on the script.
+// Every list build refreshes its view with MAINTAIN_LUA (rotate, forget,
+// refill, read: one EVAL), and a list build happens at most once per list
+// cache (60 s) per serverless instance: one EVAL a minute per instance at
+// most. If the script fails, the sets are read with plain ZRANGEs instead
+// (in the order a UUID moves, so none is missed between two reads): the node
+// list never depends on the script.
 //
 // Pure: imports only node-uuids-body.ts, so tests load it under Node's type
 // stripping.
@@ -104,10 +111,13 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 /**
- * An instance refreshes its view of the reserve (and refills and rotates it)
- * at most this often. Must stay well under POOL_MIN_AGE_MS (see there).
+ * An instance reuses its view of the reserve for at most this long: the list
+ * cache (node-uuids.ts REBUILD_EVERY_MS; this file is pure and cannot import
+ * it), so every list build refreshes (and refills and rotates) the view, and
+ * instances' lists never disagree about the reserve by more than one cache.
+ * Must stay well under POOL_MIN_AGE_MS (see there).
  */
-export const POOL_REFRESH_MS = 5 * MINUTE_MS;
+export const POOL_REFRESH_MS = MINUTE_MS;
 /**
  * A ready UUID is handed out only this long after it was added: longer than
  * a view of the reserve (POOL_REFRESH_MS) plus the list cache (60 s), so
@@ -233,7 +243,7 @@ export function parseTakeReply(reply: unknown): string | null {
   throw new Error("uuid pool: unexpected take reply");
 }
 
-// ── Keeping the reserve (one refresh per instance per POOL_REFRESH_MS) ──
+// ── Keeping the reserve (one refresh per list build) ──
 
 /**
  * KEYS: ready, taken, spent. ARGV: now, cap, rotate-at-or-before, rotation

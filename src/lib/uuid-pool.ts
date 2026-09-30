@@ -14,8 +14,9 @@
 //   releaseTakenMark()    /api/vpn/create, AFTER the device record is
 //                         written: the UUID moves from `taken` to `spent`.
 //   currentUuidPool()     the node-uuids list build: this instance's view of
-//                         the reserve, refreshed (refilled, rotated, read) at
-//                         most every POOL_REFRESH_MS.
+//                         the reserve, refreshed (refilled, rotated, read) by
+//                         every build (builds are at most one per list cache,
+//                         POOL_REFRESH_MS).
 //   noteNodeConfirmed()   the node-uuids endpoint, on a 304: the node holds
 //                         the list built from that view.
 //
@@ -187,7 +188,8 @@ function logView(source: "maintain" | "read", state: PoolState, now: number): vo
 
 /**
  * This instance's view of the reserve for a list build. Younger than
- * POOL_REFRESH_MS: reused. Otherwise refreshed with MAINTAIN_LUA; if the
+ * POOL_REFRESH_MS (the list cache, so in practice only when a caller builds
+ * twice within it): reused. Otherwise refreshed with MAINTAIN_LUA; if the
  * script fails, the sets are read with plain commands; if that fails too,
  * the last view is kept, whatever its age: a UUID only moves forward, so an
  * old view never drops one (it may keep listing ahead a pool device deleted
