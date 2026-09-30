@@ -113,6 +113,7 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
               subUrl={subUrl}
               happUrl={p.happUrlOf(pr)}
               paused={p.paused}
+              slotPaused={!p.paused && pr.access === "paused"}
               resetDone={p.resetDoneId === pr.uuid}
               error={p.deviceError[pr.uuid] ?? null}
               onRequestReset={() => p.onRequestReset(pr.uuid)}

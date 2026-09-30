@@ -350,6 +350,8 @@ export interface DashDict {
   link_email_add: Str;
   dev_paused: Str;
   hero_title_soon: Str;
+  /** A device beyond the running slots (lib/device-capacity.ts): paused, not deleted. */
+  dev_slot_paused: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -674,6 +676,7 @@ const en: DashDict = {
   link_email_add: "Add e-mail sign-in",
   dev_paused: "Works again after you renew your plan.",
   hero_title_soon: "Your plan ends soon",
+  dev_slot_paused: "Paused: no free slot. To turn it on, buy a plan or an extra slot, or delete another device.",
 };
 
 const ru: DashDict = {
@@ -1000,6 +1003,7 @@ const ru: DashDict = {
   link_email_add: "Добавить вход по почте",
   dev_paused: "Заработает после продления тарифа.",
   hero_title_soon: "Тариф скоро закончится",
+  dev_slot_paused: "На паузе: нет свободного слота. Чтобы включить, купите тариф или дополнительный слот либо удалите другое устройство.",
 };
 
 const es: DashDict = {
@@ -1321,6 +1325,7 @@ const es: DashDict = {
   link_email_add: "Añadir acceso por correo",
   dev_paused: "Vuelve a funcionar cuando renueves tu plan.",
   hero_title_soon: "Tu plan termina pronto",
+  dev_slot_paused: "En pausa: no hay espacio libre. Para activarlo, compra un plan o un espacio extra, o elimina otro dispositivo.",
 };
 
 const de: DashDict = {
@@ -1642,6 +1647,7 @@ const de: DashDict = {
   link_email_add: "Anmeldung per E-Mail hinzufügen",
   dev_paused: "Funktioniert wieder, sobald du deinen Tarif verlängerst.",
   hero_title_soon: "Dein Tarif endet bald",
+  dev_slot_paused: "Pausiert: kein freier Geräteplatz. Zum Einschalten einen Tarif oder einen Zusatzplatz kaufen oder ein anderes Gerät löschen.",
 };
 
 const fr: DashDict = {
@@ -1963,6 +1969,7 @@ const fr: DashDict = {
   link_email_add: "Ajouter la connexion par e-mail",
   dev_paused: "Refonctionne dès que vous renouvelez votre forfait.",
   hero_title_soon: "Votre forfait se termine bientôt",
+  dev_slot_paused: "En pause : aucun emplacement libre. Pour le réactiver, achetez un forfait ou un emplacement supplémentaire, ou supprimez un autre appareil.",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };

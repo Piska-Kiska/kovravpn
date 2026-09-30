@@ -31,6 +31,7 @@ import { getBalanceCents } from "../bot-wallet";
 import { getReferralStats, getReferrer, recordReferral, resolveReferralCode } from "../referrals";
 import { redeemPromoToWallet } from "../promo";
 import { acquireLock, rateLimit } from "../ratelimit";
+import { deviceAccess, type DeviceAccess } from "../device-capacity";
 import {
   REFERRAL_REWARD_DAYS,
   activePlanKindOf,
@@ -190,15 +191,30 @@ function deviceKindOf(p: VpnProfile): DeviceKind | null {
   return (DEVICE_KINDS as readonly string[]).includes(t) ? (t as DeviceKind) : null;
 }
 
-/** Devices with localized labels; a repeated type gets a number ("iPhone 2"). */
-export function deviceViews(profiles: readonly VpnProfile[], lang: BotLang): DeviceView[] {
+/**
+ * Devices with localized labels; a repeated type gets a number ("iPhone 2").
+ * `access` (lib/device-capacity.ts, in the order of `profiles`) marks the
+ * devices paused for want of a slot and the end of each one's slot.
+ */
+export function deviceViews(
+  profiles: readonly VpnProfile[],
+  lang: BotLang,
+  access: readonly DeviceAccess[] = [],
+): DeviceView[] {
   return profiles.map((p, i) => {
     const kind = deviceKindOf(p);
     const same = (q: VpnProfile) => deviceKindOf(q) === kind;
     const total = profiles.filter(same).length;
     const before = profiles.slice(0, i).filter(same).length;
     const name = deviceName(kind, lang);
-    return { uuid: p.uuid, kind, label: total > 1 ? `${name} ${before + 1}` : name };
+    const a = access[i];
+    return {
+      uuid: p.uuid,
+      kind,
+      label: total > 1 ? `${name} ${before + 1}` : name,
+      paused: a?.state === "paused",
+      until: a?.state === "active" ? a.until : 0,
+    };
   });
 }
 
@@ -227,7 +243,7 @@ export function accountView(
     planKind,
     planUntil,
     lastPlanKind: lastPlan ? (lastPlan.kind as PlanKind) : null,
-    devices: deviceViews(profiles, lang),
+    devices: deviceViews(profiles, lang, deviceAccess(profiles, subs, now)),
   };
 }
 

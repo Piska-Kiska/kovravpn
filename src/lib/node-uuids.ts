@@ -84,7 +84,7 @@ export async function readNodeUuidPairs(now: number = Date.now()): Promise<{ pai
     profiles: parseStored(profiles[i]),
     subs: parseStored(subs[i]),
   }));
-  const { pairs, malformed } = accessPairs(users);
+  const { pairs, malformed } = accessPairs(users, now);
   cached = { at: now, pairs, malformed };
   return { pairs, malformed };
 }

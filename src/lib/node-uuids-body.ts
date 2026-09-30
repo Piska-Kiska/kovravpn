@@ -9,11 +9,13 @@
 // every 120 s and applies it through xray's API, without restarts.
 //
 // ── Which devices, which date ───────────────────────────
-// Exactly what the panels get from balance.ts syncAllExpiry: EVERY profile of
-// a user, with the date of the user's furthest subscription (plan, device
-// add-on or referral). A panel disables the client when that date passes; the
-// node does the same by its own clock. A user without any subscription has no
-// date to give and is left out.
+// What the panels get from balance.ts syncAllExpiry (device-capacity.ts):
+// while a user has running slots, each device holding one is listed with the
+// end of that slot (newest devices first), and a device beyond the slots is
+// PAUSED and not listed at all, so the agent drops it (KM-03). With no running
+// slot, every device is listed with the date of the user's furthest
+// subscription, which has passed: the node removes it by its own clock. A
+// user without any subscription has no date to give and is left out.
 //
 // ── Shape ───────────────────────────────────────────────
 // Plain text, one device per line: `<uuid> <date ms>`, sorted by UUID, ending
@@ -25,10 +27,12 @@
 // Fewer live devices than the minimum (default 1) is a refusal (503) too, and
 // the node keeps the list it has, still removing users by their dates.
 //
-// Imports only node:crypto, so tests load it under plain Node type stripping
-// (tests/node-uuids.test.mjs).
+// Imports only node:crypto and the pure device-capacity.ts, so tests load it
+// under Node's type stripping (tests/node-uuids.test.mjs, through
+// tests/support/load-ts.mjs for the extensionless import).
 
 import { createHash } from "node:crypto";
+import { deviceAccess, type CapacityProfile, type CapacitySub } from "./device-capacity";
 
 /** Lines stay in the answer this long after their date. */
 export const NODE_BODY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -91,27 +95,51 @@ export interface UuidPair {
   readonly until: number;
 }
 
+/** The subscriptions of a record that carry a usable date and slot count. */
+function capacitySubs(subs: unknown): CapacitySub[] {
+  if (!Array.isArray(subs)) return [];
+  const out: CapacitySub[] = [];
+  for (const s of subs) {
+    if (!s || typeof s !== "object") continue;
+    const { slots, expiresAt } = s as { slots?: unknown; expiresAt?: unknown };
+    if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= 0 || expiresAt > MAX_DATE_MS) continue;
+    if (typeof slots !== "number" || !Number.isSafeInteger(slots) || slots <= 0) continue;
+    out.push({ slots, expiresAt });
+  }
+  return out;
+}
+
 /**
- * Every profile UUID of every user with a subscription date, paired with that
- * date. Malformed profiles are skipped and counted. O(total profiles).
+ * Every device that may be listed, paired with its date (see the header):
+ * the end of its slot, or, with no running slot, the user's furthest date.
+ * Paused devices are left out. Malformed profiles are skipped and counted.
+ * O(total profiles · log).
  */
-export function accessPairs(users: readonly UserAccessRecord[]): { pairs: UuidPair[]; malformed: number } {
+export function accessPairs(users: readonly UserAccessRecord[], now: number = Date.now()): { pairs: UuidPair[]; malformed: number } {
   const pairs: UuidPair[] = [];
   let malformed = 0;
   for (const user of users) {
-    const until = accessUntil(user.subs);
-    if (until === null) continue;
+    const lastDate = accessUntil(user.subs);
+    if (lastDate === null) continue;
     if (!Array.isArray(user.profiles)) {
       if (user.profiles !== null && user.profiles !== undefined) malformed += 1;
       continue;
     }
+    const devices: CapacityProfile[] = [];
     for (const p of user.profiles) {
       const uuid = p && typeof p === "object" ? normalizeUuid((p as { uuid?: unknown }).uuid) : null;
       if (uuid === null) {
         malformed += 1;
         continue;
       }
-      pairs.push({ uuid, until });
+      const createdAt = (p as { createdAt?: unknown }).createdAt;
+      devices.push({ uuid, createdAt: typeof createdAt === "number" ? createdAt : 0 });
+    }
+    for (const a of deviceAccess(devices, capacitySubs(user.subs), now)) {
+      if (a.state === "active") pairs.push({ uuid: a.uuid, until: a.until });
+      // No running slot: the last date has passed. (A date still ahead here
+      // means a subscription without a usable slot count: list nothing.)
+      else if (a.state === "expired" && lastDate <= now) pairs.push({ uuid: a.uuid, until: lastDate });
     }
   }
   return { pairs, malformed };
