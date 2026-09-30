@@ -11,7 +11,9 @@ import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
-const ORIGIN = process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://proxysvpn.com";
+// Kovra's own origin by default: the fallback used to be ProxysVPN's site,
+// which has no Kovra subscriptions (KS-8).
+const ORIGIN = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://kovravpn.com").replace(/\/+$/, "");
 
 export const metadata: Metadata = {
   title: "Подключение",

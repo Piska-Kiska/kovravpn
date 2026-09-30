@@ -22,13 +22,13 @@
 // by email in the path.
 
 import { randomBytes } from "crypto";
+import { requiredVpnHost } from "./vpn-host";
 
 const PANEL_URL = process.env.XPANEL_URL || "";
 const PANEL_TOKEN = process.env.XPANEL_TOKEN || "";
 
-// Public hostname/IP clients connect to for VLESS. Must match the inbound's
-// reachable address. Configurable so a provider migration is an env change.
-const VPN_HOST = process.env.VPN_SERVER_HOST || "panel.proxysvpn.com";
+// Public hostname/IP clients connect to for VLESS: VPN_SERVER_HOST, read when
+// a link is built (lib/vpn-host.ts). No default: see KS-8 there.
 
 const LIMIT_IP = 1;
 
@@ -251,6 +251,24 @@ export function buildVlessUrl(
   )}#${encodeURIComponent(tag)}`;
 }
 
+/** The parts of an inbound's streamSettings / settings a VLESS link needs. */
+interface RealityStream {
+  realitySettings?: {
+    serverNames?: string[];
+    shortIds?: string[];
+    settings?: { publicKey?: string; spiderX?: string; fingerprint?: string };
+  };
+}
+interface InboundProto {
+  encryption?: string;
+}
+
+/** The panel stores these as JSON strings; older builds return objects. */
+function jsonField<T>(value: unknown): T {
+  if (typeof value === "string") return JSON.parse(value || "{}") as T;
+  return (value ?? {}) as T;
+}
+
 /**
  * High-level helper: build a VLESS URL for a UUID from the CURRENT primary
  * inbound config. Fallback path used when the inbound registry is empty.
@@ -260,14 +278,14 @@ export async function buildVlessForClient(
   tag: string = "Kovra"
 ): Promise<string> {
   const inbound = await getActiveInbound();
-  const stream: any = typeof (inbound.streamSettings as unknown) === "string" ? JSON.parse(inbound.streamSettings || "{}") : (inbound.streamSettings || {});
-  const proto: any = typeof (inbound.settings as unknown) === "string" ? JSON.parse(inbound.settings || "{}") : (inbound.settings || {});
+  const stream = jsonField<RealityStream>(inbound.streamSettings);
+  const proto = jsonField<InboundProto>(inbound.settings);
   const rs = stream.realitySettings || {};
   const rss = rs.settings || {};
 
   return buildVlessUrl(
     uuid,
-    VPN_HOST,
+    requiredVpnHost("VPN_SERVER_HOST"),
     inbound.port,
     rs.serverNames?.[0] || "www.samsung.com",
     rss.publicKey || "",
