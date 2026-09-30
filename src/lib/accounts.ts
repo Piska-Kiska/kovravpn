@@ -20,6 +20,13 @@ export interface VpnProfile {
   createdAt: number;
   deviceType?: string;
   subToken?: string;
+  /**
+   * The 3X-UI subId of this device's panel clients (lib/panel-sub-id.ts):
+   * random for devices created since 30.09.2026, absent before (those use
+   * clientEmail). A credential for the panels' subscription port: never
+   * sent to the browser.
+   */
+  panelSubId?: string;
 }
 
 const PLAN_LIMITS: Record<string, number> = {
