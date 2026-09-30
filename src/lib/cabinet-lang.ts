@@ -51,7 +51,9 @@ export function setCabinetLang(l: Lang): void {
     const url = new URL(window.location.href);
     if (url.searchParams.has("lang")) {
       url.searchParams.delete("lang");
-      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      // null, not history.state: Next's router syncs only a foreign state and
+      // would otherwise put the old ?lang= back on its next commit.
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
   } catch {
     // A malformed URL cannot happen in a browser; the switch still works.
