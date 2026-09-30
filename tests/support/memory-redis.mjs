@@ -25,7 +25,7 @@
 // exact script source with `registerScript(source, twin)`. The twin gets raw
 // string access to the store and runs without awaiting, so nothing runs in
 // between, as with EVAL; its reply goes through the Upstash client's JSON
-// parsing. tests/move-money-lua.test.mjs checks a twin against the real Lua.
+// parsing. tests/link-scripts-lua.test.mjs checks the twins against the real Lua.
 //
 // Interleaving: `beforeNext(op, { key, run })` awaits `run()` right before the
 // next matching top-level call, so a test can slip another operation into the

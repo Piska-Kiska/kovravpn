@@ -239,9 +239,28 @@ async function withSubsLock<T>(userId: string, fn: () => Promise<T>): Promise<T>
 }
 
 /**
+ * Take `lock:subs:{userId}` for a writer outside this module that must not
+ * run without it (the account link's move script, lib/tg-link-merge.ts),
+ * waiting up to `waitMs` for a grant that holds it. Null when it is still
+ * held then. Unlike withSubsLock, a Redis error is thrown, not skipped.
+ */
+export async function lockSubscriptions(
+  userId: string,
+  waitMs: number = SUBS_LOCK_WAIT_MS,
+): Promise<(() => Promise<void>) | null> {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const unlock = await acquireLock(`subs:${userId}`, SUBS_LOCK_TTL_SEC);
+    if (unlock || Date.now() >= deadline) return unlock;
+    await sleep(SUBS_LOCK_RETRY_MS);
+  }
+}
+
+/**
  * Change a user's subscription list under the per-user lock: `apply` gets the
  * current list (expired > 30 days pruned) and returns the new one, which is
- * saved. Returns what was saved. The one way to write `subs:{userId}`.
+ * saved. Returns what was saved. The one way to write `subs:{userId}`, apart
+ * from the account link's move script, which holds the same lock.
  */
 export async function mutateSubscriptions(
   userId: string,

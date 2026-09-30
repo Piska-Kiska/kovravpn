@@ -460,8 +460,16 @@ async function performLink(
     `Primary: <code>${result.primaryUserId}</code>`,
     `Telegram: <code>${result.telegramId}</code>`,
   ];
+  const movedCents = result.movedCents ?? 0;
+  const movedSubs = result.movedSubs ?? 0;
+  if (movedCents > 0 || movedSubs > 0) {
+    lines.push(
+      "",
+      `<i>С tg_${telegramId} перенесено: кошелёк $${(movedCents / 100).toFixed(2)}, подписок ${movedSubs}.</i>`,
+    );
+  }
   if (result.removedEmptyStandalone) {
-    lines.push("", `<i>Пустой standalone tg_${telegramId} удалён.</i>`);
+    lines.push("", `<i>Standalone tg_${telegramId} удалён.</i>`);
   }
 
   // Refresh card
