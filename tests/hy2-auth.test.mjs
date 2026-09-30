@@ -333,6 +333,26 @@ describe("POST /api/hy2/auth", () => {
     assert.deepEqual(await connect(A), { ok: false });
   });
 
+  test("a storage error is logged without the command Upstash quotes: its keys carry e-mail ids", async () => {
+    const lines = [];
+    mock.method(console, "error", (...args) => lines.push(args.map(String).join(" ")));
+    // @upstash/redis builds its error text as `${error}, command was: ${JSON.stringify(body)}`.
+    const realMget = mem.redis.mget;
+    mem.redis.mget = async (...keys) => {
+      throw Object.assign(new Error(`ERR max requests limit exceeded, command was: ${JSON.stringify(["mget", ...keys])}`), {
+        name: "UpstashError",
+      });
+    };
+    try {
+      assert.deepEqual(await connect(A), { ok: false });
+    } finally {
+      mem.redis.mget = realMget;
+    }
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /max requests limit exceeded/, "the reason stays");
+    assert.doesNotMatch(lines[0], /example\.test|profiles:|command was/);
+  });
+
   describe("the UUID reserve of the PRO nodes", () => {
     /** GET /api/internal/node-uuids as an agent asks it: `uuid -> date` of every line. */
     const nodeLines = async () => {

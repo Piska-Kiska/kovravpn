@@ -43,10 +43,13 @@
 // for the timeout again. A read that answers after its timeout still updates
 // the list. With no list young enough, every connect is refused: fail closed.
 //
-// Nothing here logs a UUID.
+// Nothing here logs a UUID, nor the command an Upstash error quotes (its
+// keys are `profiles:<user id>`, and a user id can be an e-mail): errors go
+// through safe-error-text.ts.
 
 import { readDevicePairs, type DevicePairsRead } from "./node-uuids";
 import { normalizeUuid, type UuidPair } from "./node-uuids-body";
+import { safeErrorText } from "./safe-error-text";
 
 /** How long the last good list may answer while Redis cannot be read, from when it was read. */
 export const STALE_IF_ERROR_MS = 5 * 60_000;
@@ -144,7 +147,7 @@ export function createHy2Access(deps: Hy2AccessDeps): Hy2Access {
         const usable = age >= 0 && age < STALE_IF_ERROR_MS;
         console.error(
           `[hy2/auth] access list unreadable (${usable ? "answering from the last list" : "refusing"}; next try in ${RETRY_AFTER_FAILURE_MS / 1000} s):`,
-          err instanceof Error ? err.message : err,
+          safeErrorText(err),
         );
       }
     }
