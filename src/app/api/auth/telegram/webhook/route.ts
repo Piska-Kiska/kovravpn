@@ -26,23 +26,23 @@ import { removeClientFromStaticPanels } from "@/lib/kovra-servers-sync";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
 import { syncAllExpiry } from "@/lib/balance";
 import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
-import { createInvoice } from "@/lib/nowpayments";
-import {
-  LAVA_MIN_AMOUNT,
-  createInvoice as createLavaInvoice,
-  lavaConfigured,
-  lavaMethodChoices,
-  rememberContract,
-} from "@/lib/lava";
+import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
-import { chargeIn, formatCharge } from "@/lib/lava-price";
-import { rememberCharge } from "@/lib/lava-purchase";
-import { buildTopupOrderId as buildLavaTopupOrderId } from "@/lib/bot-wallet";
-import { createCardPayment } from "@/lib/cashera-order";
-import { getBalanceUsd, addBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
+import { formatCharge } from "@/lib/lava-price";
+import {
+  MAX_TOPUP_USD,
+  MIN_TOPUP_CARD_USD,
+  MIN_TOPUP_CRYPTOBOT_USD,
+  MIN_TOPUP_NOWPAY_USD,
+  QUICK_TOPUP_USD as QUICK_TOPUP,
+  createWalletTopupInvoice,
+  lavaTopupChoices,
+  minTopupUsd as minForMethod,
+  type TopupMethod,
+} from "@/lib/wallet-topup";
+import { getBalanceUsd, addBalanceUsd } from "@/lib/bot-wallet";
 import { PLAN_PRICES, activePlanKindOf, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
 import { purchaseFromWallet, type WalletProduct } from "@/lib/wallet-purchase";
-import { createCryptoBotInvoice } from "@/lib/cryptobot";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { randomUUID } from "crypto";
@@ -688,20 +688,8 @@ async function buyFromWallet(
 }
 
 // ─── Top-up balance (USD) ────────────────────────────
-const MIN_TOPUP_CRYPTOBOT_USD = 5;
-const MIN_TOPUP_NOWPAY_USD = 8;
-const MIN_TOPUP_CARD_USD = 5;
-const MAX_TOPUP_USD = 1000;
-const QUICK_TOPUP = [10, 20, 50, 100];
-
-type TopupMethod = "crypto" | "cryptobot" | "card" | "lava";
-
-function minForMethod(method: TopupMethod): number {
-  // Порог самой лавы, а не наше число: счета ниже $5 она не выставляет вовсе.
-  if (method === "lava") return LAVA_MIN_AMOUNT.USD;
-  if (method === "card") return MIN_TOPUP_CARD_USD;
-  return method === "cryptobot" ? MIN_TOPUP_CRYPTOBOT_USD : MIN_TOPUP_NOWPAY_USD;
-}
+// Amounts, minimums and the invoices themselves live in lib/wallet-topup.ts,
+// shared with the web cabinet and the Mini App.
 
 async function screenTopup(chatId: number, msgId: number) {
   const lang = await resolveLang(await getUserId(chatId));
@@ -759,9 +747,7 @@ async function screenLavaMethods(chatId: number, msgId: number, amountUsd: numbe
   }
   // Способы, которых лава на эту сумму не примет, не показываем вовсе: на $5
   // евровые отпадают, и показанная кнопка довела бы до отказа после нажатия.
-  const chips = lavaMethodChoices("USD", (c) => chargeIn(amountUsd, c)).filter(
-    (c) => LAVA_BOT_LABEL[c.id] !== undefined,
-  );
+  const chips = lavaTopupChoices(amountUsd, "USD").filter((c) => LAVA_BOT_LABEL[c.id] !== undefined);
   const rows: InlineBtn[][] = [];
   for (let i = 0; i < chips.length; i += 2) {
     rows.push(chips.slice(i, i + 2).map((c) => ({
@@ -786,85 +772,47 @@ async function handleTopupLava(
   method: LavaMethodId,
   currency: LavaCurrency,
 ) {
-  const lang = await resolveLang(await getUserId(chatId));
   const userId = await getUserId(chatId);
-  if (!userId) {
-    await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]);
-    return;
-  }
-  const min = minForMethod("lava");
-  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
-    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
-    return;
-  }
-  try {
-    const charge = chargeIn(amountUsd, currency);
-    const topupId = buildLavaTopupOrderId(userId);
-    const invoice = await createLavaInvoice({
-      orderId: topupId,
-      amount: charge,
-      currency,
-      methodId: method,
-      locale: lang === "ru" ? "ru" : "en",
-      successUrl: `${SITE_URL}/dashboard?paid=lava`,
-      failUrl: `${SITE_URL}/dashboard`,
-    });
-    // Указатель и ожидаемая сумма — ДО того, как ссылка уйдёт человеку: в
-    // событии лавы нашего номера нет, и без записи зачислять будет нечего.
-    await rememberContract(invoice.contractId, topupId);
-    await rememberCharge(invoice.contractId, {
-      orderId: topupId,
-      userId,
-      currency,
-      amount: charge,
-      priceUsd: amountUsd,
-      label: `wallet top-up $${amountUsd.toFixed(2)}`,
-      createdAt: Date.now(),
-    });
+  const lang = await resolveLang(userId);
+  const r = await createWalletTopupInvoice({
+    userId,
+    method: "lava",
+    amountUsd,
+    returnTo: "bot",
+    lavaMethodId: method,
+    lavaCurrency: currency,
+    locale: lang === "ru" ? "ru" : "en",
+  });
+  if (r.ok) {
     await edit(chatId, msgId,
-      t("topup.invoice", lang, { amount: amountUsd.toFixed(2) }),
+      t("topup.invoice", lang, { amount: r.amountUsd.toFixed(2) }),
       [
-        [{ text: `${formatCharge(amountUsd, currency)}`, url: invoice.paymentUrl }],
+        [{ text: r.chargeLabel, url: r.payUrl }],
         backBtn("topup_m_lava", lang),
       ]);
-  } catch (err) {
-    console.error("[bot] lava topup error:", err instanceof Error ? err.message : err);
+  } else if (r.error === "invalid_amount") {
+    const min = minForMethod("lava");
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+  } else {
     await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }
 
 async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
-  const lang = await resolveLang(await getUserId(chatId));
   const userId = await getUserId(chatId);
-  if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("topup", lang)]); return; }
-  const min = minForMethod(method);
-  if (!Number.isFinite(amountUsd) || amountUsd < min || amountUsd > MAX_TOPUP_USD) {
-    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
-    return;
-  }
-  try {
-    let payUrl: string;
-    let invoiceKey = "topup.invoice";
-    if (method === "cryptobot") {
-      const inv = await createCryptoBotInvoice({ userId, amountUsd, source: "bot" });
-      payUrl = inv.payUrl;
-    } else if (method === "card") {
-      const res = await createCardPayment(userId, { type: "topup", amountUsd }, "bot");
-      payUrl = res.paymentUrl;
-      invoiceKey = "topup.invoice.card";
-    } else {
-      const orderId = buildTopupOrderId(userId);
-      const inv = await createInvoice({ orderId, amountUsd, description: `Kovra top-up $${amountUsd.toFixed(2)}`, source: "bot" });
-      payUrl = inv.invoiceUrl;
-    }
+  const lang = await resolveLang(userId);
+  const r = await createWalletTopupInvoice({ userId, method, amountUsd, returnTo: "bot" });
+  if (r.ok) {
     await edit(chatId, msgId,
-      t(invoiceKey, lang, { amount: amountUsd.toFixed(2) }),
+      t(method === "card" ? "topup.invoice.card" : "topup.invoice", lang, { amount: r.amountUsd.toFixed(2) }),
       [
-        [{ text: t("topup.pay", lang), url: payUrl }],
+        [{ text: t("topup.pay", lang), url: r.payUrl }],
         backBtn("topup", lang),
       ]);
-  } catch (err) {
-    console.error("[bot] topup invoice error:", err);
+  } else if (r.error === "invalid_amount") {
+    const min = minForMethod(method);
+    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+  } else {
     await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }

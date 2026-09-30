@@ -19,6 +19,7 @@ import { lavaConfigured } from "@/lib/lava";
 import { isHappEncryptedEnabled } from "@/lib/feature-flags";
 import { authenticateRequest } from "@/lib/auth";
 import { getBalanceCents } from "@/lib/bot-wallet";
+import { walletTopupConfig } from "@/lib/wallet-topup";
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +32,10 @@ export async function POST(req: NextRequest) {
     // The prepaid USD wallet shared with the bot (unified balance), in exact
     // integer cents. Present even without an account: a bot top-up can
     // precede it, and that money must stay visible.
-    const wallet = { balanceUsdCents: Math.max(0, await getBalanceCents(userId)) };
+    const wallet = {
+      balanceUsdCents: Math.max(0, await getBalanceCents(userId)),
+      topup: walletTopupConfig(),
+    };
     const account = await getAccount(userId);
     if (!account) return NextResponse.json({ account: null, profiles: [], wallet });
 
