@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getProfiles, getAccount } from "@/lib/accounts";
 import { getSubscriptions, activeSlots } from "@/lib/subscriptions";
+import { deviceAccess } from "@/lib/device-capacity";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
 import { getEnabledInbounds, getEnabledInboundsForUser, type InboundEntry } from "@/lib/inbounds";
@@ -174,6 +175,33 @@ function deletedSubHeaders(): HeadersInit {
   };
 }
 
+// ── Paused device (KM-03) ───────────────────────────────────────────────
+// More devices than running slots: the newest keep access, the others are
+// paused (lib/device-capacity.ts) and get this notice instead of servers.
+const PAUSED_TITLE = "base64:" + Buffer.from("Device paused", "utf-8").toString("base64");
+const PAUSED_TEXT =
+  "This device is paused: you have more devices than slots. Buy a plan or an extra slot, or delete another device.";
+const PAUSED_BODY = Buffer.from(
+  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
+    encodeURIComponent("Device paused - no free slot - kovravpn.com"),
+).toString("base64");
+
+function pausedHeaders(): HeadersInit {
+  return {
+    ...HAPP_UI,
+    "sub-info-color": "red",
+    "sub-info-text": "base64:" + Buffer.from(PAUSED_TEXT, "utf-8").toString("base64"),
+    "sub-info-button-text": "Open Kovra",
+    "sub-info-button-link": "https://kovravpn.com/dashboard",
+    announce: "base64:" + Buffer.from(PAUSED_TEXT, "utf-8").toString("base64"),
+    "profile-title": PAUSED_TITLE,
+    "support-url": "https://t.me/KovraVPN_bot",
+    "profile-web-page-url": "https://kovravpn.com",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+  };
+}
+
 function emptyHeaders(): HeadersInit {
   // No subscription-userinfo here: an expire value would trigger Happ's
   // expire message, which suppresses the sub-info block we want to show.
@@ -302,12 +330,17 @@ export async function GET(
         return new NextResponse("Profile not found", { status: 404 });
 
       const _subs = await getSubscriptions(userId);
-      if (activeSlots(_subs) <= 0) {
+      const now = Date.now();
+      if (activeSlots(_subs, now) <= 0) {
         return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
       }
+      // This device's own slot (newest devices first); none left: paused.
+      const access = deviceAccess(profiles, _subs, now)[profiles.indexOf(profile)];
+      if (access.state !== "active") {
+        return new NextResponse(PAUSED_BODY, { status: 200, headers: pausedHeaders() });
+      }
 
-      const expire =
-        account.paidUntil > 0 ? Math.floor(account.paidUntil / 1000) : 0;
+      const expire = Math.floor(access.until / 1000);
 
       // Hysteria2 servers can't live in xray JSON array (sing-box engine).
       // If user's registry has any hy2 server, force vless/base64 list format
@@ -342,15 +375,22 @@ export async function GET(
       return new NextResponse("No profiles", { status: 404 });
 
     const _subs2 = await getSubscriptions(userId);
-    if (activeSlots(_subs2) <= 0) {
+    const now2 = Date.now();
+    if (activeSlots(_subs2, now2) <= 0) {
       return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
     }
+    // The legacy link serves every device of the account: only those that
+    // hold a slot (KM-03).
+    const access2 = deviceAccess(profiles, _subs2, now2);
+    const served = profiles.filter((_, i) => access2[i].state === "active");
+    if (served.length === 0) {
+      return new NextResponse(PAUSED_BODY, { status: 200, headers: pausedHeaders() });
+    }
 
-    const expire =
-      account.paidUntil > 0 ? Math.floor(account.paidUntil / 1000) : 0;
+    const expire = Math.floor(Math.max(...access2.map((a) => a.until)) / 1000);
 
     if (format === "xray") {
-      const resp = await respondXray(profiles[0].uuid, expire, multi, userId);
+      const resp = await respondXray(served[0].uuid, expire, multi, userId);
       if (resp) return resp;
       console.warn(
         "[sub] xray build empty for legacy token, falling back to vless"
@@ -359,7 +399,7 @@ export async function GET(
 
     const inbounds = await getEnabledInbounds();
     const groups = await Promise.all(
-      profiles.map((p) => buildLinesForProfile(p, inbounds))
+      served.map((p) => buildLinesForProfile(p, inbounds))
     );
     const flat = groups.flat();
     const base64 = Buffer.from(flat.join("\n")).toString("base64");

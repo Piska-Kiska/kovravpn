@@ -53,6 +53,42 @@ export interface IpnPayload {
   [k: string]: unknown;
 }
 
+// ─── What was actually paid ──────────────────────────
+
+/** How far actually_paid may stray from pay_amount before the admin hears of it. */
+export const PAID_TOLERANCE = 0.01;
+
+export type PaidDeviation = "over" | "under";
+
+/**
+ * Compare what the buyer actually sent with what the invoice asked for, both
+ * in the pay currency. Null when they agree within PAID_TOLERANCE, or when
+ * either number is missing or not a positive finite number (nothing to say).
+ */
+export function paidDeviation(p: Pick<IpnPayload, "pay_amount" | "actually_paid">): PaidDeviation | null {
+  const expected = Number(p.pay_amount);
+  const paid = Number(p.actually_paid);
+  if (!Number.isFinite(expected) || expected <= 0 || !Number.isFinite(paid) || paid < 0) return null;
+  if (paid > expected * (1 + PAID_TOLERANCE)) return "over";
+  if (paid < expected * (1 - PAID_TOLERANCE)) return "under";
+  return null;
+}
+
+/** One line with the amounts of an IPN, for an admin alert (HTML-safe: numbers and short codes only). */
+export function ipnAmountsLine(p: IpnPayload): string {
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? String(n) : "?";
+  };
+  const code = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_]{1,16}$/.test(v) ? v : "?");
+  return (
+    `invoice ${num(p.price_amount)} ${code(p.price_currency)}, ` +
+    `asked ${num(p.pay_amount)} ${code(p.pay_currency)}, ` +
+    `actually paid ${num(p.actually_paid)} ${code(p.pay_currency)}` +
+    (p.outcome_amount !== undefined ? `, outcome ${num(p.outcome_amount)} ${code(p.outcome_currency)}` : "")
+  );
+}
+
 // ─── Invoice creation ────────────────────────────────
 
 /**

@@ -10,9 +10,9 @@
 //   sub_<kind>_<term>_<userId>_<ts> | dev_<userId>_<ts>
 // Records:
 //   platega_order:{externalId}  — exact expected charge (webhook refuses
-//                                 to grant without it), TTL 7d
+//                                 to grant without it), TTL 180d
 //   platega_tx:{transactionId}  — pointer to externalId (callback carries
-//                                 only the Platega tx id), TTL 7d
+//                                 only the Platega tx id), TTL 180d
 
 import { redis } from "@/lib/redis";
 import {
@@ -33,7 +33,11 @@ import {
 } from "@/lib/platega";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
-const ORDER_TTL_SEC = 7 * 86400;
+// 180 days, not 7: the record is how a payment is recognised at all, and a
+// CONFIRMED that arrives after it expired is refused ("order record missing").
+// That is how a Cashera payment was lost on 26.08.2026 (see cashera-order.ts);
+// a record weighs ~200 bytes.
+export const ORDER_TTL_SEC = 180 * 86400;
 
 export type PlategaPurchase =
   | { type: "plan"; kind: PlanKind; term: Term }

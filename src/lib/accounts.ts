@@ -97,6 +97,10 @@ export async function addProfile(userId: string, profile: VpnProfile): Promise<v
 export async function removeProfile(userId: string, uuid: string): Promise<void> {
   const profiles = await getProfiles(userId);
   const removed = profiles.find((p) => p.uuid === uuid);
+  // Not this user's device: touch nothing. `hy2:<uuid>` below is keyed by the
+  // uuid alone, so deleting it for a uuid the caller does not own would cut
+  // another user's Hysteria2 access.
+  if (!removed) return;
   const filtered = profiles.filter((p) => p.uuid !== uuid);
   await redis.set(`profiles:${userId}`, JSON.stringify(filtered));
 

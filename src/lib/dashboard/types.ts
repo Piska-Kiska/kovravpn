@@ -2,7 +2,22 @@
 // Shapes of the data the dashboard reads from /api/account and /api/referral.
 // Moved verbatim from src/app/dashboard/page.tsx.
 
-export interface Profile { uuid: string; clientEmail?: string; vlessUrl: string; createdAt: number; deviceType?: string; subToken?: string; }
+export interface Profile {
+  uuid: string;
+  clientEmail?: string;
+  vlessUrl: string;
+  createdAt: number;
+  deviceType?: string;
+  subToken?: string;
+  /**
+   * From /api/account (lib/device-capacity.ts): "paused" = more devices than
+   * running slots and this one is not among the newest. Absent in an older
+   * answer: treat as not paused.
+   */
+  access?: "active" | "paused" | "expired";
+  /** End of the slot the device holds (ms); 0 unless active. */
+  accessUntil?: number;
+}
 export interface SubItem { id: string; kind: "plan1" | "plan3" | "device" | "referral"; slots: number; createdAt: number; expiresAt: number; }
 export interface PlanPrice { term: number; total: number; perMonth: number; refMonthly: number; }
 export interface Pricing {

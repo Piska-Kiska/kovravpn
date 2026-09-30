@@ -171,6 +171,8 @@ const en: Dict = {
   "auth.notfound": "❌ Code not found or already used.",
   "pay.accepted": "✅ <b>Payment accepted!</b>\n\nBalance will be credited automatically within a minute.",
   "fallback.user": "🤔 Send an auth code or use the menu:",
+  "support.forwarded": "✉️ Your message was passed to support. We answer here, in this chat.",
+  "support.slow": "⏳ Support already has your messages. Wait for an answer, or write again in a few minutes.",
 };
 
 const ru: Dict = {
@@ -312,6 +314,8 @@ const ru: Dict = {
   "auth.notfound": "❌ Код не найден или уже использован.",
   "pay.accepted": "✅ <b>Оплата принята!</b>\n\nБаланс будет зачислен автоматически в течение минуты.",
   "fallback.user": "🤔 Отправьте код авторизации или используйте меню:",
+  "support.forwarded": "✉️ Сообщение передано в поддержку. Ответим здесь, в этом чате.",
+  "support.slow": "⏳ Поддержка уже получила ваши сообщения. Дождитесь ответа или напишите снова через несколько минут.",
 };
 
 const es: Dict = {
@@ -453,6 +457,8 @@ const es: Dict = {
   "auth.notfound": "❌ Código no encontrado o ya usado.",
   "pay.accepted": "✅ <b>¡Pago aceptado!</b>\n\nEl saldo se acreditará automáticamente en un minuto.",
   "fallback.user": "🤔 Envía un código de autorización o usa el menú:",
+  "support.forwarded": "✉️ Tu mensaje se ha enviado a soporte. Te respondemos aquí, en este chat.",
+  "support.slow": "⏳ Soporte ya tiene tus mensajes. Espera la respuesta o vuelve a escribir en unos minutos.",
 };
 
 const de: Dict = {
@@ -594,6 +600,8 @@ const de: Dict = {
   "auth.notfound": "❌ Code nicht gefunden oder bereits verwendet.",
   "pay.accepted": "✅ <b>Zahlung akzeptiert!</b>\n\nGuthaben wird innerhalb einer Minute automatisch gutgeschrieben.",
   "fallback.user": "🤔 Sende einen Autorisierungscode oder nutze das Menü:",
+  "support.forwarded": "✉️ Deine Nachricht ist beim Support. Wir antworten hier in diesem Chat.",
+  "support.slow": "⏳ Der Support hat deine Nachrichten schon. Warte auf die Antwort oder schreib in ein paar Minuten wieder.",
 };
 
 const fr: Dict = {
@@ -735,6 +743,8 @@ const fr: Dict = {
   "auth.notfound": "❌ Code introuvable ou déjà utilisé.",
   "pay.accepted": "✅ <b>Paiement accepté !</b>\n\nLe solde sera crédité automatiquement en une minute.",
   "fallback.user": "🤔 Envoyez un code d'autorisation ou utilisez le menu :",
+  "support.forwarded": "✉️ Votre message a été transmis au support. Nous répondons ici, dans ce chat.",
+  "support.slow": "⏳ Le support a déjà vos messages. Attendez la réponse ou réécrivez dans quelques minutes.",
 };
 
 const DICTS: Record<BotLang, Dict> = { en, ru, es, de, fr };

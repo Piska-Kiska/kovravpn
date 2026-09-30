@@ -212,6 +212,8 @@ describe("connecting a device", () => {
       "the progress edit has only Back",
     );
     assert.ok(edits.at(-1).body.text.includes("c0ffee00c0ffee00c0ffee00c0ffee00"));
+    // The fresh device says which locations work at once and which within minutes.
+    assert.ok(edits.at(-1).body.text.includes(DE["dev.readyWhere"]));
     assert.equal(calls("sendChatAction").length, 1);
   });
 
@@ -389,9 +391,15 @@ describe("review fixes of 30.09", () => {
     assert.ok(body.text.includes("support@kovravpn.com"));
   });
 
-  test("a screenshot sent to the bot is answered too", async () => {
+  // Screenshots go to support since 30.09 (lib/support-relay.ts, approved by
+  // the owner): the person is told so instead of "nobody reads this chat".
+  test("a screenshot sent to the bot goes to support, and the person is told", async () => {
     await hook({ message: { message_id: 8, chat: { id: USER, type: "private" }, from: from(USER), photo: [{ file_id: "x" }] } });
-    assert.ok(last("sendMessage").text.startsWith(DE["note.support"]));
+    const fwd = last("forwardMessage");
+    assert.equal(String(fwd.chat_id), ADMIN_TG_ID);
+    assert.equal(fwd.from_chat_id, USER);
+    assert.equal(fwd.message_id, 8);
+    assert.ok(last("sendMessage").text.startsWith(DE["note.forwarded"]));
   });
 
   test("an unknown command gets the menu with the hint", async () => {

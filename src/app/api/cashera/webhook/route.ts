@@ -5,7 +5,7 @@
 // Security model (mirrors crypto-webhook):
 //   1. Authenticate via X-Api-Key + X-Secret headers, constant-time compare
 //      against our credentials. Reject 401 on mismatch.
-//   2. ATOMIC dedup via `cashera_payment_done:<uuid>:<status>` SET NX (90d),
+//   2. ATOMIC dedup via `cashera_payment_done:<uuid>:<status>` SET NX (200d),
 //      reserved BEFORE any side effect. Status is part of the key because a
 //      transaction legitimately moves paid → refunded/chargeback and each
 //      transition must be processed exactly once (Cashera retries up to 3x).
@@ -13,12 +13,21 @@
 //      same scheme as NOWPayments order_id). Amount and currency re-verified
 //      against the server-side price list BEFORE granting.
 //
-// paid                  → grant subscription (same sequence as crypto-webhook)
-// refunded / chargeback → alert admin, manual handling (no auto-revoke)
+// paid                  → grant subscription (same sequence as crypto-webhook),
+//                         unless this transaction was already refunded or
+//                         charged back (cashera_revoked:<uuid>, 180d)
+// refunded / chargeback → remember it, alert admin, manual handling (no
+//                         auto-revoke)
 // failed / expired      → acknowledged, no action
 //
 // Response codes: 2xx = delivered (Cashera stops), 5xx = retry (up to 3x),
 // 4xx = misconfiguration (no retries) — used only for auth failures.
+//
+// Redis failing is never answered 2xx before the money step is done: the
+// dedup key is released (when held) and the answer is 503/500, so Cashera
+// retries, and the admin is alerted with the transaction id (KM-07). After
+// the grant or credit, failures are best-effort and answered 200, because a
+// retry would pay out twice.
 
 import { NextRequest, NextResponse } from "next/server";
 import { markTopup, resolveUserId } from "@/lib/accounts";
@@ -43,10 +52,18 @@ import {
 import { redis } from "@/lib/redis";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 import { ADMIN_TG_ID } from "@/lib/admin-bot";
+import { errorText } from "@/lib/admin-alert";
 import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const DEDUP_TTL_SEC = 90 * 86400;
+// The dedup key must outlive the order record (cashera_order / cashera_tx,
+// ORDER_TTL_SEC = 180 days in lib/cashera-order.ts): once the key is gone and
+// the record is still there, a repeated "paid" for the same transaction grants
+// (or credits a top-up) again.
+const DEDUP_TTL_SEC = 200 * 86400;
+// A refund/chargeback marker must outlive any late or retried "paid" for the
+// same transaction; the order record lives 180 days, so does this.
+const REVOKED_TTL_SEC = 180 * 86400;
 
 interface WebhookTransaction {
   uuid: string;
@@ -91,11 +108,15 @@ function fmtDate(ms: number): string {
   }
 }
 
-/** Read the order record persisted by the create route. */
+/**
+ * Read the order record persisted by the create route. Null when it is
+ * missing or malformed; a Redis error throws (the caller asks for a retry
+ * rather than treating the order as missing).
+ */
 async function getOrderRecord(
   externalId: string,
 ): Promise<CasheraOrderRecord | null> {
-  const raw = await redis.get(`cashera_order:${externalId}`).catch(() => null);
+  const raw = await redis.get(`cashera_order:${externalId}`);
   if (!raw) return null;
   try {
     const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as CasheraOrderRecord;
@@ -108,6 +129,12 @@ async function getOrderRecord(
 }
 
 export async function POST(req: NextRequest) {
+  // The dedup key while it is held for a money step that has not happened
+  // yet, and whether that step (grant or credit) is done: they decide what
+  // an unexpected error answers (see the header).
+  let heldKey: string | null = null;
+  let granted = false;
+  let txRef = "?";
   try {
     if (!verifyWebhookHeaders(req.headers)) {
       console.warn("[cashera-webhook] invalid credentials headers");
@@ -141,18 +168,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: status });
     }
 
+    txRef = `${uuid} (${status})`;
+
     // ATOMIC DEDUP: must happen before any side effect.
     const dedupKey = `cashera_payment_done:${uuid}:${status}`;
-    const reserved = await reserveDedupKey(dedupKey, DEDUP_TTL_SEC);
+    let reserved: boolean;
+    try {
+      reserved = await reserveDedupKey(dedupKey, DEDUP_TTL_SEC);
+    } catch (err) {
+      // Nothing is reserved and nothing done: a retry is exactly right.
+      console.error("[cashera-webhook] dedup reserve failed, requesting retry:", err);
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Cashera: Redis error, asked Cashera to retry</b>\ntx <code>${uuid}</code> (${status}): ${errorText(err)}`,
+      );
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     if (!reserved) {
       return NextResponse.json({ ok: true, ignored: "duplicate" });
     }
+    heldKey = dedupKey;
 
     const extId = String(tx.external_id || "").slice(0, 255);
     const parsed = parseSubOrderId(extId);
 
-    // ─── Money moved back: alert admin, handle manually ───
+    // ─── Money moved back: remember it, alert admin, handle manually ───
     if (status === "refunded" || status === "chargeback") {
+      // The marker is what stops a later "paid" for this transaction (a failed
+      // delivery retried after the refund, or plain reordering) from granting.
+      // Without it the refund must be retried, so a failed write asks for one.
+      try {
+        await redis.set(`cashera_revoked:${uuid}`, status, { ex: REVOKED_TTL_SEC });
+      } catch (err) {
+        console.error("[cashera-webhook] revoked marker write failed, requesting retry:", err);
+        await releaseDedupKey(dedupKey).catch(() => {});
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
       console.error("[cashera-webhook] payment revoked", {
         status,
         uuid,
@@ -172,6 +223,28 @@ export async function POST(req: NextRequest) {
         ].join("\n"),
       );
       return NextResponse.json({ ok: true });
+    }
+
+    // ─── paid after a refund/chargeback of the same transaction: never grant ───
+    let revokedAs: unknown;
+    try {
+      revokedAs = await redis.get(`cashera_revoked:${uuid}`);
+    } catch (err) {
+      console.error("[cashera-webhook] revoked marker read failed, requesting retry:", err);
+      await releaseDedupKey(dedupKey).catch(() => {});
+      return NextResponse.json({ error: "internal" }, { status: 500 });
+    }
+    if (revokedAs !== null && revokedAs !== undefined) {
+      console.error("[cashera-webhook] paid after revocation, NOT granted", {
+        uuid,
+        external_id: extId,
+        revokedAs,
+      });
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Cashera: paid after ${String(revokedAs)}</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>, ${(Number(tx.amount) / 100).toFixed(2)} ${tx.currency}. NOT granted — check the transaction in Cashera.`,
+      );
+      return NextResponse.json({ ok: true, ignored: "revoked" });
     }
 
     // ─── Bot prepaid balance top-up (topup_<userId>_<ts>) ───
@@ -212,9 +285,15 @@ export async function POST(req: NextRequest) {
         newBal = await addBalanceUsd(walletOwner, order.amountUsd);
       } catch (err) {
         console.error("[cashera-webhook] topup credit failed, requesting retry:", err);
-        await releaseDedupKey(dedupKey);
+        await releaseDedupKey(dedupKey).catch(() => {});
+        heldKey = null;
+        await sendTelegram(
+          ADMIN_TG_ID,
+          `⚠️ <b>Cashera: top-up credit failed, asked Cashera to retry</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>: ${errorText(err)}`,
+        );
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
+      granted = true;
       await notifyUser(
         walletOwner,
         { kind: "topup", amountCents: noticeCents(order.amountUsd), balanceCents: noticeCents(newBal) },
@@ -238,11 +317,14 @@ export async function POST(req: NextRequest) {
       console.error("[cashera-webhook] paid for unknown external_id:", extId);
       return NextResponse.json({ ok: true, ignored: "bad external_id" });
     }
-    const userId = parsed.userId;
+    // The account the order's id belongs to now: a Telegram account linked
+    // to an e-mail one after the order was made moved there (as top-ups do).
+    // A Redis error here goes to the handler below: key released, retry.
+    const userId = await resolveUserId(parsed.userId);
 
     const order = await getOrderRecord(extId);
     if (!order) {
-      // Record expired (7d TTL) or was never written — cannot verify the
+      // Record expired (180d TTL) or was never written — cannot verify the
       // charged amount, so nothing is granted. Deliberate 200: retries
       // won't restore the record; admin verifies via getTransaction(uuid)
       // and grants manually.
@@ -294,9 +376,15 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error("[cashera-webhook] grant failed, requesting retry:", err);
-      await releaseDedupKey(dedupKey);
+      await releaseDedupKey(dedupKey).catch(() => {});
+      heldKey = null;
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Cashera: grant failed, asked Cashera to retry</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>: ${errorText(err)}`,
+      );
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }
+    granted = true;
 
     // ─── Stage 2: sync & notify (best-effort, never retried) ───
     try {
@@ -356,6 +444,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[cashera-webhook] unhandled error:", error);
-    return NextResponse.json({ ok: true });
+    if (granted) {
+      // Paid out already: a retry would pay a second time.
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Cashera: error after the grant</b>\ntx <code>${txRef}</code>: ${errorText(error)}. Granted; check the expiry sync and the notice.`,
+      );
+      return NextResponse.json({ ok: true });
+    }
+    if (heldKey) await releaseDedupKey(heldKey).catch(() => {});
+    await sendTelegram(
+      ADMIN_TG_ID,
+      `⚠️ <b>Cashera: error before the grant, asked Cashera to retry</b>\ntx <code>${txRef}</code>: ${errorText(error)}`,
+    );
+    return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }

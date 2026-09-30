@@ -10,6 +10,7 @@ import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.TELEGRAM_BOT_TOKEN = ["333333333", "KOVRA-money-test"].join(":");
+process.env.ADMIN_API_KEY = ["kovra", "admin", "test", "key"].join("-");
 delete process.env.KOVRA_STATIC_PANELS;
 
 import { setRedisModule } from "./support/load-ts.mjs";
@@ -52,10 +53,11 @@ describe("promo amounts are dollars, capped", () => {
     assert.equal(mem.store.get(`promo_used:OLD500:${TG}`), undefined);
   });
 
-  test("POST /api/promo/create: constant-time key, dollars, cap", async () => {
-    const call = async (body, key = process.env.TELEGRAM_BOT_TOKEN) => {
+  // The admin key replaced the bot token here (KM-14): see admin-key.test.mjs.
+  test("POST /api/promo/create: constant-time admin key, dollars, cap", async () => {
+    const call = async (body, key = process.env.ADMIN_API_KEY) => {
       const headers = { "content-type": "application/json" };
-      if (key !== null) headers["x-internal-key"] = key;
+      if (key !== null) headers["x-admin-key"] = key;
       const res = await promoCreatePost(
         new NextRequest("https://kovra.test/api/promo/create", { method: "POST", headers, body: JSON.stringify(body) }),
       );
@@ -63,6 +65,7 @@ describe("promo amounts are dollars, capped", () => {
     };
     assert.equal((await call({ amount: 5 }, "wrong")).status, 403);
     assert.equal((await call({ amount: 5 }, null)).status, 403);
+    assert.equal((await call({ amount: 5 }, process.env.TELEGRAM_BOT_TOKEN)).status, 403, "the bot token is no key");
     const tooMuch = await call({ code: "RUB500", amount: 500 });
     assert.equal(tooMuch.status, 400);
     assert.match(tooMuch.body.error, /\$/);

@@ -63,6 +63,8 @@ export interface AdminState {
   pendingActionNonce?: string;
   /** What confirmation is in flight. */
   pendingAction?: "wipe_redis_only" | "wipe_with_3xui" | "unlink_tg" | "broadcast";
+  /** The money a wipe confirmation showed (admin-ops wipeMoneyFingerprint). */
+  pendingWipeMoney?: string;
   /** Broadcast composer state. */
   broadcastDraft?: BroadcastDraft;
 }

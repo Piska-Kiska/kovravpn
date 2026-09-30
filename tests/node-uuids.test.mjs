@@ -6,7 +6,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import {
+import "./support/load-ts.mjs";
+
+// Dynamic: the loader above must be registered before node-uuids-body.ts
+// resolves its extensionless import of device-capacity.
+const {
   NODE_BODY_WINDOW_MS,
   NODE_MIN_ACTIVE_DEFAULT,
   NODE_NAME_RE,
@@ -16,7 +20,7 @@ import {
   nodeBeatKey,
   nodeMinActive,
   normalizeUuid,
-} from "../src/lib/node-uuids-body.ts";
+} = await import("../src/lib/node-uuids-body.ts");
 
 const NOW = 1_790_000_000_000;
 const DAY = 86_400_000;
@@ -45,12 +49,15 @@ test("normalizeUuid lower-cases and rejects anything else", () => {
   assert.equal(normalizeUuid(42), null);
 });
 
-test("accessPairs gives every profile of a user the user's date, like syncAllExpiry does", () => {
-  const { pairs, malformed } = accessPairs([
-    { profiles: [{ uuid: A }, { uuid: B }], subs: [{ expiresAt: NOW + 30 * DAY }] },
-    { profiles: [{ uuid: C }], subs: [] },
-    { profiles: null, subs: [{ expiresAt: NOW + DAY }] },
-  ]);
+test("accessPairs: while slots run, each device holding one is listed with the end of its slot", () => {
+  const { pairs, malformed } = accessPairs(
+    [
+      { profiles: [{ uuid: A, createdAt: 1 }, { uuid: B, createdAt: 2 }], subs: [{ slots: 3, expiresAt: NOW + 30 * DAY }] },
+      { profiles: [{ uuid: C }], subs: [] },
+      { profiles: null, subs: [{ slots: 1, expiresAt: NOW + DAY }] },
+    ],
+    NOW,
+  );
   assert.deepEqual(pairs, [
     { uuid: A, until: NOW + 30 * DAY },
     { uuid: B, until: NOW + 30 * DAY },
@@ -58,13 +65,54 @@ test("accessPairs gives every profile of a user the user's date, like syncAllExp
   assert.equal(malformed, 0, "no subscription and no profiles are normal, not malformed");
 });
 
-test("accessPairs counts malformed profiles and keeps the rest", () => {
-  const { pairs, malformed } = accessPairs([
-    { profiles: [{ uuid: "x" }, null, { uuid: A }], subs: [{ expiresAt: NOW + DAY }] },
-    { profiles: { uuid: B }, subs: [{ expiresAt: NOW + DAY }] },
+test("accessPairs (KM-03): beyond the running slots the older devices are paused and not listed", () => {
+  // The 3-device plan ended; a 14-day referral bonus (1 slot) is left.
+  const subs = [
+    { slots: 3, expiresAt: NOW - DAY },
+    { slots: 1, expiresAt: NOW + 14 * DAY },
+  ];
+  const { pairs } = accessPairs([{ profiles: [{ uuid: A, createdAt: 1 }, { uuid: C, createdAt: 3 }, { uuid: B, createdAt: 2 }], subs }], NOW);
+  assert.deepEqual(pairs, [{ uuid: C, until: NOW + 14 * DAY }], "only the newest device");
+});
+
+test("accessPairs: slots with different ends go to the newest devices first", () => {
+  const subs = [
+    { slots: 1, expiresAt: NOW + 30 * DAY },
+    { slots: 1, expiresAt: NOW + 5 * DAY },
+  ];
+  const { pairs } = accessPairs([{ profiles: [{ uuid: A, createdAt: 1 }, { uuid: B, createdAt: 2 }], subs }], NOW);
+  assert.deepEqual(pairs, [
+    { uuid: A, until: NOW + 5 * DAY },
+    { uuid: B, until: NOW + 30 * DAY },
   ]);
+});
+
+test("accessPairs: with no running slot every device keeps the user's last (past) date", () => {
+  const { pairs } = accessPairs(
+    [{ profiles: [{ uuid: A, createdAt: 1 }, { uuid: B, createdAt: 2 }], subs: [{ slots: 1, expiresAt: NOW - 2 * DAY }] }],
+    NOW,
+  );
+  assert.deepEqual(pairs, [
+    { uuid: A, until: NOW - 2 * DAY },
+    { uuid: B, until: NOW - 2 * DAY },
+  ]);
+});
+
+test("accessPairs counts malformed profiles and keeps the rest", () => {
+  const { pairs, malformed } = accessPairs(
+    [
+      { profiles: [{ uuid: "x" }, null, { uuid: A }], subs: [{ slots: 3, expiresAt: NOW + DAY }] },
+      { profiles: { uuid: B }, subs: [{ slots: 1, expiresAt: NOW + DAY }] },
+    ],
+    NOW,
+  );
   assert.deepEqual(pairs, [{ uuid: A, until: NOW + DAY }]);
   assert.equal(malformed, 3);
+});
+
+test("accessPairs: a future date without a usable slot count lists nothing", () => {
+  const { pairs } = accessPairs([{ profiles: [{ uuid: A }], subs: [{ expiresAt: NOW + DAY }] }], NOW);
+  assert.deepEqual(pairs, []);
 });
 
 test("buildNodeUuidsBody: sorted `<uuid> <date>` lines, trailing newline, ETag of the body", () => {

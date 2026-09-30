@@ -3,7 +3,9 @@ import { NextRequest } from "next/server";
 import { getSessionFromRequest } from "./session";
 import { safeEqual } from "./safe-compare";
 
-const INTERNAL_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+// Its own secret only: no fallback to the bot token, which travels in every
+// api.telegram.org URL (KS-7). Unset = no internal-key access at all.
+const INTERNAL_KEY = process.env.INTERNAL_API_KEY || "";
 
 /**
  * Authenticate API request. Returns userId or null.

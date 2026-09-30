@@ -24,6 +24,7 @@ import {
   linkTelegramToPrimary,
   planWipe,
   executeWipe,
+  wipeMoneyFingerprint,
   type UserSnapshot,
   type WipePlan,
 } from "./admin-ops";
@@ -314,12 +315,15 @@ async function screenWipeConfirm(
     ...state,
     pendingActionNonce: nonce,
     pendingAction: action,
+    pendingWipeMoney: wipeMoneyFingerprint(plan.money),
   });
 
   const lines: string[] = [
     `⚠️ <b>Подтвердите удаление</b>`,
     "",
     `<b>UserId:</b> <code>${plan.userId}</code>`,
+    "",
+    ...wipeMoneyLines(plan),
     "",
     `Будет удалено в Redis (${plan.redisKeys.length} ключей):`,
     ...plan.redisKeys.slice(0, 12).map((k) => `  • <code>${escape(k)}</code>`),
@@ -376,6 +380,19 @@ async function performWipe(
   const with3xui = state.pendingAction === "wipe_with_3xui";
   const plan = await planWipe(state.selectedUserId);
 
+  // The money shown in the confirmation must be the money deleted: a top-up
+  // or a purchase that landed since means the admin confirms again.
+  if (state.pendingWipeMoney !== wipeMoneyFingerprint(plan.money)) {
+    await clearAdminState(chatId);
+    await edit(
+      chatId,
+      msgId,
+      ["⚠️ <b>Деньги изменились после подтверждения</b>", "", ...wipeMoneyLines(plan), "", "Ничего не удалено. Откройте удаление заново."].join("\n"),
+      [[{ text: "← В меню", callback_data: "adm:menu" }]],
+    );
+    return;
+  }
+
   await edit(chatId, msgId, "⏳ Удаление...");
 
   const result = await executeWipe(plan, { deleteFrom3xui: with3xui });
@@ -398,6 +415,23 @@ async function performWipe(
   await edit(chatId, msgId, lines.join("\n"), [
     [{ text: "← В меню", callback_data: "adm:menu" }],
   ]);
+}
+
+/** The money a wipe deletes, for the confirmation (KM-08: never silently). */
+function wipeMoneyLines(plan: WipePlan): string[] {
+  const out: string[] = [];
+  for (const m of plan.money) {
+    const parts: string[] = [];
+    if (m.walletCents !== 0) parts.push(`кошелёк <b>$${(m.walletCents / 100).toFixed(2)}</b>`);
+    for (const s of m.runningSubs) {
+      parts.push(`${escape(s.kind)} ×${s.slots} до ${new Date(s.expiresAt).toISOString().slice(0, 10)}`);
+    }
+    if (m.storedSubs < 0) parts.push("<i>список подписок не читается</i>");
+    if (parts.length > 0) out.push(`  • <code>${escape(m.userId)}</code>: ${parts.join(", ")}`);
+  }
+  return out.length > 0
+    ? ["💰 <b>Будут удалены деньги и подписки:</b>", ...out]
+    : ["💰 Денег в кошельке и действующих подписок нет."];
 }
 
 // ─── Link Telegram flow ──────────────────────────────────────────────────────
@@ -460,8 +494,16 @@ async function performLink(
     `Primary: <code>${result.primaryUserId}</code>`,
     `Telegram: <code>${result.telegramId}</code>`,
   ];
+  const movedCents = result.movedCents ?? 0;
+  const movedSubs = result.movedSubs ?? 0;
+  if (movedCents > 0 || movedSubs > 0) {
+    lines.push(
+      "",
+      `<i>С tg_${telegramId} перенесено: кошелёк $${(movedCents / 100).toFixed(2)}, подписок ${movedSubs}.</i>`,
+    );
+  }
   if (result.removedEmptyStandalone) {
-    lines.push("", `<i>Пустой standalone tg_${telegramId} удалён.</i>`);
+    lines.push("", `<i>Standalone tg_${telegramId} удалён.</i>`);
   }
 
   // Refresh card

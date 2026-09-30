@@ -16,6 +16,24 @@ export interface Session {
   remember: boolean;
 }
 
+// ─── Per-user index ──────────────────────────────────
+//
+// `user_sessions:{userId}` holds the sids created for a user, so a password
+// reset can end every session of the account (KS-10: before it, a stolen
+// "remember" session outlived the victim's new password by up to 7 days of
+// sliding). The set lives a day longer than the longest session TTL and is
+// refreshed whenever a session is created or slides (here and in
+// middleware.ts), so it outlives every session it lists. Ids of sessions
+// that ended on their own stay until the set expires; deleting them again
+// is harmless.
+
+/** How long the index outlives its last refresh: the longest session plus a day. */
+export const USER_SESSIONS_TTL_SEC = SESSION_TTL_REMEMBER + 24 * 60 * 60;
+
+export function userSessionsKey(userId: string): string {
+  return `user_sessions:${userId}`;
+}
+
 /** Create a new session in Redis */
 export async function createSession(userId: string, remember = false): Promise<string> {
   const sid = randomUUID();
@@ -23,7 +41,22 @@ export async function createSession(userId: string, remember = false): Promise<s
   const session: Session = { userId, createdAt: now, lastActivity: now, remember };
   const ttl = remember ? SESSION_TTL_REMEMBER : SESSION_TTL_DEFAULT;
   await redis.set(`session:${sid}`, JSON.stringify(session), { ex: ttl });
+  await redis.sadd(userSessionsKey(userId), sid);
+  await redis.expire(userSessionsKey(userId), USER_SESSIONS_TTL_SEC);
   return sid;
+}
+
+/**
+ * End every session created for `userId` (all devices). Returns how many
+ * session ids were listed. Sessions created before the index existed
+ * (30.09.2026) are not listed; they end by their own TTL.
+ */
+export async function revokeUserSessions(userId: string): Promise<number> {
+  const key = userSessionsKey(userId);
+  const sids = (await redis.smembers(key)).map(String).filter((sid) => SID_RE.test(sid));
+  if (sids.length > 0) await redis.del(...sids.map((sid) => `session:${sid}`));
+  await redis.del(key);
+  return sids.length;
 }
 
 /** Get session data by session ID */
@@ -58,6 +91,8 @@ export async function touchSession(sid: string, session: Session): Promise<void>
   session.lastActivity = Date.now();
   const ttl = session.remember ? SESSION_TTL_REMEMBER : SESSION_TTL_DEFAULT;
   await redis.set(`session:${sid}`, JSON.stringify(session), { ex: ttl });
+  // The index must outlive the session it lists (see "Per-user index").
+  await redis.expire(userSessionsKey(session.userId), USER_SESSIONS_TTL_SEC);
 }
 
 /** Delete session from Redis */

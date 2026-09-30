@@ -8,8 +8,11 @@ const SESSION_TTL_DEFAULT = 60 * 60;                  // 1h  (Redis EX)
 const SESSION_TTL_REMEMBER = 7 * 24 * 60 * 60;        // 7d  (Redis EX)
 const REDIS_TIMEOUT_MS = 1500;                        // fail fast вместо зависания
 const TOUCH_THRESHOLD_MS = 60 * 1000;                 // не писать чаще раза в минуту
+// user_sessions:{userId} (lib/session.ts) must outlive every session it
+// lists, so it slides with them: the longest session TTL plus a day.
+const USER_SESSIONS_TTL_SEC = SESSION_TTL_REMEMBER + 24 * 60 * 60;
 
-type Session = { remember?: boolean; createdAt?: number; lastActivity?: number };
+type Session = { userId?: unknown; remember?: boolean; createdAt?: number; lastActivity?: number };
 
 function redirectLogin(req: NextRequest, clearCookie = false) {
   const res = NextResponse.redirect(new URL("/login", req.url));
@@ -73,6 +76,17 @@ export async function middleware(req: NextRequest) {
       },
       REDIS_TIMEOUT_MS
     ).catch(() => {});
+    if (typeof session.userId === "string" && session.userId.length > 0) {
+      redisFetch(
+        redisUrl,
+        {
+          method: "POST",
+          headers: { ...auth, "Content-Type": "application/json" },
+          body: JSON.stringify(["EXPIRE", `user_sessions:${session.userId}`, USER_SESSIONS_TTL_SEC]),
+        },
+        REDIS_TIMEOUT_MS
+      ).catch(() => {});
+    }
   }
 
   return NextResponse.next();

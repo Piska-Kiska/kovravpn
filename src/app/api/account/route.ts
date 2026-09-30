@@ -20,6 +20,7 @@ import { isHappEncryptedEnabled } from "@/lib/feature-flags";
 import { authenticateRequest } from "@/lib/auth";
 import { getBalanceCents } from "@/lib/bot-wallet";
 import { walletTopupConfig } from "@/lib/wallet-topup";
+import { deviceAccess } from "@/lib/device-capacity";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,6 +53,13 @@ export async function POST(req: NextRequest) {
 
     const subs = await getSubscriptions(userId);
     const s = summarize(subs);
+    // Which devices hold a slot (newest first); the rest are paused (KM-03).
+    const access = deviceAccess(profiles, subs, Date.now());
+    const profilesWithAccess = profiles.map((p, i) => ({
+      ...p,
+      access: access[i].state,
+      accessUntil: access[i].until,
+    }));
 
     // Legacy user-level sub URL (kept for backward compat; dashboard uses
     // per-profile URLs).
@@ -95,7 +103,7 @@ export async function POST(req: NextRequest) {
         // нажатие возвращало бы 503. Отдаём только «да/нет», без значений.
         lavaEnabled: lavaConfigured,
       },
-      profiles,
+      profiles: profilesWithAccess,
       subUrl,
       wallet,
     });

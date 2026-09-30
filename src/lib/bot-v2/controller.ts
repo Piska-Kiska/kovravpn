@@ -31,6 +31,7 @@ import { getBalanceCents } from "../bot-wallet";
 import { getReferralStats, getReferrer, recordReferral, resolveReferralCode } from "../referrals";
 import { redeemPromoToWallet } from "../promo";
 import { acquireLock, rateLimit } from "../ratelimit";
+import { deviceAccess, type DeviceAccess } from "../device-capacity";
 import {
   REFERRAL_REWARD_DAYS,
   activePlanKindOf,
@@ -128,7 +129,8 @@ function internalSiteUrl(): string {
 }
 
 async function createDeviceViaApi(userId: string, device: DeviceKind): Promise<CreateDeviceResult> {
-  const key = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+  // No fallback to the bot token (KS-7): lib/auth.ts accepts INTERNAL_API_KEY only.
+  const key = process.env.INTERNAL_API_KEY || "";
   try {
     const res = await fetch(`${internalSiteUrl()}/api/vpn/create`, {
       method: "POST",
@@ -189,15 +191,30 @@ function deviceKindOf(p: VpnProfile): DeviceKind | null {
   return (DEVICE_KINDS as readonly string[]).includes(t) ? (t as DeviceKind) : null;
 }
 
-/** Devices with localized labels; a repeated type gets a number ("iPhone 2"). */
-export function deviceViews(profiles: readonly VpnProfile[], lang: BotLang): DeviceView[] {
+/**
+ * Devices with localized labels; a repeated type gets a number ("iPhone 2").
+ * `access` (lib/device-capacity.ts, in the order of `profiles`) marks the
+ * devices paused for want of a slot and the end of each one's slot.
+ */
+export function deviceViews(
+  profiles: readonly VpnProfile[],
+  lang: BotLang,
+  access: readonly DeviceAccess[] = [],
+): DeviceView[] {
   return profiles.map((p, i) => {
     const kind = deviceKindOf(p);
     const same = (q: VpnProfile) => deviceKindOf(q) === kind;
     const total = profiles.filter(same).length;
     const before = profiles.slice(0, i).filter(same).length;
     const name = deviceName(kind, lang);
-    return { uuid: p.uuid, kind, label: total > 1 ? `${name} ${before + 1}` : name };
+    const a = access[i];
+    return {
+      uuid: p.uuid,
+      kind,
+      label: total > 1 ? `${name} ${before + 1}` : name,
+      paused: a?.state === "paused",
+      until: a?.state === "active" ? a.until : 0,
+    };
   });
 }
 
@@ -226,7 +243,7 @@ export function accountView(
     planKind,
     planUntil,
     lastPlanKind: lastPlan ? (lastPlan.kind as PlanKind) : null,
-    devices: deviceViews(profiles, lang),
+    devices: deviceViews(profiles, lang, deviceAccess(profiles, subs, now)),
   };
 }
 
@@ -558,7 +575,12 @@ async function createDevice(s: Session, msgId: number, device: DeviceKind, answe
     if (!created) return showEdit(s, msgId, devicesScreen(view, s.lang));
     const detail = await deviceDetail(s, profiles, view, created.uuid);
     if (!detail) return showEdit(s, msgId, devicesScreen(view, s.lang));
-    return showEdit(s, msgId, deviceScreen(view, detail, s.lang, tr("dev.ready", s.lang, { dev: detail.label })));
+    // Only here, on the fresh device: DE/UK/US are panels and take the device
+    // at once; the other locations are PRO nodes whose agents pull the list
+    // every 120 s from an answer cached up to 60 s (lib/node-uuids.ts), so
+    // "within 3 minutes".
+    const ready = `${tr("dev.ready", s.lang, { dev: detail.label })}\n${tr("dev.readyWhere", s.lang)}`;
+    return showEdit(s, msgId, deviceScreen(view, detail, s.lang, ready));
   } finally {
     await unlock().catch(() => undefined);
   }
@@ -663,7 +685,13 @@ async function pendingNeed(s: Session): Promise<PendingOrderView | null> {
   return { product: pending.product, term: pending.term, needCents: productCents(pending.product, pending.term) - balance };
 }
 
-const INVOICES_PER_MINUTE = 10;
+/** Invoices one user may create per minute from the bot (both interfaces share the budget). */
+export const INVOICES_PER_MINUTE = 10;
+
+/** The rate-limit key of that budget (lib/ratelimit.ts adds `rl:`). */
+export function botInvoiceRateKey(userId: string): string {
+  return `bottopup:${userId}`;
+}
 
 /** An amount was chosen: the lava method list, or the invoice itself. Null when only a toast was shown. */
 async function topupAmount(s: Session, method: TopupMethod, cents: number, answer: Answer): Promise<Screen | null> {
@@ -687,7 +715,7 @@ async function topupAmount(s: Session, method: TopupMethod, cents: number, answe
     );
     return lavaMethodsScreen(cents, choices, s.lang);
   }
-  const rl = await rateLimit(`bottopup:${s.userId}`, INVOICES_PER_MINUTE, 60);
+  const rl = await rateLimit(botInvoiceRateKey(s.userId), INVOICES_PER_MINUTE, 60);
   if (!rl.ok) {
     await answer(tr("toast.paying", s.lang));
     return null;
@@ -708,7 +736,7 @@ async function lavaInvoice(
   currency: "USD" | "EUR",
   answer: Answer,
 ): Promise<Screen | null> {
-  const rl = await rateLimit(`bottopup:${s.userId}`, INVOICES_PER_MINUTE, 60);
+  const rl = await rateLimit(botInvoiceRateKey(s.userId), INVOICES_PER_MINUTE, 60);
   if (!rl.ok) {
     await answer(tr("toast.paying", s.lang));
     return null;
@@ -896,13 +924,21 @@ export async function handleV2Fallback(
 }
 
 /** A one-line note over a screen the webhook route asks for. */
-export type V2Note = "authOk" | "authLinked" | "codeGone" | "support";
+export type V2Note = "authOk" | "authLinked" | "codeGone" | "support" | "forwarded" | "supportSlow";
 
-const NOTE_KEY: Readonly<Record<V2Note, "note.authOk" | "note.authLinked" | "note.codeGone" | "note.support">> = {
+const NOTE_KEY: Readonly<
+  Record<
+    V2Note,
+    "note.authOk" | "note.authLinked" | "note.codeGone" | "note.support" | "note.forwarded" | "note.supportSlow"
+  >
+> = {
   authOk: "note.authOk",
   authLinked: "note.authLinked",
   codeGone: "note.codeGone",
   support: "note.support",
+  // A message passed to the owner (lib/support-relay.ts), or over its limit.
+  forwarded: "note.forwarded",
+  supportSlow: "note.supportSlow",
 };
 
 /**

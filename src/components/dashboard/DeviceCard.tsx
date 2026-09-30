@@ -2,7 +2,8 @@
 // One device: platform icon, name, added date, a "more" menu (TV scanner,
 // reset binding, delete), its subscription link, Open in Happ and QR code in
 // one row, and the per-device result notices. While no plan runs the card
-// says the device works again after a renewal, and offers no "Open in Happ".
+// says the device works again after a renewal, and offers no "Open in Happ";
+// a device paused for want of a slot says how to turn it back on.
 "use client";
 
 import { useRef } from "react";
@@ -27,6 +28,8 @@ export interface DeviceCardProps {
   happUrl: string | null;
   /** No plan runs: the device is paused. */
   paused: boolean;
+  /** A plan or slot runs, but not for this device (lib/device-capacity.ts). */
+  slotPaused: boolean;
   resetDone: boolean;
   error: string | null;
   onRequestReset(): void;
@@ -34,7 +37,7 @@ export interface DeviceCardProps {
   onDismissError(): void;
 }
 
-export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, resetDone, error, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
+export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, slotPaused, resetDone, error, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
   const shell = useShellT();
   const def = isDeviceId(profile.deviceType) ? DEVICE_DEFS[profile.deviceType] : null;
   const qrRef = useRef<QrToggleHandle>(null);
@@ -48,7 +51,7 @@ export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, re
   ];
 
   const openInHapp =
-    happUrl && !paused ? (
+    happUrl && !paused && !slotPaused ? (
       <ButtonLink variant="ghost" size="sm" href={happUrl} iconEnd={ArrowUpRight} iconSize={16} target="_blank" rel="noopener noreferrer">
         {t.open_in_happ}
       </ButtonLink>
@@ -62,7 +65,9 @@ export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, re
         </span>
         <div className="kc-dev-title">
           <h3 className="kc-h3">{name}</h3>
-          <p className="kc-dev-meta">{paused ? t.dev_paused : fmt(t.added_on, { date: fmtDate(profile.createdAt, lang) })}</p>
+          <p className="kc-dev-meta">
+            {paused ? t.dev_paused : slotPaused ? t.dev_slot_paused : fmt(t.added_on, { date: fmtDate(profile.createdAt, lang) })}
+          </p>
         </div>
         <Menu
           label={fmt(t.more_actions, { name })}

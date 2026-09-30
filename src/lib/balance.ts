@@ -16,8 +16,10 @@
 //                        subscription in the webhook. Returns the account
 //                        unchanged. (Kept so promo/legacy webhooks don't crash.)
 //   • canCreateProfile → allowed iff active slots > current profile count.
-//   • syncAllExpiry    → sets every profile's 3X-UI expiry to the furthest
-//                        active subscription expiry (or now → disabled).
+//   • syncAllExpiry    → sets each profile's 3X-UI expiry to the end of the
+//                        slot it holds (device-capacity.ts: newest devices
+//                        first); devices beyond the running slots, or all of
+//                        them with no running slot, get now → disabled.
 //   • calcExpiry       → furthest active expiry for the user's subs.
 //
 // New code should import from "@/lib/subscriptions" directly, not from here.
@@ -35,6 +37,7 @@ import {
   activeSlots,
 } from "./subscriptions";
 import { updateClientOnStaticPanels } from "./kovra-servers-sync";
+import { deviceAccess } from "./device-capacity";
 
 // ─── Legacy constants (still imported by name in some routes) ─────────
 // Values are now meaningless for billing but must exist. Crypto-only.
@@ -120,8 +123,21 @@ export function calcExpiry(_balance: number, _deviceCount: number): number {
   return Date.now();
 }
 
-/** Sync all profile expiry times on 3X-UI panel to the furthest active sub. */
-export async function syncAllExpiry(userId: string): Promise<void> {
+export interface SyncExpiryDeps {
+  /** Set one client's expiry on every static panel (kovra-servers-sync.ts). */
+  updateClient: typeof updateClientOnStaticPanels;
+  now(): number;
+}
+
+const defaultSyncDeps: SyncExpiryDeps = { updateClient: updateClientOnStaticPanels, now: () => Date.now() };
+
+/**
+ * Push each device's access to the 3X-UI panels: the end of the slot it
+ * holds, or now (disabled) when it is paused or no slot runs
+ * (device-capacity.ts). Newest devices keep their slots.
+ */
+export async function syncAllExpiry(userId: string, overrides: Partial<SyncExpiryDeps> = {}): Promise<void> {
+  const deps: SyncExpiryDeps = { ...defaultSyncDeps, ...overrides };
   try {
     const account = await getAccount(userId);
     if (!account) return;
@@ -129,22 +145,28 @@ export async function syncAllExpiry(userId: string): Promise<void> {
     if (profiles.length === 0) return;
 
     const subs = await getSubscriptions(userId);
-    const max = maxActiveExpiry(subs);
-    const expiryTime = max > Date.now() ? max : Date.now();
+    const now = deps.now();
+    const max = maxActiveExpiry(subs, now);
+    const expiryTime = max > now ? max : now;
 
     account.paidUntil = expiryTime;
     await redis.set(`account:${userId}`, JSON.stringify(account));
 
-    for (const p of profiles) {
+    const access = deviceAccess(profiles, subs, now);
+    let paused = 0;
+    for (const [i, p] of profiles.entries()) {
+      const a = access[i];
+      if (a.state === "paused") paused += 1;
+      const until = a.state === "active" ? a.until : now;
       try {
-        await updateClientOnStaticPanels({ uuid: p.uuid, email: p.clientEmail, subId: p.clientEmail, expiryTimeMs: expiryTime });
+        await deps.updateClient({ uuid: p.uuid, email: p.clientEmail, subId: p.clientEmail, expiryTimeMs: until });
       } catch (err) {
         console.error(`[syncExpiry] Failed to update ${p.uuid}:`, err);
       }
     }
 
     console.log(
-      `[syncExpiry] ${userId}: ${profiles.length} devices, activeSlots=${activeSlots(subs)}, expiry=${new Date(expiryTime).toISOString()}`,
+      `[syncExpiry] ${userId}: ${profiles.length} devices, activeSlots=${activeSlots(subs, now)}, paused=${paused}, expiry=${new Date(expiryTime).toISOString()}`,
     );
   } catch (err) {
     console.error("[syncExpiry] Error:", err);

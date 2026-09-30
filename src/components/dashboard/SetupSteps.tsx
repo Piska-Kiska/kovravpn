@@ -42,6 +42,9 @@ export function SetupSteps({ t, device, subUrl, happUrl, copied, onCopy, onDone 
       <h3 id="kc-setup-title" ref={titleRef} tabIndex={-1} className="kc-h2">
         {fmt(t.setup_title, { device: name })}
       </h3>
+      {/* Panels (DE/UK/US) take a new device at once; PRO nodes pull the list
+          every 120 s from an answer cached up to 60 s: "within 3 minutes". */}
+      <p className="kc-small">{t.setup_locations}</p>
       <ol className="kc-steps">
         <li className="kc-step">
           <span className="kc-step-n" aria-hidden="true">01</span>

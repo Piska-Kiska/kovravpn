@@ -34,6 +34,13 @@ export interface DeviceView {
   kind: DeviceKind | null;
   /** "iPhone", "iPhone 2", localized. */
   label: string;
+  /**
+   * More devices than running slots and this one is not among the newest
+   * (lib/device-capacity.ts): paused, not deleted. Absent = not paused.
+   */
+  paused?: boolean;
+  /** End of the slot this device holds; absent or 0 = use the account's. */
+  until?: number;
 }
 
 export interface AccountView {
@@ -220,8 +227,14 @@ export function createFailedScreen(device: DeviceKind, reason: CreateFailure, la
 // ─── Devices ────────────────────────────────────────────────────────────────
 // Parent: home.
 
+/** Paused for want of a slot, while a plan or slot still runs (not "the plan ended"). */
+function slotPaused(v: AccountView, d: DeviceView): boolean {
+  return isActive(v) && d.paused === true;
+}
+
 export function devicesScreen(v: AccountView, lang: BotLang, notice?: string): Screen {
   const used = v.devices.length;
+  const pausedCount = v.devices.filter((d) => slotPaused(v, d)).length;
   const body =
     used === 0
       ? lines(tr("devs.title", lang), "", tr("devs.empty", lang))
@@ -231,10 +244,11 @@ export function devicesScreen(v: AccountView, lang: BotLang, notice?: string): S
           isActive(v)
             ? tr("devs.count", lang, { used, slots: v.activeSlots })
             : tr("devs.paused", lang),
+          ...(pausedCount > 0 ? [tr("devs.slotPaused", lang, { n: pausedCount })] : []),
           tr("devs.pick", lang),
         );
   const deviceButtons = v.devices.map((d) =>
-    b(`${d.kind ? DEVICE_ICON[d.kind] : "📱"} ${d.label}`, { a: "dev", uuid: d.uuid }),
+    b(`${slotPaused(v, d) ? "⏸" : d.kind ? DEVICE_ICON[d.kind] : "📱"} ${d.label}`, { a: "dev", uuid: d.uuid }),
   );
   const kb: Keyboard = [...pairs(deviceButtons)];
   // A plan that ended: renew it. Never had one: "Connect" leads to the plans.
@@ -259,9 +273,15 @@ export interface DeviceDetail extends DeviceView {
 export function deviceScreen(v: AccountView, d: DeviceDetail, lang: BotLang, notice?: string): Screen {
   const tv = d.kind === "tv";
   const icon = d.kind ? DEVICE_ICON[d.kind] : "📱";
+  const noSlot = slotPaused(v, d);
+  const status = !isActive(v)
+    ? [tr("dev.paused", lang)]
+    : noSlot
+      ? [tr("dev.slotPaused", lang), tr("dev.slotHow", lang)]
+      : [tr("dev.active", lang, { date: fmtDate(d.until && d.until > 0 ? d.until : v.activeUntil, lang) })];
   const body = lines(
     tr("dev.title", lang, { icon, dev: d.label }),
-    isActive(v) ? tr("dev.active", lang, { date: fmtDate(v.activeUntil, lang) }) : tr("dev.paused", lang),
+    ...status,
     "",
     tr(tv ? "dev.stepsTv" : "dev.steps", lang),
     "",
@@ -272,6 +292,7 @@ export function deviceScreen(v: AccountView, d: DeviceDetail, lang: BotLang, not
   const dl = happDownloads(d.kind);
   const kb: Keyboard = [];
   if (!isActive(v)) kb.push([b(tr("btn.renew", lang), { a: "renew", from: "d" })]);
+  else if (noSlot) kb.push([slotButton(v, lang, "d") ?? b(tr("btn.buy", lang), { a: "plans", from: "d" })]);
   if (!tv) kb.push([url(tr("btn.addHapp", lang), addToHappUrl(d.subToken, lang))]);
   if (dl.main) kb.push([url(tr("btn.getHapp", lang), dl.main), b(tr("btn.qr", lang), { a: "qr", uuid: d.uuid })]);
   else {

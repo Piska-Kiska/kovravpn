@@ -50,9 +50,13 @@ import {
   tryHandleAdminText,
 } from "@/lib/admin-bot";
 import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
+import { createTelegramApi } from "@/lib/bot-v2/telegram";
+import { forwardToSupport, isNotForSupport, relayOwnerReply, type ForwardResult } from "@/lib/support-relay";
 import { isBotV2 } from "@/lib/bot-v2/gate";
 import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
 import {
+  INVOICES_PER_MINUTE,
+  botInvoiceRateKey,
   handleV2Callback,
   handleV2Command,
   handleV2Fallback,
@@ -63,7 +67,8 @@ import {
 } from "@/lib/bot-v2/controller";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+// No fallback to the bot token (KS-7): lib/auth.ts accepts INTERNAL_API_KEY only.
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
 const PLAN_NAMES: Record<string, string> = {
@@ -827,6 +832,21 @@ async function screenLavaMethods(chatId: number, msgId: number, amountUsd: numbe
   ].join("\n"), rows);
 }
 
+/**
+ * Every tap on an amount creates a real invoice at the provider (Cashera,
+ * NOWPayments, CryptoBot, lava.top), and Cashera and lava also keep a record
+ * in Redis. The cabinet's routes are limited, the old bot interface was not
+ * (KP-13): it now shares bot v2's budget of INVOICES_PER_MINUTE per user.
+ * False after telling the person to try later.
+ */
+async function invoiceAllowed(chatId: number, msgId: number, userId: string, lang: BotLang): Promise<boolean> {
+  const rl = await checkRateLimit(botInvoiceRateKey(userId), INVOICES_PER_MINUTE, 60);
+  if (rl.allowed) return true;
+  console.warn(JSON.stringify({ evt: "bot.invoice_rate_limited", userId }));
+  await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
+  return false;
+}
+
 async function handleTopupLava(
   chatId: number,
   msgId: number,
@@ -836,6 +856,7 @@ async function handleTopupLava(
 ) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  if (!(await invoiceAllowed(chatId, msgId, userId, lang))) return;
   const r = await createWalletTopupInvoice({
     userId,
     method: "lava",
@@ -863,6 +884,7 @@ async function handleTopupLava(
 async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  if (!(await invoiceAllowed(chatId, msgId, userId, lang))) return;
   const r = await createWalletTopupInvoice({ userId, method, amountUsd, returnTo: "bot" });
   if (r.ok) {
     await edit(chatId, msgId,
@@ -945,6 +967,38 @@ function isPersonalMedia(message: Record<string, unknown>): boolean {
   return ["photo", "document", "video", "voice", "video_note", "audio", "sticker", "animation"].some(
     (k) => message[k] !== undefined && message[k] !== null,
   );
+}
+
+// ─── Support relay (lib/support-relay.ts) ────────────
+
+interface RelayableMessage {
+  message_id?: number;
+  from?: { id: number; username?: string; first_name?: string; last_name?: string; language_code?: string };
+}
+
+/** Forward a user's message to the owner; "failed" when it has no id to forward. */
+async function relayToSupport(chatId: number, message: RelayableMessage): Promise<ForwardResult> {
+  if (typeof message.message_id !== "number") return "failed";
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  return forwardToSupport(createTelegramApi(BOT_TOKEN), {
+    chatId,
+    messageId: message.message_id,
+    from: message.from,
+    userId,
+    lang,
+  });
+}
+
+/** Tell the person what happened to the message, in the interface they use. */
+async function ackSupport(chatId: number, result: ForwardResult, v2: boolean): Promise<void> {
+  if (v2) {
+    await handleV2Note(chatId, result === "forwarded" ? "forwarded" : result === "rate_limited" ? "supportSlow" : "support");
+    return;
+  }
+  const lang = await resolveLang(await getUserId(chatId));
+  const key = result === "forwarded" ? "support.forwarded" : result === "rate_limited" ? "support.slow" : "fallback.user";
+  await send(chatId, t(key, lang), mainMenuKb(lang));
 }
 
 async function handleCode(code: string, chatId: number): Promise<"auth" | "link" | false> {
@@ -1122,6 +1176,13 @@ export async function POST(req: NextRequest) {
     // Text messages
     const message = body.message;
 
+    // The owner answers a forwarded support message with a Telegram reply:
+    // it goes to that user (lib/support-relay.ts), before any admin screen.
+    if (message && String(message.chat?.id) === ADMIN_TG_ID && message.reply_to_message) {
+      const relayed = await relayOwnerReply(createTelegramApi(BOT_TOKEN), message);
+      if (relayed !== "not_a_support_reply") return NextResponse.json({ ok: true });
+    }
+
     // Admin media intake (broadcast composer)
     if (message && String(message.chat?.id) === ADMIN_TG_ID) {
       const adminChatId: number = message.chat.id;
@@ -1140,17 +1201,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (!message?.text) {
-      // A photo, a screenshot, a voice message… In the new interface it gets
-      // Help (nobody reads this chat, here is support), not silence.
+      // A photo, a screenshot, a voice message… goes to support, and the
+      // person is told so (both interfaces).
       const mChat = message?.chat;
       if (
         mChat?.type === "private" &&
         typeof mChat.id === "number" &&
         String(mChat.id) !== ADMIN_TG_ID &&
         isPersonalMedia(message) &&
-        (await isBotV2(mChat.id))
+        !isNotForSupport(message.caption)
       ) {
-        await handleV2Note(mChat.id, "support");
+        const result = await relayToSupport(mChat.id, message);
+        await ackSupport(mChat.id, result, await isBotV2(mChat.id));
       }
       return NextResponse.json({ ok: true });
     }
@@ -1432,7 +1494,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // User fallback
+    // User fallback: free text no screen is waiting for goes to support.
+    // Commands and six-character codes never do (they are handled above, and
+    // isNotForSupport checks again).
+    if (message.chat?.type === "private" && !isNotForSupport(text)) {
+      const result = await relayToSupport(chatId, message);
+      await ackSupport(chatId, result, v2);
+      return NextResponse.json({ ok: true });
+    }
     if (v2) {
       await handleV2Fallback(chatId, text);
       return NextResponse.json({ ok: true });
