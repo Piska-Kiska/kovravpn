@@ -14,6 +14,13 @@
 // FK_IPS, published by Freekassa).
 // .gitleaks.toml carries the same rule for scans of history.
 //
+// SVG files are scanned too, but only where a person could read or follow an
+// address: text nodes, comments and href / xlink:href values. Their path
+// data is full of dotted quads (four short coordinates written back to back
+// read as one), and
+// .gitleaks.toml skips SVG under public/ altogether, so this test is the
+// guard for SVG.
+//
 // On failure the message names file:line and the first octet only, so the
 // test output does not republish the address.
 
@@ -29,8 +36,9 @@ const { FK_IPS } = await import("../src/lib/freekassa.ts");
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-/** Assets and lockfiles: never hand-written, and SVG path data looks like dotted quads. */
-const SKIP = /(?:^|\/)package-lock\.json$|\.(?:png|jpe?g|gif|webp|ico|svg|woff2?|ttf|otf|pdf|mp4|zip)$/i;
+/** Binary assets and the lockfile: never hand-written. SVG is scanned in part (svgReadable). */
+const SKIP = /(?:^|\/)package-lock\.json$|\.(?:png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|mp4|zip)$/i;
+const SVG = /\.svg$/i;
 
 const PUBLIC_RESOLVERS = new Set(["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", "9.9.9.9", "77.88.8.8", "77.88.8.1"]);
 
@@ -58,6 +66,37 @@ function allowed(ip) {
   return isNonPublic(ip) || PUBLIC_RESOLVERS.has(ip) || FK_IPS.has(ip);
 }
 
+/**
+ * The parts of an SVG a person reads or follows: text nodes, comments and
+ * link targets, each with its offset in the file. Path data, transforms and
+ * the other numeric attributes are left out. O(n).
+ */
+function svgReadable(text) {
+  const parts = [];
+  for (const m of text.matchAll(/<!--([\s\S]*?)-->/g)) parts.push({ index: m.index + 4, value: m[1] });
+  const noComments = text.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
+  for (const m of noComments.matchAll(/>([^<]+)</g)) parts.push({ index: m.index + 1, value: m[1] });
+  for (const m of noComments.matchAll(/\s(?:xlink:)?href\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const value = m[1] ?? m[2];
+    parts.push({ index: m.index + m[0].length - value.length - 1, value });
+  }
+  return parts;
+}
+
+/** Public addresses in one file, as "file:line (first octet.x.x.x)". */
+function findPublic(file, text) {
+  const parts = SVG.test(file) ? svgReadable(text) : [{ index: 0, value: text }];
+  const hits = [];
+  for (const part of parts) {
+    for (const m of part.value.matchAll(DOTTED_QUAD)) {
+      if (allowed(m[1])) continue;
+      const line = text.slice(0, part.index + m.index).split("\n").length;
+      hits.push(`${file}:${line} (${m[1].split(".")[0]}.x.x.x)`);
+    }
+  }
+  return hits;
+}
+
 function git(args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 }
@@ -82,6 +121,28 @@ test("the classifier: private and documentation ranges pass, a public address do
   assert.ok(allowed("1.1.1.1") && allowed("77.88.8.8"), "public resolvers are allowed by name");
 });
 
+test("SVG: an address in text, a comment or a link is found; path data is not an address", () => {
+  const quad = (...octets) => octets.join(".");
+  const addr = quad(45, 12, 34, 56);
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">`,
+    `  <path d="M${addr} ${quad(12, 5, 3, 8)}L${quad(1, 2, 3, 4)}z" transform="matrix(${addr})"/>`,
+    `  <text x="1" y="2">${addr}</text>`,
+    `  <!-- node ${addr} -->`,
+    `  <a xlink:href="http://${addr}/x"><circle r="1"/></a>`,
+    `  <image href='https://${addr}/i.png'/>`,
+    `</svg>`,
+  ].join("\n");
+  assert.deepEqual(findPublic("public/x.svg", svg), [
+    "public/x.svg:4 (45.x.x.x)",
+    "public/x.svg:3 (45.x.x.x)",
+    "public/x.svg:5 (45.x.x.x)",
+    "public/x.svg:6 (45.x.x.x)",
+  ]);
+  assert.equal(findPublic("public/x.svg", svg.replace(/<text[^]*$/, "</svg>")).length, 0, "path data and transforms alone: nothing");
+  assert.equal(findPublic("src/x.ts", `const a = "${addr}";`).length, 1, "other files: every line");
+});
+
 test("no public IPv4 address in any file git would commit", { skip: !gitWorks && "git is not available" }, () => {
   const files = git(["ls-files", "--cached", "--others", "--exclude-standard", "-z"]).split("\0").filter(Boolean);
   assert.ok(files.length > 100, "the file list looks wrong");
@@ -96,12 +157,7 @@ test("no public IPv4 address in any file git would commit", { skip: !gitWorks &&
     } catch {
       continue; // listed but deleted in the worktree
     }
-    const lines = text.split("\n");
-    lines.forEach((line, i) => {
-      for (const m of line.matchAll(DOTTED_QUAD)) {
-        if (!allowed(m[1])) hits.push(`${file}:${i + 1} (${m[1].split(".")[0]}.x.x.x)`);
-      }
-    });
+    hits.push(...findPublic(file, text));
   }
   assert.deepEqual(hits, [], "public IPv4 addresses found; node addresses go into registry.local.json");
 });
