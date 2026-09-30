@@ -63,7 +63,7 @@ describe("one way to a device UUID", () => {
     assert.deepEqual(filesMatching(/\.set\(\s*`profiles:/), ["src/lib/accounts.ts"]);
   });
 
-  test("the create route takes the UUID from the reserve, drops the mark after the record, and says instant", () => {
+  test("the create route takes the UUID from the reserve, moves the mark to spent after the record, and says instant", () => {
     const src = read(CREATE_ROUTE);
     assert.doesNotMatch(src, /randomUUID/);
     const take = src.indexOf("await takeDeviceUuid(");
@@ -82,6 +82,17 @@ describe("one way to a device UUID", () => {
     ]);
     // The Mini App is the same DashboardView.
     assert.match(read("src/app/tg/TgShell.tsx"), /DashboardView/);
+  });
+});
+
+describe("no device UUID in the logs of the reserve's paths", () => {
+  test("their error logs go through safeErrorText (Upstash quotes the failed command)", () => {
+    for (const rel of ["src/lib/uuid-pool.ts", "src/app/api/internal/node-uuids/route.ts", CREATE_ROUTE]) {
+      const code = read(rel).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+      assert.match(code, /safeErrorText\(/, rel);
+      assert.doesNotMatch(code, /\b(err|error)\.message\b/, `${rel}: a raw error message`);
+      assert.doesNotMatch(code, /console\.(error|warn|log)\([^;]*,\s*(err|error)\s*\)/, `${rel}: a raw error object`);
+    }
   });
 });
 

@@ -3,9 +3,10 @@
 // The one place a device is created (bot v1 and v2, the web cabinet and the
 // Mini App all call this route). Its UUID comes from the reserve that the PRO
 // nodes load in advance (lib/uuid-pool.ts): `instant: true` in the answer
-// means every country works at once; `instant: false` (a fresh UUID, the
-// reserve was empty) means the PRO countries follow within ~3 minutes, and
-// the screens say so. tests/uuid-pool-guard.test.mjs keeps it the only way.
+// means every country works at once; `instant: false` (a fresh UUID: the
+// reserve had none that every node has confirmed) means the PRO countries
+// follow within ~3 minutes, and the screens say so.
+// tests/uuid-pool-guard.test.mjs keeps it the only way.
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAccount,
@@ -141,8 +142,9 @@ export async function POST(req: NextRequest) {
         subToken,
         panelSubId,
       });
-      // The record exists: it now decides whether the nodes list this UUID
-      // (a paused or deleted device is not listed). Never throws.
+      // The record exists: it now decides whether the nodes list this UUID,
+      // and a deletion later leaves the nodes by the clock (the UUID moves to
+      // `spent`, see lib/uuid-pool-body.ts). Never throws.
       if (instant) await releaseTakenMark(uuid);
 
       if (profiles.length > 0) {
@@ -161,7 +163,8 @@ export async function POST(req: NextRequest) {
       await unlock();
     }
   } catch (error) {
-    // Upstash errors carry the failed command (`hy2:<uuid>` and the like): cut it.
+    // Upstash errors carry the failed command, values included (the
+    // `sub_prof:<token>` record names the device UUID): cut it.
     console.error("[vpn/create]", safeErrorText(error, { stack: true }));
     return NextResponse.json({ error: "Profile creation failed" }, { status: 500 });
   }

@@ -26,7 +26,9 @@
 // The answer also carries the reserve of device UUIDs (lib/uuid-pool-body.ts):
 // UUIDs no one holds yet, listed in advance so a new device that takes one
 // works on the PRO nodes at once. They are not devices: they never count as
-// live, and a UUID that is in a device record is listed only by that record.
+// live, and a UUID that is in a device record is kept alive only by that
+// record (without a device line the reserve dates it in the past, so the node
+// removes it by the clock instead of seeing it dropped).
 //
 // ── Refusals ────────────────────────────────────────────
 // Never an empty 200: an obedient node would take it for "let nobody in".
@@ -155,7 +157,8 @@ export function accessPairs(users: readonly UserAccessRecord[], now: number = Da
 
 /**
  * Every well-formed device UUID in the records, whatever its user's plan:
- * the reserve never lists one of these (see reservePairs). O(total profiles).
+ * the reserve never lists one of these ahead (see reservePairs). O(total
+ * profiles).
  */
 export function profileUuids(users: readonly UserAccessRecord[]): Set<string> {
   const out = new Set<string>();

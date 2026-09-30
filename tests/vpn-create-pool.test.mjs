@@ -3,9 +3,9 @@
 // POST /api/vpn/create end to end, on the in-memory Redis and a fake 3X-UI
 // panel: the new device's UUID comes from the reserve the PRO nodes preload
 // (src/lib/uuid-pool.ts) and is the same everywhere (panel, device record,
-// subscription token); the answer says `instant`. An empty
-// reserve or a failing take falls back to a fresh UUID and still creates the
-// device. Hosts, keys and ids are made up.
+// subscription token); the answer says `instant`. An empty reserve, a
+// reserve the nodes have not confirmed or a failing take falls back to a
+// fresh UUID and still creates the device. Hosts, keys and ids are made up.
 
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -22,7 +22,7 @@ setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
 const mem = await import("./support/memory-redis.mjs");
 const { registerUuidPoolScripts } = await import("./support/uuid-pool-twin.mjs");
 const poolBody = await import("../src/lib/uuid-pool-body.ts");
-const { POOL_READY_KEY: READY, POOL_TAKEN_KEY: TAKEN, POOL_MIN_AGE_MS } = poolBody;
+const { POOL_READY_KEY: READY, POOL_TAKEN_KEY: TAKEN, POOL_SPENT_KEY: SPENT, POOL_SEEN_KEY: SEEN, POOL_MIN_AGE_MS } = poolBody;
 
 const { NextRequest } = await import("next/server");
 const { POST: create } = await import("../src/app/api/vpn/create/route.ts");
@@ -30,6 +30,7 @@ const { POST: create } = await import("../src/app/api/vpn/create/route.ts");
 const USER = "tg_100000002";
 const DAY = 86_400_000;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const ANY_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const u = (n) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
 
 const REGISTRY = [
@@ -103,7 +104,8 @@ describe("POST /api/vpn/create takes the device UUID from the reserve", () => {
     assert.deepEqual(JSON.parse(mem.store.get(`sub_prof:${body.subToken}`)), { userId: USER, uuid: P }, "the subscription");
     assert.equal(mem.store.has(`hy2:${P}`), false, "no hy2: key: Hysteria2 decides from the device record (lib/hy2-access.ts)");
     assert.equal(zset(READY).size, 0);
-    assert.equal(zset(TAKEN).size, 0, "the mark is dropped once the record exists");
+    assert.equal(zset(TAKEN).size, 0, "the record exists: no longer in flight");
+    assert.ok(zset(SPENT).has(P), "spent: a later deletion leaves the nodes by the clock");
   });
 
   test("an empty reserve: a fresh UUID, the device is created, not instant", async () => {
@@ -121,6 +123,17 @@ describe("POST /api/vpn/create takes the device UUID from the reserve", () => {
     assert.equal(body.instant, false);
     assert.notEqual(profiles()[0].uuid, u(0xa2));
     assert.ok(zset(READY).has(u(0xa2)));
+  });
+
+  test("a reserve UUID a polling node has not confirmed yet is not used", async () => {
+    const now = Date.now();
+    mem.zsets.set(READY, new Map([[u(0xa6), now - 30 * 60_000]]));
+    await mem.redis.hset(SEEN, { pl: now - 60 * 60_000 });
+    const { status, body } = await post();
+    assert.equal(status, 200);
+    assert.equal(body.instant, false, "the screens show the notice");
+    assert.notEqual(profiles()[0].uuid, u(0xa6));
+    assert.ok(zset(READY).has(u(0xa6)));
   });
 
   test("Redis failing on the take never blocks the device", async () => {
@@ -153,6 +166,36 @@ describe("POST /api/vpn/create takes the device UUID from the reserve", () => {
     const again = await post();
     assert.equal(again.body.instant, false);
     assert.notEqual(profiles()[0].uuid, P);
+  });
+
+  test("a creation that fails on Redis logs no UUID, even though the failed command names it", async () => {
+    const P = u(0xa7);
+    mem.zsets.set(READY, new Map([[P, Date.now() - DAY]]));
+    // Upstash puts the failed command, values included, into its error text.
+    // Since the hy2:<uuid> key is gone, the write that names the UUID is the
+    // subscription token's record ({ userId, uuid }).
+    const realSet = mem.redis.set;
+    mem.redis.set = async (key, value, ...rest) => {
+      if (String(key).startsWith("sub_prof:")) {
+        throw Object.assign(new Error(`ERR injected set failure, command was: ${JSON.stringify(["set", key, value])}`), {
+          name: "UpstashError",
+        });
+      }
+      return realSet(key, value, ...rest);
+    };
+    const lines = [];
+    const saved = console.error;
+    console.error = (...args) => lines.push(args.map(String).join(" "));
+    let status;
+    try {
+      ({ status } = await post());
+    } finally {
+      console.error = saved;
+      mem.redis.set = realSet;
+    }
+    assert.equal(status, 500);
+    assert.ok(lines.some((l) => l.includes("[vpn/create]") && l.includes("injected set failure")));
+    for (const l of lines) assert.doesNotMatch(l, ANY_UUID);
   });
 
   test("two devices in a row get two different reserve UUIDs", async () => {

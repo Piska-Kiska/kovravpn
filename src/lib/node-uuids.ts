@@ -14,11 +14,12 @@
 // ── Cost ────────────────────────────────────────────────
 // There is no index of profiles, so reading the devices walks them: SCAN
 // `profiles:*`, then one MGET for the profiles and one for the subscriptions,
-// i.e. about four commands for today's ~20 users (O(users) in data); a node
-// build adds one script for the reserve. Six nodes asking every 120 s would
-// be ~4 300 rebuilds a day, so each result is kept in memory for
-// REBUILD_EVERY_MS per serverless instance: a new purchase reaches the nodes
-// within a minute plus the node's poll step.
+// i.e. about four commands for today's ~20 users (O(users) in data). Six
+// nodes asking every 120 s would be ~4 300 rebuilds a day, so each result is
+// kept in memory for REBUILD_EVERY_MS per serverless instance: a new purchase
+// reaches the nodes within a minute plus the node's poll step. The reserve
+// adds nothing per rebuild: its view is refreshed at most every
+// POOL_REFRESH_MS per instance (lib/uuid-pool.ts currentUuidPool).
 //
 // Hysteria2 asks on every connect, and connects come in bursts (a phone that
 // wakes up opens several at once), so callers that find the copy stale at the
@@ -30,16 +31,17 @@
 // ── The reserve ─────────────────────────────────────────
 // A device with a fresh UUID reaches the PRO nodes within a minute plus the
 // node's poll step. A device that took a reserve UUID (lib/uuid-pool.ts) is
-// already there: every build lists the reserve. The reserve is read BEFORE
-// the profiles, so a UUID taken for a device in between is seen in the
-// reserve, as taken, or in the device record, and never leaves the list. So
-// a node build always reads the profiles itself, after the reserve: it never
-// takes a device read that may have started before its reserve read.
+// already there: every build lists the reserve. The view of the reserve is
+// taken BEFORE the profiles are read, and a UUID only moves forward in it
+// (ready → taken → spent), so a UUID taken for a device is always listed
+// ahead or decided by the device record: it never leaves the list in between.
+// So a node build always reads the profiles itself, after it has the view: it
+// never takes a device read that may have started before.
 
 import { redis } from "./redis";
 import { accessPairs, profileUuids, type UserAccessRecord, type UuidPair } from "./node-uuids-body";
-import { poolCounts, reservePairs, visibleTaken, type PoolCounts } from "./uuid-pool-body";
-import { forgetTakenMarks, maintainUuidPool } from "./uuid-pool";
+import { poolCounts, reservePairs, type PoolCounts } from "./uuid-pool-body";
+import { currentUuidPool } from "./uuid-pool";
 
 /** How long one instance reuses the pairs it read. */
 export const REBUILD_EVERY_MS = 60_000;
@@ -63,6 +65,8 @@ export interface NodeUuidRead extends DevicePairsRead {
   /** The reserve's lines (uuid-pool-body.ts reservePairs); never counted as live. */
   readonly reserve: UuidPair[];
   readonly pool: PoolCounts;
+  /** When the view of the reserve these lines come from was read (for noteNodeConfirmed). */
+  readonly poolAt: number;
 }
 
 let devices: DevicePairsRead | null = null;
@@ -144,17 +148,12 @@ async function rebuildDevices(now: number): Promise<DevicePairsRead> {
 }
 
 async function rebuildNodeRead(now: number): Promise<NodeUuidRead> {
-  // The reserve first (see the header), then a device read of this build's own.
-  const pool = await maintainUuidPool(now);
+  // The view of the reserve first (see the header), then a device read of this build's own.
+  const pool = await currentUuidPool(now);
   const { read, users } = await scanDevices(now);
   keepDevices(read);
-  const known = profileUuids(users);
-  const reserve = reservePairs(pool, known, now);
-  // Taken UUIDs now in a device record: the record decides from here on.
-  await forgetTakenMarks(visibleTaken(pool, known));
-  const counts = poolCounts(pool, now);
-  console.log(JSON.stringify({ evt: "uuidpool.build", ...counts, devices: read.pairs.length }));
-  const built: NodeUuidRead = { ...read, reserve, pool: counts };
+  const reserve = reservePairs(pool.state, profileUuids(users), now);
+  const built: NodeUuidRead = { ...read, reserve, pool: poolCounts(pool.state, now), poolAt: pool.at };
   nodeRead = built;
   return built;
 }
@@ -179,8 +178,9 @@ export async function readDevicePairs(now: number = Date.now()): Promise<DeviceP
 /**
  * Every profile UUID with its access date, and the reserve's lines, from
  * Redis or from this instance's copy younger than REBUILD_EVERY_MS.
- * Concurrent callers share one build. Throws when Redis cannot be read: the
- * endpoint then answers 503 and the node keeps what it has.
+ * Concurrent callers share one build. Throws when Redis cannot be read (or
+ * there is no view of the reserve at all): the endpoint then answers 503 and
+ * the node keeps what it has.
  */
 export async function readNodeUuidPairs(now: number = Date.now()): Promise<NodeUuidRead> {
   if (nodeRead && isYoung(nodeRead.at, now)) return nodeRead;
@@ -194,7 +194,7 @@ export async function readNodeUuidPairs(now: number = Date.now()): Promise<NodeU
   }
 }
 
-/** Tests only: forget this instance's copies. */
+/** Tests only: forget this instance's copies of the pairs (not the reserve view). */
 export function resetNodeUuidCache(): void {
   devices = null;
   devicesInflight = null;

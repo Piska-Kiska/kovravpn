@@ -18,7 +18,10 @@
 // balance.ts syncAllExpiry writes into the panels). The answer also carries
 // the reserve of device UUIDs no one holds yet (lib/uuid-pool-body.ts), so a
 // new device that takes one works on every node at once; X-Node-Reserve says
-// how many lines those are. They never count as live devices.
+// how many lines those are. They never count as live devices. A 304 is the
+// node saying "I hold this list" (the agent keeps an ETag only after it
+// applied the list): it is noted (lib/uuid-pool.ts noteNodeConfirmed), and a
+// reserve UUID is handed out only once every node has confirmed it.
 //
 // The answer is working VPN credentials for every paying device, so the token
 // is its own (KOVRA_NODE_TOKEN), compared in constant time. The rate limit is
@@ -33,6 +36,7 @@ import { redis } from "@/lib/redis";
 import { checkNodeToken } from "@/lib/node-token-auth";
 import { readNodeUuidPairs } from "@/lib/node-uuids";
 import { safeErrorText } from "@/lib/safe-error-text";
+import { noteNodeConfirmed } from "@/lib/uuid-pool";
 import { NODE_NAME_RE, buildNodeUuidsBody, nodeBeatKey, nodeMinActive } from "@/lib/node-uuids-body";
 
 export const runtime = "nodejs";
@@ -120,6 +124,7 @@ export async function GET(req: NextRequest) {
     "X-Node-Reserve": String(built.reserve),
   };
   if (req.headers.get("if-none-match") === built.etag) {
+    await noteNodeConfirmed(node, read.poolAt, now);
     return new NextResponse(null, { status: 304, headers });
   }
   return new NextResponse(built.body, {

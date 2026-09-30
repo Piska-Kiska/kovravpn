@@ -1,12 +1,20 @@
 // tests/uuid-pool-lua.test.mjs — run: npm test
 //
-// TAKE_LUA and MAINTAIN_LUA (src/lib/uuid-pool-body.ts): the whole reserve of
-// device UUIDs runs as two server-side scripts. Every case runs twice: the
-// real script in the local `lua` interpreter with a redis.call shim
-// (tests/support/lua-redis.mjs; skipped when there is no `lua` on PATH), and
-// the JS twin the in-memory Redis uses (tests/support/uuid-pool-twin.mjs).
-// Both must give the expected reply and the expected sets, so the tests that
-// use the twins test the scripts. UUIDs are made up.
+// TAKE_LUA and MAINTAIN_LUA (src/lib/uuid-pool-body.ts): the reserve of
+// device UUIDs runs two server-side scripts. Every case runs twice: the real
+// script in the local `lua` interpreter with a redis.call shim
+// (tests/support/lua-redis.mjs, reply converted as Redis converts a Lua
+// value, so a number where a string is expected shows; skipped when there is
+// no `lua` on PATH), and the JS twin the in-memory Redis uses
+// (tests/support/uuid-pool-twin.mjs). Both must give the expected reply and
+// the expected sets, so the tests that use the twins test the scripts. The
+// replies then go through the Upstash client's parsing into the parsers the
+// site uses. UUIDs are made up.
+//
+// Not covered here: a real Redis (5.1 Lua) or Upstash. The site does not
+// depend on MAINTAIN_LUA for the node list (a failing script falls back to
+// plain ZRANGEs) nor on TAKE_LUA for a device (a failing take gives a fresh
+// UUID); see tests/uuid-pool.test.mjs.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +22,7 @@ import assert from "node:assert/strict";
 import "./support/load-ts.mjs";
 import { luaAvailable, runLua } from "./support/lua-redis.mjs";
 import { maintainTwin, takeTwin } from "./support/uuid-pool-twin.mjs";
-import { zsetOps } from "./support/memory-redis.mjs";
+import { upstashParse, zsetOps } from "./support/memory-redis.mjs";
 
 const body = await import("../src/lib/uuid-pool-body.ts");
 const {
@@ -22,16 +30,18 @@ const {
   MAINTAIN_LUA,
   POOL_READY_KEY: READY,
   POOL_TAKEN_KEY: TAKEN,
-  POOL_RETIRED_KEY: RETIRED,
+  POOL_SPENT_KEY: SPENT,
   POOL_MIN_AGE_MS,
   POOL_MAX_AGE_MS,
-  POOL_ROTATE_PER_BUILD,
+  POOL_ROTATE_PER_PASS,
   TAKEN_GRACE_MS,
   takeArgs,
   takeKeys,
   maintainArgs,
-  maintainKeys,
+  poolKeys,
+  keepMature,
   parseMaintainReply,
+  parsePoolSets,
   parseTakeReply,
 } = body;
 const { NODE_BODY_WINDOW_MS } = await import("../src/lib/node-uuids-body.ts");
@@ -67,32 +77,38 @@ function runTwin(twin, zsets, keys, args) {
   return { reply, zsets: z };
 }
 
-/** Run `source` / `twin` on the same input; both must match `expect`. */
+/**
+ * Run `source` / `twin` on the same input; both must match `expect`, reply
+ * types included. Returns the replies as the Upstash client hands them over.
+ */
 function both(name, { source, twin, zsets, keys, args, reply, after }) {
   const cases = [["twin", () => runTwin(twin, zsets, keys, args)]];
-  if (LUA) cases.push(["lua", () => runLua(source, { store: new Map(), keys, args, zsets: clone(zsets) })]);
+  if (LUA) cases.push(["lua", () => runLua(source, { store: new Map(), keys, args, zsets: clone(zsets), typed: true })]);
+  const parsed = [];
   for (const [runner, run] of cases) {
     const got = run();
     assert.deepEqual(got.reply, reply, `${name} [${runner}]: reply`);
     assert.deepEqual(plain(got.zsets), plain(after), `${name} [${runner}]: sets`);
+    parsed.push(upstashParse(got.reply));
   }
+  return parsed;
 }
 
 describe("TAKE_LUA", () => {
-  const take = (name, zsets, reply, after) =>
-    both(name, { source: TAKE_LUA, twin: takeTwin, zsets, keys: takeKeys(), args: takeArgs(NOW), reply, after });
+  const take = (name, zsets, reply, after, latest = NOW - POOL_MIN_AGE_MS) =>
+    both(name, { source: TAKE_LUA, twin: takeTwin, zsets, keys: takeKeys(), args: takeArgs(NOW, latest), reply, after });
 
   test("an empty reserve: none, nothing changes", () => {
     take("empty", zs({}), ["none"], zs({}));
   });
 
-  test("only UUIDs younger than the minimum age: none", () => {
+  test("only UUIDs younger than the limit: none", () => {
     const young = zs({ [READY]: [[u(1), NOW - POOL_MIN_AGE_MS + 1]] });
     take("young", young, ["none"], young);
   });
 
-  test("the oldest old-enough UUID moves to taken, stamped now", () => {
-    take(
+  test("the oldest eligible UUID moves to taken, stamped now", () => {
+    const [parsed] = take(
       "oldest",
       zs({
         [READY]: [
@@ -116,6 +132,13 @@ describe("TAKE_LUA", () => {
         ],
       }),
     );
+    assert.equal(parseTakeReply(parsed), u(1), "through the Upstash client's parsing");
+  });
+
+  test("a limit set by the nodes' confirmations: only UUIDs added before it", () => {
+    const sets = zs({ [READY]: [[u(1), NOW - 30 * MIN], [u(2), NOW - 3 * DAY]] });
+    take("confirmed", sets, ["ok", u(2)], zs({ [READY]: [[u(1), NOW - 30 * MIN]], [TAKEN]: [[u(2), NOW]] }), NOW - DAY);
+    take("none confirmed", zs({ [READY]: [[u(1), NOW - 30 * MIN]] }), ["none"], zs({ [READY]: [[u(1), NOW - 30 * MIN]] }), NOW - DAY);
   });
 
   test("equal ages: the smallest UUID first, as Redis orders them", () => {
@@ -130,7 +153,7 @@ describe("TAKE_LUA", () => {
   test("parseTakeReply reads both answers and refuses anything else", () => {
     assert.equal(parseTakeReply(["none"]), null);
     assert.equal(parseTakeReply(["ok", u(1).toUpperCase()]), u(1));
-    for (const bad of [null, [], ["ok"], ["ok", "not-a-uuid"], ["none", u(1)], ["maybe"], "ok"]) {
+    for (const bad of [null, [], ["ok"], ["ok", "not-a-uuid"], ["none", u(1)], ["maybe"], "ok", ["ok", 1]]) {
       assert.throws(() => parseTakeReply(bad), /uuid pool/, JSON.stringify(bad));
     }
   });
@@ -143,28 +166,39 @@ describe("MAINTAIN_LUA", () => {
       source: MAINTAIN_LUA,
       twin: maintainTwin,
       zsets,
-      keys: maintainKeys(),
+      keys: poolKeys(),
       args: maintainArgs(NOW, cap, extra.slice(0, cap)),
       reply,
       after,
     });
   const S = String;
+  const old = (n, days) => [u(n), NOW - POOL_MAX_AGE_MS - days * DAY];
 
-  test("an empty reserve is filled up to the cap and read back", () => {
-    run(
+  test("an empty reserve is filled up to the cap and read back; the reply parses", () => {
+    const [twin, lua] = run(
       "fill",
       zs({}),
       3,
       ["pool", "3", "0", "3", u(101), S(NOW), u(102), S(NOW), u(103), S(NOW), "0", "0"],
       zs({ [READY]: [[u(101), NOW], [u(102), NOW], [u(103), NOW]] }),
     );
+    for (const parsed of [twin, lua].filter(Boolean)) {
+      assert.deepEqual(parseMaintainReply(parsed), {
+        ready: [u(101), u(102), u(103)].map((uuid) => ({ uuid, at: NOW })),
+        taken: [],
+        spent: [],
+        added: 3,
+        rotated: 0,
+        malformed: 0,
+      });
+    }
   });
 
-  test("a full reserve gets nothing more; taken and retired are read too", () => {
+  test("a full reserve gets nothing more; taken and spent are read too", () => {
     const sets = zs({
       [READY]: [[u(1), NOW - DAY], [u(2), NOW - 2 * DAY]],
       [TAKEN]: [[u(3), NOW - MIN]],
-      [RETIRED]: [[u(4), NOW - 2 * MIN]],
+      [SPENT]: [[u(4), NOW - 2 * MIN]],
     });
     run(
       "full",
@@ -175,9 +209,8 @@ describe("MAINTAIN_LUA", () => {
     );
   });
 
-  test("UUIDs past the maximum age are retired, oldest first, at most the budget per call", () => {
-    assert.equal(POOL_ROTATE_PER_BUILD, 2);
-    const old = (n, days) => [u(n), NOW - POOL_MAX_AGE_MS - days * DAY];
+  test("UUIDs past the maximum age are rotated out to spent, oldest first, within the budget", () => {
+    assert.equal(POOL_ROTATE_PER_PASS, 2);
     run(
       "rotate",
       zs({ [READY]: [old(1, 3), old(2, 1), old(3, 2), old(4, 0), [u(5), NOW - DAY]] }),
@@ -190,12 +223,38 @@ describe("MAINTAIN_LUA", () => {
       ],
       zs({
         [READY]: [old(2, 1), old(4, 0), [u(5), NOW - DAY], [u(101), NOW], [u(102), NOW]],
-        [RETIRED]: [[u(1), NOW], [u(3), NOW]],
+        [SPENT]: [[u(1), NOW], [u(3), NOW]],
       }),
     );
   });
 
-  test("a lowered cap retires the newest first, within the budget, and adds nothing", () => {
+  test("a reserve that aged all at once is renewed in steps, never below half mature", () => {
+    assert.equal(keepMature(4), 2);
+    // Four aged, all mature: two go, two fresh ones come.
+    run(
+      "aged, step 1",
+      zs({ [READY]: [old(1, 0), old(2, 0), old(3, 0), old(4, 0)] }),
+      4,
+      [
+        "pool", "2", "2",
+        "4", u(3), S(NOW - POOL_MAX_AGE_MS), u(4), S(NOW - POOL_MAX_AGE_MS), u(101), S(NOW), u(102), S(NOW),
+        "0",
+        "2", u(1), S(NOW), u(2), S(NOW),
+      ],
+      zs({ [READY]: [old(3, 0), old(4, 0), [u(101), NOW], [u(102), NOW]], [SPENT]: [[u(1), NOW], [u(2), NOW]] }),
+    );
+    // Next refresh: the fresh two are not mature yet, so the old two stay.
+    const next = zs({ [READY]: [old(3, 0), old(4, 0), [u(101), NOW - MIN], [u(102), NOW - MIN]] });
+    run(
+      "aged, step 2",
+      next,
+      4,
+      ["pool", "0", "0", "4", u(3), S(NOW - POOL_MAX_AGE_MS), u(4), S(NOW - POOL_MAX_AGE_MS), u(101), S(NOW - MIN), u(102), S(NOW - MIN), "0", "0"],
+      next,
+    );
+  });
+
+  test("a lowered cap rotates out the newest first, within the budget, and adds nothing", () => {
     const ready = [1, 2, 3, 4, 5, 6].map((n) => [u(n), NOW - n * MIN]);
     run(
       "shrink",
@@ -207,17 +266,17 @@ describe("MAINTAIN_LUA", () => {
         "0",
         "2", u(1), S(NOW), u(2), S(NOW),
       ],
-      zs({ [READY]: ready.slice(2), [RETIRED]: [[u(1), NOW], [u(2), NOW]] }),
+      zs({ [READY]: ready.slice(2), [SPENT]: [[u(1), NOW], [u(2), NOW]] }),
     );
   });
 
-  test("too old and over the cap share one budget", () => {
+  test("an aged UUID that is the only mature one stays; the cap still shrinks from the newest", () => {
     run(
       "shared",
       zs({ [READY]: [[u(1), NOW - POOL_MAX_AGE_MS - DAY], [u(2), NOW - 3 * MIN], [u(3), NOW - 2 * MIN], [u(4), NOW - MIN]] }),
       1,
-      ["pool", "0", "2", "2", u(2), S(NOW - 3 * MIN), u(3), S(NOW - 2 * MIN), "0", "2", u(1), S(NOW), u(4), S(NOW)],
-      zs({ [READY]: [[u(2), NOW - 3 * MIN], [u(3), NOW - 2 * MIN]], [RETIRED]: [[u(1), NOW], [u(4), NOW]] }),
+      ["pool", "0", "2", "2", u(1), S(NOW - POOL_MAX_AGE_MS - DAY), u(2), S(NOW - 3 * MIN), "0", "2", u(3), S(NOW), u(4), S(NOW)],
+      zs({ [READY]: [[u(1), NOW - POOL_MAX_AGE_MS - DAY], [u(2), NOW - 3 * MIN]], [SPENT]: [[u(3), NOW], [u(4), NOW]] }),
     );
   });
 
@@ -227,23 +286,23 @@ describe("MAINTAIN_LUA", () => {
       zs({ [READY]: [[u(1), NOW - 3 * MIN], [u(2), NOW - 2 * MIN], [u(3), NOW - MIN]] }),
       0,
       ["pool", "0", "2", "1", u(1), S(NOW - 3 * MIN), "0", "2", u(2), S(NOW), u(3), S(NOW)],
-      zs({ [READY]: [[u(1), NOW - 3 * MIN]], [RETIRED]: [[u(2), NOW], [u(3), NOW]] }),
+      zs({ [READY]: [[u(1), NOW - 3 * MIN]], [SPENT]: [[u(2), NOW], [u(3), NOW]] }),
     );
   });
 
   test("marks whose lines have left the node answer are forgotten, fresher ones kept", () => {
     const takenEdge = NOW - TAKEN_GRACE_MS - NODE_BODY_WINDOW_MS - 3_600_000;
-    const retiredEdge = NOW - NODE_BODY_WINDOW_MS - 3_600_000;
+    const spentEdge = NOW - NODE_BODY_WINDOW_MS - 3_600_000;
     run(
       "forget",
       zs({
         [READY]: [[u(1), NOW - DAY]],
         [TAKEN]: [[u(2), takenEdge], [u(3), takenEdge + 1]],
-        [RETIRED]: [[u(4), retiredEdge], [u(5), retiredEdge + 1]],
+        [SPENT]: [[u(4), spentEdge], [u(5), spentEdge + 1]],
       }),
       1,
-      ["pool", "0", "0", "1", u(1), S(NOW - DAY), "1", u(3), S(takenEdge + 1), "1", u(5), S(retiredEdge + 1)],
-      zs({ [READY]: [[u(1), NOW - DAY]], [TAKEN]: [[u(3), takenEdge + 1]], [RETIRED]: [[u(5), retiredEdge + 1]] }),
+      ["pool", "0", "0", "1", u(1), S(NOW - DAY), "1", u(3), S(takenEdge + 1), "1", u(5), S(spentEdge + 1)],
+      zs({ [READY]: [[u(1), NOW - DAY]], [TAKEN]: [[u(3), takenEdge + 1]], [SPENT]: [[u(5), spentEdge + 1]] }),
     );
   });
 
@@ -261,19 +320,25 @@ describe("MAINTAIN_LUA", () => {
 
 describe("parseMaintainReply", () => {
   const reply = ["pool", "1", "0", "1", u(1), String(NOW), "1", u(2), String(NOW - MIN), "0"];
+  const want = {
+    ready: [{ uuid: u(1), at: NOW }],
+    taken: [{ uuid: u(2), at: NOW - MIN }],
+    spent: [],
+    added: 1,
+    rotated: 0,
+    malformed: 0,
+  };
 
-  test("reads the script's reply, with Upstash's numbers or as strings", () => {
-    const want = {
-      ready: [{ uuid: u(1), at: NOW }],
-      taken: [{ uuid: u(2), at: NOW - MIN }],
-      retired: [],
-      added: 1,
-      rotated: 0,
-      malformed: 0,
-    };
+  test("reads the script's reply, as strings, as the Upstash client parses it, or as numbers", () => {
     assert.deepEqual(parseMaintainReply(reply), want);
-    const upstash = reply.map((x) => (/^[0-9]+$/.test(x) ? Number(x) : x));
-    assert.deepEqual(parseMaintainReply(upstash), want);
+    assert.deepEqual(parseMaintainReply(upstashParse(reply)), want);
+    const numbers = reply.map((x) => (/^[0-9]+$/.test(x) ? Number(x) : x));
+    assert.deepEqual(parseMaintainReply(numbers), want);
+  });
+
+  test("a score printed in exponent form still reads as the same ms", () => {
+    const got = parseMaintainReply(["pool", "0", "0", "1", u(1), "1.79e+12", "0", "0"]);
+    assert.deepEqual(got.ready, [{ uuid: u(1), at: 1_790_000_000_000 }]);
   });
 
   test("a member that is not a UUID is skipped and counted", () => {
@@ -294,6 +359,25 @@ describe("parseMaintainReply", () => {
       ["other", 0, 0, 0, 0, 0],
     ]) {
       assert.throws(() => parseMaintainReply(bad), /uuid pool/, JSON.stringify(bad));
+    }
+  });
+});
+
+describe("parsePoolSets (the plain read when the script fails)", () => {
+  test("three ZRANGE … WITHSCORES replies, scores as numbers or strings", () => {
+    assert.deepEqual(parsePoolSets([[u(1), NOW], [u(2), String(NOW - MIN)], []]), {
+      ready: [{ uuid: u(1), at: NOW }],
+      taken: [{ uuid: u(2), at: NOW - MIN }],
+      spent: [],
+      added: 0,
+      rotated: 0,
+      malformed: 0,
+    });
+  });
+
+  test("anything but three flat pair lists throws", () => {
+    for (const bad of [null, [], [[], []], [[u(1)], [], []], [null, [], []], "x"]) {
+      assert.throws(() => parsePoolSets(bad), /uuid pool/, JSON.stringify(bad));
     }
   });
 });

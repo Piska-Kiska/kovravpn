@@ -19,9 +19,9 @@ export function takeTwin(api, keys, args) {
   return ["ok", got[0]];
 }
 
-/** MAINTAIN_LUA: rotate, forget, refill, read. */
+/** MAINTAIN_LUA: rotate (keeping half mature), forget, refill, read. */
 export function maintainTwin(api, keys, args) {
-  const [ready, taken, retired] = keys;
+  const [ready, taken, spent] = keys;
   const now = args[0];
   const cap = Number(args[1]);
   const budget = Number(args[3]);
@@ -29,26 +29,24 @@ export function maintainTwin(api, keys, args) {
   const retire = (list) => {
     for (const m of list) {
       api.zrem(ready, m);
-      api.zadd(retired, now, m);
+      api.zadd(spent, now, m);
       rotated += 1;
     }
   };
-  if (budget > 0) retire(api.zrangebyscore(ready, "-inf", args[2], 0, budget));
+  const room = Math.min(budget, api.zcount(ready, "-inf", args[6]) - Number(args[7]));
+  if (room > 0) retire(api.zrangebyscore(ready, "-inf", args[2], 0, room));
   const over = api.zcard(ready) - cap;
-  if (over > 0 && rotated < budget) {
-    const n = Math.min(over, budget - rotated);
-    retire(api.zrange(ready, -n, -1));
-  }
+  if (over > 0 && rotated < budget) retire(api.zrange(ready, -Math.min(over, budget - rotated), -1));
   api.zremrangebyscore(taken, "-inf", args[4]);
-  api.zremrangebyscore(retired, "-inf", args[5]);
+  api.zremrangebyscore(spent, "-inf", args[5]);
   let added = 0;
   const need = cap - api.zcard(ready);
-  for (const fresh of args.slice(6)) {
+  for (const fresh of args.slice(8)) {
     if (added >= need) break;
     added += api.zadd(ready, now, fresh, { nx: true });
   }
   const out = ["pool", String(added), String(rotated)];
-  for (const key of [ready, taken, retired]) {
+  for (const key of [ready, taken, spent]) {
     const all = api.zrangeWithScores(key, 0, -1);
     out.push(String(all.length / 2), ...all);
   }
