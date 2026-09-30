@@ -15,7 +15,10 @@
 //       keeps what it has and still removes users by their dates
 //
 // Which devices and dates: lib/node-uuids-body.ts (the same dates
-// balance.ts syncAllExpiry writes into the panels).
+// balance.ts syncAllExpiry writes into the panels). The answer also carries
+// the reserve of device UUIDs no one holds yet (lib/uuid-pool-body.ts), so a
+// new device that takes one works on every node at once; X-Node-Reserve says
+// how many lines those are. They never count as live devices.
 //
 // The answer is working VPN credentials for every paying device, so the token
 // is its own (KOVRA_NODE_TOKEN), compared in constant time. The rate limit is
@@ -56,11 +59,11 @@ function allow(node: string, now: number): { ok: boolean; retryAfter: number } {
   return { ok: true, retryAfter: 0 };
 }
 
-function beat(node: string, live: number, total: number, now: number): void {
+function beat(node: string, live: number, total: number, reserve: number, now: number): void {
   if (now - (lastBeat.get(node) ?? 0) < BEAT_EVERY_MS) return;
   lastBeat.set(node, now);
   redis
-    .set(nodeBeatKey(node), JSON.stringify({ at: now, live, total }), { ex: BEAT_TTL_SEC })
+    .set(nodeBeatKey(node), JSON.stringify({ at: now, live, total, reserve }), { ex: BEAT_TTL_SEC })
     .catch(() => {
       /* the mark is optional */
     });
@@ -99,12 +102,12 @@ export async function GET(req: NextRequest) {
   }
   if (read.malformed > 0) console.error(`[node-uuids] ${read.malformed} malformed profile record(s) skipped`);
 
-  const built = buildNodeUuidsBody(read.pairs, now, nodeMinActive(process.env.KOVRA_NODE_MIN_ACTIVE));
+  const built = buildNodeUuidsBody(read.pairs, now, nodeMinActive(process.env.KOVRA_NODE_MIN_ACTIVE), read.reserve);
   if (!built.ok) {
     console.warn(`[node-uuids] ${node}: ${built.live} live device(s) of ${built.total}, minimum ${built.min}: refusing`);
     return fail(503, "too few live devices", { live: built.live, total: built.total, min: built.min });
   }
-  beat(node, built.live, built.total, now);
+  beat(node, built.live, built.total, built.reserve, now);
 
   const headers = {
     "Cache-Control": "no-store",
@@ -112,6 +115,7 @@ export async function GET(req: NextRequest) {
     // The node compares its clock with ours before it removes anyone by date.
     "X-Now-Ms": String(now),
     "X-Node-Live": String(built.live),
+    "X-Node-Reserve": String(built.reserve),
   };
   if (req.headers.get("if-none-match") === built.etag) {
     return new NextResponse(null, { status: 304, headers });

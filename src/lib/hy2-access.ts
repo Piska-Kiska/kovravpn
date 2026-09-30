@@ -17,8 +17,14 @@
 // device id. The password is the device UUID, so it is exactly as strong a
 // secret as the VLESS UUID of the same device.
 //
+// Only device records decide. The PRO nodes' list also carries a reserve of
+// UUIDs that belong to no device yet (lib/uuid-pool.ts), dated ahead so a new
+// device works there at once; Hysteria2 never sees them: it reads the device
+// view (node-uuids.ts readDevicePairs), which never touches the reserve, so a
+// reserve UUID is "unknown" here until a device record holds it.
+//
 // ── Cost ────────────────────────────────────────────────
-// No Redis reads per connect: the list comes from readNodeUuidPairs (one
+// No Redis reads per connect: the list comes from readDevicePairs (one
 // rebuild per REBUILD_EVERY_MS per instance, shared by concurrent callers),
 // indexed here once per rebuild into a Map, so a connect is an O(1) lookup.
 // A purchase, a pause or a deletion reaches Hysteria2 within that minute.
@@ -39,7 +45,7 @@
 //
 // Nothing here logs a UUID.
 
-import { readNodeUuidPairs, type NodeUuidPairsRead } from "./node-uuids";
+import { readDevicePairs, type DevicePairsRead } from "./node-uuids";
 import { normalizeUuid, type UuidPair } from "./node-uuids-body";
 
 /** How long the last good list may answer while Redis cannot be read, from when it was read. */
@@ -75,7 +81,8 @@ export function decideHy2(auth: unknown, byUuid: ReadonlyMap<string, number>, no
 }
 
 export interface Hy2AccessDeps {
-  readPairs(now: number): Promise<NodeUuidPairsRead>;
+  /** The devices alone (never the UUID reserve), with the time they were read. */
+  readPairs(now: number): Promise<DevicePairsRead>;
   /** Overrides READ_TIMEOUT_MS (tests). */
   readTimeoutMs?: number;
 }
@@ -110,7 +117,7 @@ export function createHy2Access(deps: Hy2AccessDeps): Hy2Access {
   let retryAt = Number.NEGATIVE_INFINITY;
 
   /** Takes a successful read unless the index already holds a newer one. Indexes only a new list. */
-  const adopt = (read: NodeUuidPairsRead): void => {
+  const adopt = (read: DevicePairsRead): void => {
     if (index !== null && read.at < index.readAt) return;
     const byUuid = index !== null && index.pairs === read.pairs ? index.byUuid : indexPairs(read.pairs);
     index = { pairs: read.pairs, byUuid, readAt: read.at };
@@ -123,7 +130,7 @@ export function createHy2Access(deps: Hy2AccessDeps): Hy2Access {
 
     let fresh = false;
     if (now >= retryAt) {
-      let read: Promise<NodeUuidPairsRead> | null = null;
+      let read: Promise<DevicePairsRead> | null = null;
       try {
         read = deps.readPairs(now);
         adopt(await within(read, timeoutMs));
@@ -157,4 +164,4 @@ export function createHy2Access(deps: Hy2AccessDeps): Hy2Access {
  * answers within about READ_TIMEOUT_MS: a storage failure or hang beyond
  * STALE_IF_ERROR_MS is a refusal ("unavailable").
  */
-export const hy2Access: Hy2Access = createHy2Access({ readPairs: readNodeUuidPairs });
+export const hy2Access: Hy2Access = createHy2Access({ readPairs: readDevicePairs });

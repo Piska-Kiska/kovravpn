@@ -130,7 +130,7 @@ describe("storage failures", () => {
 
   test("the list goes stale from when it was READ, not from when a cached copy was last handed out", async () => {
     quiet();
-    // readNodeUuidPairs hands out its copy for a minute with the time of the rebuild.
+    // readDevicePairs hands out its copy for a minute with the time of the rebuild.
     let readAt = NOW;
     const access = createHy2Access({
       async readPairs() {

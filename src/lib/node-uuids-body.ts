@@ -22,10 +22,18 @@
 // with a newline. Lines stay for a day after their date, so the node sees an
 // expiry as an expiry and not as "the site dropped this device".
 //
+// ── The reserve ─────────────────────────────────────────
+// The answer also carries the reserve of device UUIDs (lib/uuid-pool-body.ts):
+// UUIDs no one holds yet, listed in advance so a new device that takes one
+// works on the PRO nodes at once. They are not devices: they never count as
+// live, and a UUID that is in a device record is listed only by that record.
+//
 // ── Refusals ────────────────────────────────────────────
 // Never an empty 200: an obedient node would take it for "let nobody in".
 // Fewer live devices than the minimum (default 1) is a refusal (503) too, and
-// the node keeps the list it has, still removing users by their dates.
+// the node keeps the list it has, still removing users by their dates. The
+// reserve does not count here: a read that lost every device must still be
+// refused, not answered with the reserve alone.
 //
 // Imports only node:crypto and the pure device-capacity.ts, so tests load it
 // under Node's type stripping (tests/node-uuids.test.mjs, through
@@ -145,30 +153,64 @@ export function accessPairs(users: readonly UserAccessRecord[], now: number = Da
   return { pairs, malformed };
 }
 
+/**
+ * Every well-formed device UUID in the records, whatever its user's plan:
+ * the reserve never lists one of these (see reservePairs). O(total profiles).
+ */
+export function profileUuids(users: readonly UserAccessRecord[]): Set<string> {
+  const out = new Set<string>();
+  for (const user of users) {
+    if (!Array.isArray(user.profiles)) continue;
+    for (const p of user.profiles) {
+      const uuid = p && typeof p === "object" ? normalizeUuid((p as { uuid?: unknown }).uuid) : null;
+      if (uuid !== null) out.add(uuid);
+    }
+  }
+  return out;
+}
+
 export type NodeUuidsBody =
-  | { ok: true; body: string; etag: string; live: number; total: number }
+  | { ok: true; body: string; etag: string; live: number; total: number; reserve: number }
   | { ok: false; reason: "too-few-live"; live: number; total: number; min: number };
 
-/**
- * Build the answer from the pairs. Pairs older than the window are left out;
- * a UUID listed twice keeps its latest date. O(n log n) for the sort.
- */
-export function buildNodeUuidsBody(pairs: readonly UuidPair[], now: number, minLive: number): NodeUuidsBody {
-  const byUuid = new Map<string, number>();
+/** Usable pairs within the window into `into`, a UUID keeping its latest date. */
+function mergePairs(into: Map<string, number>, pairs: readonly UuidPair[], now: number, skip?: ReadonlyMap<string, number>): void {
   for (const p of pairs) {
     const uuid = normalizeUuid(p.uuid);
-    if (uuid === null || !Number.isFinite(p.until) || p.until <= now - NODE_BODY_WINDOW_MS) continue;
-    byUuid.set(uuid, Math.max(byUuid.get(uuid) ?? 0, Math.floor(p.until)));
+    if (uuid === null || skip?.has(uuid)) continue;
+    if (!Number.isFinite(p.until) || p.until <= now - NODE_BODY_WINDOW_MS) continue;
+    into.set(uuid, Math.max(into.get(uuid) ?? 0, Math.floor(p.until)));
   }
+}
+
+/**
+ * Build the answer from the device pairs and the reserve's lines. Pairs
+ * older than the window are left out; a UUID listed twice keeps its latest
+ * date; a reserve line for a UUID that has a device pair is dropped (the
+ * device decides). `live` and `total` count devices only. O(n log n) for
+ * the sort.
+ */
+export function buildNodeUuidsBody(
+  pairs: readonly UuidPair[],
+  now: number,
+  minLive: number,
+  reservePairs: readonly UuidPair[] = [],
+): NodeUuidsBody {
+  const byUuid = new Map<string, number>();
+  mergePairs(byUuid, pairs, now);
   let live = 0;
   for (const until of byUuid.values()) if (until > now) live += 1;
   const total = byUuid.size;
   if (live < minLive) return { ok: false, reason: "too-few-live", live, total, min: minLive };
+
+  const reserve = new Map<string, number>();
+  mergePairs(reserve, reservePairs, now, byUuid);
+  for (const [uuid, until] of reserve) byUuid.set(uuid, until);
 
   const lines = [...byUuid]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([uuid, until]) => `${uuid} ${until}`);
   const body = lines.join("\n") + "\n";
   const etag = `"${createHash("sha256").update(body).digest("hex").slice(0, 32)}"`;
-  return { ok: true, body, etag, live, total };
+  return { ok: true, body, etag, live, total, reserve: reserve.size };
 }
