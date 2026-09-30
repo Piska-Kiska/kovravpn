@@ -24,7 +24,7 @@ import {
   getSubscriptions,
 } from "@/lib/subscriptions";
 import { syncAllExpiry } from "@/lib/balance";
-import { markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import { grantReferralReward } from "@/lib/referrals";
 import { verifyIpnSignature, type IpnPayload } from "@/lib/nowpayments";
 import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
@@ -101,9 +101,11 @@ export async function POST(req: NextRequest) {
       const reservedT = await reserveDedupKey(`crypto_payment_done:${pidT}`, DEDUP_TTL_SEC);
       if (!reservedT) return NextResponse.json({ ok: true, ignored: "duplicate" });
       const usd = Number(payload.price_amount) || 0;
+      // The account the order's id belongs to now (a linked Telegram account moved).
+      const walletOwner = await resolveUserId(tu.userId);
       let newBal: number;
       try {
-        newBal = await addBalanceUsd(tu.userId, usd);
+        newBal = await addBalanceUsd(walletOwner, usd);
       } catch (err) {
         // Ключ дедупа уже занят, а зачисления не было. Освобождаем его и просим
         // повторить: без этого оплата осталась бы без денег НАВСЕГДА — повтор
@@ -113,7 +115,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
       await notifyUser(
-        tu.userId,
+        walletOwner,
         { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
         [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
       );

@@ -21,7 +21,7 @@
 // 4xx = misconfiguration (no retries) — used only for auth failures.
 
 import { NextRequest, NextResponse } from "next/server";
-import { markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import {
   parseSubOrderId,
   resolvePlan,
@@ -204,16 +204,19 @@ export async function POST(req: NextRequest) {
         );
         return NextResponse.json({ ok: true, ignored: "amount mismatch" });
       }
+      // The wallet of the account the order's id belongs to now: a Telegram
+      // account linked to an e-mail one after the order was made moved there.
+      const walletOwner = await resolveUserId(tu.userId);
       let newBal: number;
       try {
-        newBal = await addBalanceUsd(tu.userId, order.amountUsd);
+        newBal = await addBalanceUsd(walletOwner, order.amountUsd);
       } catch (err) {
         console.error("[cashera-webhook] topup credit failed, requesting retry:", err);
         await releaseDedupKey(dedupKey);
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
       await notifyUser(
-        tu.userId,
+        walletOwner,
         { kind: "topup", amountCents: noticeCents(order.amountUsd), balanceCents: noticeCents(newBal) },
         [
           `✅ <b>Balance topped up</b>`,

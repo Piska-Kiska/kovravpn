@@ -27,6 +27,9 @@ import {
 } from "./accounts";
 import { getActiveInbound } from "./xpanel";
 import { deleteClientSync } from "./xpanel-sync";
+import { acquireLock } from "./ratelimit";
+import { addBalanceCents, chargeBalanceCents, getBalanceCents } from "./bot-wallet";
+import { getSubscriptions, mutateSubscriptions, type Subscription } from "./subscriptions";
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
 
@@ -115,7 +118,135 @@ export interface LinkResult {
   primaryUserId: string;
   telegramId: string;
   removedEmptyStandalone: boolean;
+  /** Wallet cents moved from the standalone tg_ account to the primary. */
+  movedCents?: number;
+  /** Running subscriptions moved from the standalone tg_ account. */
+  movedSubs?: number;
   reason?: string;
+}
+
+// ─── Moving what a standalone Telegram account paid for ─────────────────────
+//
+// A tg_ account without devices can still hold money: the USD wallet the bot
+// and the Mini App top up (`balance_usd:tg_X`) and plans bought from it
+// (`subs:tg_X`). Linking points alias:tg_X at the primary, after which nothing
+// ever reads tg_X again, so both move to the primary first. Under the wallet
+// locks of both accounts (the ones purchaseFromWallet takes), so no purchase
+// from either wallet interleaves; subscription writes take their own lock.
+//
+// Order, each step undone if a later one fails:
+//   1. debit the source wallet (atomic; an unknown outcome stops everything);
+//   2. credit the primary (a failure refunds the source);
+//   3. append the running subscriptions to the primary (a failure moves the
+//      money back);
+//   4. clear the source subscriptions (a failure only leaves a stale copy
+//      under a userId nothing reads any more).
+// Every step is in the audit log; a failed undo says NEEDS REVIEW.
+
+type MoveResult =
+  | { ok: true; cents: number; subs: number }
+  | { ok: false; reason: "busy" | "failed" };
+
+const MOVE_LOCK_TTL_SEC = 30;
+
+/** Running subscriptions (the ones that still give access). */
+function runningSubs(subs: readonly Subscription[], now: number): Subscription[] {
+  return subs.filter((s) => s.expiresAt > now);
+}
+
+async function moveWalletAndSubs(from: string, to: string): Promise<MoveResult> {
+  const unlockFrom = await acquireLock(`wallet:${from}`, MOVE_LOCK_TTL_SEC);
+  if (!unlockFrom) return { ok: false, reason: "busy" };
+  const unlockTo = await acquireLock(`wallet:${to}`, MOVE_LOCK_TTL_SEC).catch(() => null);
+  if (!unlockTo) {
+    await unlockFrom().catch(() => undefined);
+    return { ok: false, reason: "busy" };
+  }
+  try {
+    return await moveLocked(from, to);
+  } finally {
+    await unlockTo().catch(() => undefined);
+    await unlockFrom().catch(() => undefined);
+  }
+}
+
+async function moveLocked(from: string, to: string): Promise<MoveResult> {
+  const now = Date.now();
+  const [cents, subs] = await Promise.all([getBalanceCents(from), getSubscriptions(from)]);
+  const moving = runningSubs(subs, now);
+  if (cents <= 0 && moving.length === 0) return { ok: true, cents: 0, subs: 0 };
+  await audit("merge_start", { from, to, cents: Math.max(0, cents), subs: moving.map((s) => s.kind) });
+
+  let moved = 0;
+  if (cents > 0) {
+    let debit: Awaited<ReturnType<typeof chargeBalanceCents>>;
+    try {
+      debit = await chargeBalanceCents(from, cents);
+    } catch (err) {
+      console.error(`[admin-ops] merge: AMBIGUOUS DEBIT, needs review: from=${from} cents=${cents}:`, errMsg(err));
+      await audit("merge_failed", { from, to, step: "debit", cents });
+      return { ok: false, reason: "failed" };
+    }
+    if (!debit.ok) {
+      // Only credits can land while we hold the lock, so this is a bug.
+      await audit("merge_failed", { from, to, step: "debit_refused", cents });
+      return { ok: false, reason: "failed" };
+    }
+    try {
+      await addBalanceCents(to, cents);
+      moved = cents;
+    } catch (err) {
+      console.error("[admin-ops] merge: credit failed, refunding the source:", errMsg(err));
+      await undoDebit(from, to, cents, "credit");
+      return { ok: false, reason: "failed" };
+    }
+  }
+
+  if (moving.length > 0) {
+    try {
+      await mutateSubscriptions(to, (dst) => [...dst, ...moving.map((s) => ({ ...s }))]);
+    } catch (err) {
+      console.error("[admin-ops] merge: subscriptions not moved, moving the money back:", errMsg(err));
+      if (moved > 0) await undoCredit(from, to, moved);
+      await audit("merge_failed", { from, to, step: "subs", cents: moved });
+      return { ok: false, reason: "failed" };
+    }
+    try {
+      await mutateSubscriptions(from, () => []);
+    } catch (err) {
+      console.warn("[admin-ops] merge: stale subscriptions left on the source:", errMsg(err));
+    }
+  }
+
+  await audit("merge_done", { from, to, cents: moved, subs: moving.length });
+  return { ok: true, cents: moved, subs: moving.length };
+}
+
+/** The source was debited, the primary never credited: give it back. */
+async function undoDebit(from: string, to: string, cents: number, step: string): Promise<void> {
+  try {
+    await addBalanceCents(from, cents);
+    await audit("merge_failed", { from, to, step, cents, refunded: true });
+  } catch (err) {
+    console.error(`[admin-ops] merge: REFUND FAILED, needs review: from=${from} cents=${cents}:`, errMsg(err));
+    await audit("merge_failed", { from, to, step, cents, refunded: false, needsReview: true });
+  }
+}
+
+/** The money reached the primary but the merge is abandoned: move it back. */
+async function undoCredit(from: string, to: string, cents: number): Promise<void> {
+  try {
+    const back = await chargeBalanceCents(to, cents);
+    if (!back.ok) throw new Error("primary balance below the moved amount");
+    await addBalanceCents(from, cents);
+  } catch (err) {
+    console.error(`[admin-ops] merge: MONEY NOT MOVED BACK, needs review: from=${from} to=${to} cents=${cents}:`, errMsg(err));
+    await audit("merge_failed", { from, to, step: "undo_credit", cents, needsReview: true });
+  }
+}
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -125,8 +256,10 @@ export interface LinkResult {
  *   1. Validate primary exists.
  *   2. If alias:tg_X exists pointing elsewhere → refuse (would orphan another acc).
  *   3. If standalone tg_X account exists:
- *        - empty (balance=0, paidUntil=0, no profiles) → wipe it cleanly
- *        - non-empty → refuse, ask admin to use full merge flow (TODO)
+ *        - without devices (legacy balance=0, paidUntil=0, no profiles) →
+ *          its USD wallet and running plans move to the primary
+ *          (moveWalletAndSubs), then its keys are wiped;
+ *        - with devices → refuse, ask admin to use full merge flow (TODO)
  *   4. Create alias:tg_X → primary.
  *   5. Patch user record: telegramId, authMethod="linked", username index.
  */
@@ -175,11 +308,14 @@ export async function linkTelegramToPrimary(
 
   // Standalone tg_X account check
   let removedEmpty = false;
+  let movedCents = 0;
+  let movedSubs = 0;
   const standaloneAcc = await getAccount(tgUserId);
   const standaloneUser = await getUserRecord(tgUserId);
   const standaloneProfiles = await getProfiles(tgUserId);
 
-  if (standaloneAcc || standaloneUser || standaloneProfiles.length > 0) {
+  const hasRecords = standaloneAcc !== null || standaloneUser !== null || standaloneProfiles.length > 0;
+  if (hasRecords) {
     const isEmpty =
       (!standaloneAcc ||
         ((standaloneAcc.balance || 0) === 0 &&
@@ -199,7 +335,28 @@ export async function linkTelegramToPrimary(
           `profiles=${standaloneProfiles.length}). Use force or merge.`,
       };
     }
+  }
 
+  // What tg_X paid for (its USD wallet and running plans) moves first, even
+  // without an account record: a wallet can exist on its own. A move that
+  // cannot finish leaves both accounts as they were and refuses the link.
+  const move = await moveWalletAndSubs(tgUserId, primaryUserId);
+  if (!move.ok) {
+    return {
+      success: false,
+      primaryUserId,
+      telegramId,
+      removedEmptyStandalone: false,
+      reason:
+        move.reason === "busy"
+          ? `Wallet of tg_${telegramId} is busy, try again`
+          : `Could not move the wallet of tg_${telegramId}`,
+    };
+  }
+  movedCents = move.cents;
+  movedSubs = move.subs;
+
+  if (hasRecords) {
     // Empty (or forced) — wipe just the standalone Redis footprint, no 3X-UI
     // calls needed because profiles.length === 0 (or we're force-ing past data
     // that the admin explicitly approved).
@@ -226,6 +383,8 @@ export async function linkTelegramToPrimary(
     primaryUserId,
     telegramId,
     removedEmptyStandalone: removedEmpty,
+    movedCents,
+    movedSubs,
     forced: options.force === true,
   });
 
@@ -234,6 +393,8 @@ export async function linkTelegramToPrimary(
     primaryUserId,
     telegramId,
     removedEmptyStandalone: removedEmpty,
+    movedCents,
+    movedSubs,
   };
 }
 

@@ -20,7 +20,7 @@
 //     содержат вовсе — связать их с покупкой автоматически нечем.
 
 import { NextRequest, NextResponse } from "next/server";
-import { markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import {
   applyDeviceAddon,
   applyPlanPurchase,
@@ -381,15 +381,17 @@ export async function POST(req: NextRequest) {
       );
       return NextResponse.json({ ok: true, status: "no topup record" });
     }
+    // The account the order's id belongs to now (a linked Telegram account moved).
+    const walletOwner = await resolveUserId(userId);
     let newBal: number;
     try {
-      newBal = await addBalanceUsd(userId, usd);
+      newBal = await addBalanceUsd(walletOwner, usd);
     } catch (err) {
       console.error("[lava-webhook] wallet credit failed, requesting retry:", err);
       return retry("credit_failed");
     }
     await notifyUser(
-      userId,
+      walletOwner,
       { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
       [
         `✅ <b>Balance topped up</b>`,

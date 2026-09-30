@@ -39,6 +39,17 @@ export async function getSession(sid: string): Promise<Session | null> {
     return null;
   }
 
+  // A Telegram account linked to an e-mail account after this session began
+  // (alias:tg_X -> em_Y) speaks for the account it now belongs to: its old
+  // id holds nothing any more (admin-ops.linkTelegramToPrimary moves the
+  // wallet and the plans). Only tg_ ids are ever aliased this way.
+  if (typeof session.userId === "string" && session.userId.startsWith("tg_")) {
+    const primary = await redis.get(`alias:${session.userId}`);
+    if (typeof primary === "string" && primary.length > 0 && primary !== session.userId) {
+      return { ...session, userId: primary };
+    }
+  }
+
   return session;
 }
 

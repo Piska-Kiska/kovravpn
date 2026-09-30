@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCryptoBotSignature, type CryptoBotWebhookUpdate } from "@/lib/cryptobot";
 import { addBalanceUsd } from "@/lib/bot-wallet";
+import { resolveUserId } from "@/lib/accounts";
 import { reserveDedupKey } from "@/lib/dedup";
 import { noticeCents, notifyUser } from "@/lib/bot-v2/notify";
 
@@ -64,9 +65,11 @@ export async function POST(req: NextRequest) {
     const usd = Number(inv.amount) || Number(meta.amountUsd) || 0;
     if (usd <= 0) return NextResponse.json({ ok: true, ignored: "zero amount" });
 
-    const newBal = await addBalanceUsd(userId, usd);
+    // The account the invoice's id belongs to now (a linked Telegram account moved).
+    const walletOwner = await resolveUserId(userId);
+    const newBal = await addBalanceUsd(walletOwner, usd);
     await notifyUser(
-      userId,
+      walletOwner,
       { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
       [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
     );
