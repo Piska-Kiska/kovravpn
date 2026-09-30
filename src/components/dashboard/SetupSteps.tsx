@@ -15,6 +15,8 @@ import { DEVICE_DEFS, type DeviceId } from "@/lib/dashboard/devices";
 export interface SetupStepsProps {
   t: DashDict;
   device: DeviceId;
+  /** Every server has the device already (a reserve UUID): no waiting line. */
+  instant: boolean;
   subUrl: string;
   /** "Open in Happ" target (the /add bridge in the Mini App), or null for none. */
   happUrl: string | null;
@@ -23,7 +25,7 @@ export interface SetupStepsProps {
   onDone(): void;
 }
 
-export function SetupSteps({ t, device, subUrl, happUrl, copied, onCopy, onDone }: SetupStepsProps) {
+export function SetupSteps({ t, device, instant, subUrl, happUrl, copied, onCopy, onDone }: SetupStepsProps) {
   const shell = useShellT();
   const def = DEVICE_DEFS[device];
   const name = t[def.nameKey];
@@ -42,9 +44,10 @@ export function SetupSteps({ t, device, subUrl, happUrl, copied, onCopy, onDone 
       <h3 id="kc-setup-title" ref={titleRef} tabIndex={-1} className="kc-h2">
         {fmt(t.setup_title, { device: name })}
       </h3>
-      {/* Panels (DE/UK/US) take a new device at once; PRO nodes pull the list
-          every 120 s from an answer cached up to 60 s: "within 3 minutes". */}
-      <p className="kc-small">{t.setup_locations}</p>
+      {/* A reserve UUID (lib/uuid-pool.ts) is on every server already: nothing
+          to say. A fresh one: panels (DE/UK/US) take it at once; PRO nodes pull
+          the list every 120 s from an answer cached up to 60 s: "within 3 minutes". */}
+      {instant ? null : <p className="kc-small">{t.setup_locations}</p>}
       <ol className="kc-steps">
         <li className="kc-step">
           <span className="kc-step-n" aria-hidden="true">01</span>

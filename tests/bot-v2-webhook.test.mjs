@@ -49,6 +49,8 @@ const DE = V2_DICTS.de;
 
 let tg = [];
 let createCalls = 0;
+/** What the fake /api/vpn/create says about the new device's UUID (lib/uuid-pool.ts). */
+let createInstant;
 let editAnswer = null;
 let msgSeq = 1000;
 let lastSentId = 0;
@@ -60,6 +62,7 @@ beforeEach(async () => {
   resetBotV2Cache();
   tg = [];
   createCalls = 0;
+  createInstant = undefined;
   editAnswer = null;
   await mem.redis.sadd(BOT_V2_SET, String(USER), String(OTHER));
   globalThis.fetch = async (url, init = {}) => {
@@ -80,7 +83,7 @@ beforeEach(async () => {
       const subToken = "c0ffee00c0ffee00c0ffee00c0ffee00";
       list.push({ uuid: "0a1b2c3d-0000-4000-8000-0000000000c3", clientEmail: "x", vlessUrl: "", createdAt: 1, deviceType, subToken });
       mem.store.set(`profiles:${userId}`, JSON.stringify(list));
-      return Response.json({ success: true, subToken });
+      return Response.json({ success: true, subToken, ...(createInstant === undefined ? {} : { instant: createInstant }) });
     }
     throw new Error(`unexpected fetch in test: ${u}`);
   };
@@ -215,6 +218,22 @@ describe("connecting a device", () => {
     // The fresh device says which locations work at once and which within minutes.
     assert.ok(edits.at(-1).body.text.includes(DE["dev.readyWhere"]));
     assert.equal(calls("sendChatAction").length, 1);
+  });
+
+  test("a device on a reserve UUID works everywhere at once: no waiting line", async () => {
+    activePlan(`tg_${USER}`);
+    createInstant = true;
+    await tap(USER, "k:new:tv");
+    const text = last("editMessageText").text;
+    assert.ok(text.includes("c0ffee00c0ffee00c0ffee00c0ffee00"), "the new device's screen");
+    assert.ok(!text.includes(DE["dev.readyWhere"]));
+  });
+
+  test("a fresh UUID (the reserve was empty) keeps the line", async () => {
+    activePlan(`tg_${USER}`);
+    createInstant = false;
+    await tap(USER, "k:new:tv");
+    assert.ok(last("editMessageText").text.includes(DE["dev.readyWhere"]));
   });
 
   test("all slots used: an extra slot is offered, nothing is created", async () => {

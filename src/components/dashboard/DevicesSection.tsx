@@ -32,6 +32,8 @@ export interface DevicesSectionProps {
   creating: boolean;
   pendingDevice: DeviceId | null;
   lastCreatedDevice: string | null;
+  /** The device just created is on every server already (a reserve UUID). */
+  lastCreatedInstant: boolean;
   /** The setup tile may be the view's gold action (no devices, hero has none). */
   goldSetup: boolean;
   resetDoneId: string | null;
@@ -125,6 +127,7 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
                 <SetupSteps
                   t={t}
                   device={setupDevice}
+                  instant={p.lastCreatedInstant}
                   subUrl={setupUrl}
                   happUrl={p.happUrlOf(setupProfile)}
                   copied={p.copiedId === setupProfile.uuid}

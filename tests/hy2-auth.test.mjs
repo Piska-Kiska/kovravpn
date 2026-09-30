@@ -8,28 +8,52 @@
 //   • only a device holding a running slot is let in;
 //   • unknown, malformed and stale-key UUIDs are refused, and a malformed
 //     password costs no storage read;
-//   • the list is read once a minute per instance, never per connect;
+//   • the list is read once a minute per instance, never per connect; a
+//     UUID the list does not know re-reads it at once (at most one such read
+//     per UNKNOWN_REREAD_EVERY_MS), so a device created a moment ago, which
+//     /api/vpn/create may have promised works everywhere, is let in at once;
 //   • when storage fails OR HANGS the last good list answers for a few
 //     minutes from when it was read, then every connect is refused (fail
 //     closed); a hung read costs a connect at most READ_TIMEOUT_MS, and after
 //     a failure no read is tried for RETRY_AFTER_FAILURE_MS;
 //   • the wire contract Hysteria2 expects stays: always 200, {ok, id}.
+//   • the reserve of UUIDs the PRO nodes preload (lib/uuid-pool.ts) never
+//     opens Hysteria2: those UUIDs are dated ahead in the nodes' list but
+//     belong to no device, and Hysteria2 reads the devices alone, so it
+//     neither runs the reserve's script nor fails when the reserve does.
 //
-// UUIDs and ids are made up.
+// UUIDs, ids and the node token are made up.
 
 import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
+process.env.KOVRA_NODE_TOKEN = ["node", "token", "for", "hy2", "tests"].join("-");
+delete process.env.KOVRA_NODE_MIN_ACTIVE;
+delete process.env.KOVRA_UUID_POOL_SIZE;
+
 import { setRedisModule } from "./support/load-ts.mjs";
 setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
 const mem = await import("./support/memory-redis.mjs");
+const { registerUuidPoolScripts } = await import("./support/uuid-pool-twin.mjs");
+const poolBody = await import("../src/lib/uuid-pool-body.ts");
+registerUuidPoolScripts(mem, poolBody);
+const { POOL_READY_KEY, POOL_TAKEN_KEY, POOL_REFRESH_MS } = poolBody;
 
 const { NextRequest } = await import("next/server");
-const { decideHy2, indexPairs, createHy2Access, STALE_IF_ERROR_MS, READ_TIMEOUT_MS, RETRY_AFTER_FAILURE_MS } = await import(
-  "../src/lib/hy2-access.ts"
-);
+const {
+  decideHy2,
+  indexPairs,
+  createHy2Access,
+  STALE_IF_ERROR_MS,
+  READ_TIMEOUT_MS,
+  RETRY_AFTER_FAILURE_MS,
+  UNKNOWN_REREAD_AFTER_MS,
+  UNKNOWN_REREAD_EVERY_MS,
+} = await import("../src/lib/hy2-access.ts");
 const { REBUILD_EVERY_MS } = await import("../src/lib/node-uuids.ts");
+const { resetUuidPoolInstance } = await import("../src/lib/uuid-pool.ts");
 const { POST } = await import("../src/app/api/hy2/auth/route.ts");
+const { GET: nodeUuidsGet } = await import("../src/app/api/internal/node-uuids/route.ts");
 
 const NOW = 1_790_000_000_000;
 const DAY = 86_400_000;
@@ -38,6 +62,8 @@ const B = "0a1b2c3d-0000-4000-8000-00000000000b";
 const C = "0a1b2c3d-0000-4000-8000-00000000000c";
 const D = "0a1b2c3d-0000-4000-8000-00000000000d";
 const E = "0a1b2c3d-0000-4000-8000-00000000000e";
+/** A reserve UUID: listed for the PRO nodes, held by no device. */
+const R = "0a1b2c3d-0000-4000-8000-0000000000f1";
 
 describe("the pure decision", () => {
   const byUuid = indexPairs([
@@ -130,7 +156,7 @@ describe("storage failures", () => {
 
   test("the list goes stale from when it was READ, not from when a cached copy was last handed out", async () => {
     quiet();
-    // readNodeUuidPairs hands out its copy for a minute with the time of the rebuild.
+    // readDevicePairs hands out its copy for a minute with the time of the rebuild.
     let readAt = NOW;
     const access = createHy2Access({
       async readPairs() {
@@ -150,6 +176,111 @@ describe("storage failures", () => {
     readAt = NOW + STALE_IF_ERROR_MS + 2 * RETRY_AFTER_FAILURE_MS;
     failing = false;
     assert.deepEqual(await access(A, readAt), { ok: true, id: A }, "a new read lets everyone back");
+  });
+});
+
+describe("a device created since the list was read", () => {
+  /**
+   * A readPairs like readDevicePairs: a cached copy (read at `copyAt`) unless
+   * forced; a forced read sees `devices` now. `forced` records each forced read.
+   */
+  const storage = (devices) => {
+    const st = { devices, copy: [...devices], copyAt: NOW, forced: [], failing: false };
+    st.deps = {
+      async readPairs(now, opts) {
+        if (opts?.force) {
+          st.forced.push(now);
+          if (st.failing) throw new Error("storage down");
+          st.copy = [...st.devices];
+          st.copyAt = now;
+        }
+        return { pairs: st.copy, malformed: 0, at: st.copyAt };
+      },
+    };
+    return st;
+  };
+  const slot = (uuid) => ({ uuid, until: NOW + DAY });
+  const made = (n) => `0a1b2c3d-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
+  afterEach(() => mock.restoreAll());
+
+  test("an unknown UUID re-reads the devices once the list is a few seconds old: the new device gets in", async () => {
+    const st = storage([slot(A)]);
+    const access = createHy2Access(st.deps);
+    assert.deepEqual(await access(A, NOW), { ok: true, id: A });
+    st.devices.push(slot(C)); // /api/vpn/create wrote C's record
+    assert.deepEqual(
+      await access(C, NOW + UNKNOWN_REREAD_AFTER_MS - 1),
+      { ok: false, reason: "unknown" },
+      "a list read a moment ago is not read again",
+    );
+    assert.deepEqual(st.forced, []);
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS), { ok: true, id: C });
+    assert.deepEqual(st.forced, [NOW + UNKNOWN_REREAD_AFTER_MS]);
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS + 1), { ok: true, id: C }, "and it stays in");
+  });
+
+  test("known, paused or expired devices and malformed passwords never force a read", async () => {
+    const st = storage([slot(A), { uuid: B, until: NOW - DAY }]);
+    const access = createHy2Access(st.deps);
+    const t = NOW + 30_000;
+    assert.deepEqual(await access(A, t), { ok: true, id: A });
+    assert.deepEqual(await access(B, t), { ok: false, reason: "inactive" });
+    assert.deepEqual(await access("not-a-uuid", t), { ok: false, reason: "malformed" });
+    assert.deepEqual(st.forced, []);
+  });
+
+  test("a flood of made-up UUIDs forces at most one read per UNKNOWN_REREAD_EVERY_MS", async () => {
+    const st = storage([slot(A)]);
+    const access = createHy2Access(st.deps);
+    await access(A, NOW);
+    const start = NOW + UNKNOWN_REREAD_AFTER_MS;
+    const span = 3 * UNKNOWN_REREAD_EVERY_MS;
+    let n = 0;
+    for (let t = start; t <= start + span; t += 100) {
+      assert.deepEqual(await access(made(0x1000 + n), t), { ok: false, reason: "unknown" });
+      n += 1;
+    }
+    const wave = await Promise.all(Array.from({ length: 50 }, (_, i) => access(made(0x9000 + i), start + span + 1)));
+    assert.ok(wave.every((v) => v.ok === false));
+    assert.equal(st.forced.length, span / UNKNOWN_REREAD_EVERY_MS + 1, `${n + 50} unknown connects`);
+  });
+
+  test("a forced read that fails keeps the answer and pauses reads like any failure", async () => {
+    mock.method(console, "error", () => {});
+    const st = storage([slot(A)]);
+    let reads = 0;
+    const counting = {
+      readPairs(now, opts) {
+        reads += 1;
+        return st.deps.readPairs(now, opts);
+      },
+    };
+    const access = createHy2Access(counting);
+    await access(A, NOW);
+    st.failing = true;
+    st.devices.push(slot(C));
+    const t = NOW + UNKNOWN_REREAD_AFTER_MS;
+    assert.deepEqual(await access(C, t), { ok: false, reason: "unknown" });
+    reads = 0;
+    assert.deepEqual(await access(A, t + 1), { ok: true, id: A }, "the list still answers");
+    assert.deepEqual(await access(C, t + UNKNOWN_REREAD_EVERY_MS), { ok: false, reason: "unknown" });
+    assert.equal(reads, 0, "no read at all inside the pause");
+    st.failing = false;
+    assert.deepEqual(await access(C, t + RETRY_AFTER_FAILURE_MS), { ok: true, id: C }, "after the pause it tries again");
+  });
+
+  test("a forced read that hangs costs the connect one timeout, then the list answers", async () => {
+    mock.method(console, "error", () => {});
+    const st = storage([slot(A)]);
+    const access = createHy2Access({
+      readTimeoutMs: 20,
+      readPairs: (now, opts) => (opts?.force ? new Promise(() => {}) : st.deps.readPairs(now, opts)),
+    });
+    await access(A, NOW);
+    const started = performance.now();
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS), { ok: false, reason: "unknown" });
+    assert.ok(performance.now() - started < 500);
+    assert.deepEqual(await access(A, NOW + UNKNOWN_REREAD_AFTER_MS + 1), { ok: true, id: A });
   });
 });
 
@@ -315,5 +446,103 @@ describe("POST /api/hy2/auth", () => {
     assert.deepEqual(await connect(D), { ok: false });
     mock.timers.tick(STALE_IF_ERROR_MS);
     assert.deepEqual(await connect(A), { ok: false });
+  });
+
+  test("a storage error is logged without the command Upstash quotes: its keys carry e-mail ids", async () => {
+    const lines = [];
+    mock.method(console, "error", (...args) => lines.push(args.map(String).join(" ")));
+    // @upstash/redis builds its error text as `${error}, command was: ${JSON.stringify(body)}`.
+    const realMget = mem.redis.mget;
+    mem.redis.mget = async (...keys) => {
+      throw Object.assign(new Error(`ERR max requests limit exceeded, command was: ${JSON.stringify(["mget", ...keys])}`), {
+        name: "UpstashError",
+      });
+    };
+    try {
+      assert.deepEqual(await connect(A), { ok: false });
+    } finally {
+      mem.redis.mget = realMget;
+    }
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /max requests limit exceeded/, "the reason stays");
+    assert.doesNotMatch(lines[0], /example\.test|profiles:|command was/);
+  });
+
+  describe("the UUID reserve of the PRO nodes", () => {
+    /** GET /api/internal/node-uuids as an agent asks it: `uuid -> date` of every line. */
+    const nodeLines = async () => {
+      const res = await nodeUuidsGet(
+        new NextRequest("https://kovra.test/api/internal/node-uuids?node=pl", {
+          headers: { authorization: `Bearer ${process.env.KOVRA_NODE_TOKEN}` },
+        }),
+      );
+      if (res.status !== 200) return { status: res.status, lines: new Map() };
+      const lines = new Map(
+        (await res.text())
+          .trim()
+          .split("\n")
+          .map((line) => line.split(" "))
+          .map(([id, until]) => [id, Number(until)]),
+      );
+      return { status: res.status, lines };
+    };
+
+    test("a reserve UUID the nodes list ahead is refused; the devices of the same list get in", async () => {
+      mem.zsets.set(POOL_READY_KEY, new Map([[R, Date.now() - DAY]]));
+      const { status, lines } = await nodeLines();
+      assert.equal(status, 200);
+      assert.ok(lines.get(R) > Date.now(), "the nodes' list carries it, dated ahead");
+      assert.ok(lines.get(A) > Date.now());
+
+      const evals = mem.calls.get("eval") ?? 0;
+      const scans = mem.calls.get("scan") ?? 0;
+      assert.deepEqual(await connect(R), { ok: false });
+      assert.deepEqual(await connect(R.toUpperCase()), { ok: false });
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.deepEqual(await connect(E), { ok: true, id: E });
+      assert.equal(mem.calls.get("eval") ?? 0, evals, "Hysteria2 never runs the reserve's script");
+      assert.equal(mem.calls.get("scan") ?? 0, scans, "it reuses the device read the node build just made");
+
+      // Later, with the device copy and the view of the reserve both old:
+      // Hysteria2 reads the devices again, and still never the reserve.
+      mock.timers.tick(Math.max(POOL_REFRESH_MS, REBUILD_EVERY_MS));
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.equal(mem.calls.get("scan") ?? 0, scans + 1, "its own device read");
+      assert.equal(mem.calls.get("eval") ?? 0, evals, "no reserve script on its own read either");
+    });
+
+    test("a UUID taken for a device is refused until the device record holds it with a running slot", async () => {
+      // The take happened, the record is not written yet: the nodes list it ahead.
+      mem.zsets.set(POOL_TAKEN_KEY, new Map([[R, Date.now()]]));
+      const { lines } = await nodeLines();
+      assert.ok(lines.get(R) > Date.now(), "listed ahead while in flight");
+      assert.deepEqual(await connect(R), { ok: false });
+
+      // /api/vpn/create writes the record: R is the third device on a 3-slot plan.
+      mem.store.set(
+        "profiles:tg_1",
+        JSON.stringify([{ uuid: A, createdAt: 1 }, { uuid: B, createdAt: 2 }, { uuid: R, createdAt: 3 }]),
+      );
+      mock.timers.tick(REBUILD_EVERY_MS);
+      assert.deepEqual(await connect(R), { ok: true, id: R }, "the device record decides, not the reserve");
+    });
+
+    test("the reserve unreadable for good: the nodes get 503, Hysteria2 still answers from the devices", async () => {
+      mock.method(console, "error", () => {});
+      resetUuidPoolInstance();
+      mem.zsets.set(POOL_READY_KEY, new Map([[R, Date.now() - DAY]]));
+      // Every reserve call keeps failing (a one-off fault would let a later
+      // reserve read succeed and hide a Hysteria2 that depends on it).
+      mem.failNext("eval", { times: 1_000 });
+      mem.failNext("zrange", { times: 1_000 });
+      const { status } = await nodeLines();
+      assert.equal(status, 503, "no view of the reserve: the nodes keep their list");
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.deepEqual(await connect(R), { ok: false });
+      assert.deepEqual(await connect(C), { ok: false });
+      mock.timers.tick(STALE_IF_ERROR_MS + REBUILD_EVERY_MS);
+      assert.deepEqual(await connect(A), { ok: true, id: A }, "fresh device reads, however long the reserve is down");
+      assert.equal((await nodeLines()).status, 503);
+    });
   });
 });
