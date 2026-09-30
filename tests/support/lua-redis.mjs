@@ -3,8 +3,11 @@
 // Runs a Redis Lua script in the local `lua` interpreter against a small
 // in-process store, so a test can check the real script and not only its JS
 // twin. Shims stand in for what Redis provides: `redis.call` (GET, SET, DEL,
-// INCRBY, DECRBY, with GET of a missing key giving false, as in Redis) and
-// `cjson` (decode / encode, numbers encoded with %.14g like cjson's default).
+// INCRBY, DECRBY, with GET of a missing key giving false, as in Redis; and on
+// sorted sets ZADD [NX], ZREM, ZCARD, ZSCORE, ZRANGE [WITHSCORES],
+// ZRANGEBYSCORE [LIMIT], ZREMRANGEBYSCORE, ordered by score then member, with
+// inclusive bounds and -inf / +inf) and `cjson` (decode / encode, numbers
+// encoded with %.14g like cjson's default).
 // The script runs under whatever Lua is installed (Redis embeds 5.1), so the
 // scripts it checks keep to what 5.1 and later share.
 //
@@ -124,11 +127,107 @@ function cjson.encode(v)
   return '{' .. table.concat(parts, ',') .. '}'
 end
 
+ZSETS = {}
+
+local function score_bound(x)
+  x = tostring(x)
+  if x == '-inf' then return -math.huge end
+  if x == '+inf' or x == 'inf' then return math.huge end
+  local n = tonumber(x)
+  if n == nil then error('ERR min or max is not a float', 0) end
+  return n
+end
+
+-- Redis prints whole scores without a fraction.
+local function score_text(s)
+  if s == math.floor(s) and math.abs(s) < 2^53 then return string.format('%d', s) end
+  return string.format('%.17g', s)
+end
+
+local function zsorted(key)
+  local out = {}
+  for m, sc in pairs(ZSETS[key] or {}) do out[#out + 1] = { m, sc } end
+  table.sort(out, function(x, y)
+    if x[2] ~= y[2] then return x[2] < y[2] end
+    return x[1] < y[1]
+  end)
+  return out
+end
+
+local function zslice(list, start, stop)
+  local n = #list
+  start, stop = tonumber(start), tonumber(stop)
+  if start < 0 then start = n + start end
+  if stop < 0 then stop = n + stop end
+  if start < 0 then start = 0 end
+  if stop > n - 1 then stop = n - 1 end
+  local out = {}
+  for i = start, stop do out[#out + 1] = list[i + 1] end
+  return out
+end
+
+local function zrem(key, member)
+  local set = ZSETS[key]
+  if set == nil or set[member] == nil then return 0 end
+  set[member] = nil
+  if next(set) == nil then ZSETS[key] = nil end
+  return 1
+end
+
 redis = {}
 function redis.call(cmd, ...)
   local a = { ... }
   cmd = string.upper(cmd)
-  if cmd == 'GET' then
+  if cmd == 'ZADD' then
+    local i, nx = 2, false
+    if string.upper(tostring(a[2])) == 'NX' then nx, i = true, 3 end
+    local set = ZSETS[a[1]] or {}
+    ZSETS[a[1]] = set
+    local m, sc = tostring(a[i + 1]), score_bound(a[i])
+    local had = set[m] ~= nil
+    if not (had and nx) then set[m] = sc end
+    return had and 0 or 1
+  elseif cmd == 'ZREM' then
+    local n = 0
+    for i = 2, #a do n = n + zrem(a[1], tostring(a[i])) end
+    return n
+  elseif cmd == 'ZCARD' then
+    local n = 0
+    for _ in pairs(ZSETS[a[1]] or {}) do n = n + 1 end
+    return n
+  elseif cmd == 'ZSCORE' then
+    local sc = (ZSETS[a[1]] or {})[tostring(a[2])]
+    if sc == nil then return false end
+    return score_text(sc)
+  elseif cmd == 'ZRANGE' then
+    if a[4] ~= nil and string.upper(tostring(a[4])) ~= 'WITHSCORES' then error('shim: ZRANGE option ' .. tostring(a[4]), 0) end
+    local out = {}
+    for _, e in ipairs(zslice(zsorted(a[1]), a[2], a[3])) do
+      out[#out + 1] = e[1]
+      if a[4] ~= nil then out[#out + 1] = score_text(e[2]) end
+    end
+    return out
+  elseif cmd == 'ZRANGEBYSCORE' or cmd == 'ZREMRANGEBYSCORE' then
+    local lo, hi = score_bound(a[2]), score_bound(a[3])
+    local offset, count = 0, -1
+    if a[4] ~= nil then
+      if cmd ~= 'ZRANGEBYSCORE' or string.upper(tostring(a[4])) ~= 'LIMIT' then error('shim: option ' .. tostring(a[4]), 0) end
+      offset, count = tonumber(a[5]), tonumber(a[6])
+    end
+    local hit = {}
+    for _, e in ipairs(zsorted(a[1])) do
+      if e[2] >= lo and e[2] <= hi then hit[#hit + 1] = e[1] end
+    end
+    local out = {}
+    for i = offset + 1, #hit do
+      if count >= 0 and #out >= count then break end
+      out[#out + 1] = hit[i]
+    end
+    if cmd == 'ZRANGEBYSCORE' then return out end
+    local n = 0
+    for _, m in ipairs(out) do n = n + zrem(a[1], m) end
+    return n
+  elseif cmd == 'GET' then
     local v = STORE[a[1]]
     if v == nil then return false end
     return v
@@ -158,7 +257,13 @@ function encode_out(ok, reply)
   for i = 1, #reply do items[i] = encode_string(tostring(reply[i])) end
   local kv = {}
   for k, v in pairs(STORE) do kv[#kv + 1] = encode_string(k) .. ':' .. encode_string(v) end
-  return '{"reply":[' .. table.concat(items, ',') .. '],"store":{' .. table.concat(kv, ',') .. '}}'
+  local zs = {}
+  for k, set in pairs(ZSETS) do
+    local ms = {}
+    for m, sc in pairs(set) do ms[#ms + 1] = encode_string(m) .. ':' .. score_text(sc) end
+    zs[#zs + 1] = encode_string(k) .. ':{' .. table.concat(ms, ',') .. '}'
+  end
+  return '{"reply":[' .. table.concat(items, ',') .. '],"store":{' .. table.concat(kv, ',') .. '},"zsets":{' .. table.concat(zs, ',') .. '}}'
 end
 `;
 
@@ -172,14 +277,19 @@ function luaString(s) {
 }
 
 /**
- * Run `source` with KEYS / ARGV against `store` (a Map of key -> raw string).
- * Returns { reply, store } where reply is the script's array of strings and
- * store the Map after the run. A script error throws.
+ * Run `source` with KEYS / ARGV against `store` (a Map of key -> raw string)
+ * and `zsets` (a Map of key -> Map of member -> score). Returns
+ * { reply, store, zsets } where reply is the script's array of strings and
+ * store / zsets the Maps after the run. A script error throws.
  */
-export function runLua(source, { store, keys, args }) {
+export function runLua(source, { store, keys, args, zsets = new Map() }) {
+  const zsetTable = [...zsets]
+    .map(([k, set]) => `[${luaString(k)}] = {${[...set].map(([m, sc]) => `[${luaString(m)}] = ${Number(sc)}`).join(", ")}}`)
+    .join(", ");
   const chunk = [
     SHIM,
     `STORE = {${[...store].map(([k, v]) => `[${luaString(k)}] = ${luaString(v)}`).join(", ")}}`,
+    `ZSETS = {${zsetTable}}`,
     `KEYS = {${keys.map(luaString).join(", ")}}`,
     `ARGV = {${args.map(luaString).join(", ")}}`,
     `local script = assert(load(${luaString(source)}, "=script"))`,
@@ -190,5 +300,9 @@ export function runLua(source, { store, keys, args }) {
   if (r.status !== 0) throw new Error(`lua failed: ${r.stderr}`);
   const out = JSON.parse(r.stdout);
   if (typeof out.error === "string") throw new Error(`lua script error: ${out.error}`);
-  return { reply: out.reply, store: new Map(Object.entries(out.store)) };
+  return {
+    reply: out.reply,
+    store: new Map(Object.entries(out.store)),
+    zsets: new Map(Object.entries(out.zsets).map(([k, set]) => [k, new Map(Object.entries(set))])),
+  };
 }

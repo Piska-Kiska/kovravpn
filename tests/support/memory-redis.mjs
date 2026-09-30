@@ -2,8 +2,8 @@
 //
 // An in-memory stand-in for the @upstash/redis calls the money and auth paths
 // make: get, mget, set (nx / xx / ex / px), del, incr, incrby, expire, ttl,
-// scan (MATCH with `*` globs, all keys in one page), and the set commands
-// sadd / srem / smembers / sismember / smismember. Anything
+// the set commands sadd / srem / smembers / sismember / smismember, zrem on
+// sorted sets, and scan (MATCH with `*` globs, all keys in one page). Anything
 // else throws, like the default stub in load-ts.mjs, so a test cannot
 // silently depend on a call this file fakes wrongly.
 //
@@ -24,9 +24,10 @@
 //
 // Scripts: Node cannot run Lua, so `eval` runs a JS twin registered for the
 // exact script source with `registerScript(source, twin)`. The twin gets raw
-// string access to the store and runs without awaiting, so nothing runs in
-// between, as with EVAL; its reply goes through the Upstash client's JSON
-// parsing. tests/link-scripts-lua.test.mjs checks the twins against the real Lua.
+// string access to the store (and the sorted-set primitives of zsetOps) and
+// runs without awaiting, so nothing runs in between, as with EVAL; its reply
+// goes through the Upstash client's JSON parsing. tests/link-scripts-lua.test.mjs
+// and tests/uuid-pool-lua.test.mjs check the twins against the real Lua.
 //
 // Interleaving: `beforeNext(op, { key, run })` awaits `run()` right before the
 // next matching top-level call, so a test can slip another operation into the
@@ -47,6 +48,8 @@ export const ttls = new Map();
 export const sets = new Map();
 /** key -> list of strings, head first (LPUSH / LTRIM / LRANGE). */
 export const lists = new Map();
+/** key -> Map of member -> score (sorted sets). */
+export const zsets = new Map();
 /** op -> number of calls, for tests that count round trips. */
 export const calls = new Map();
 
@@ -58,6 +61,7 @@ export function reset() {
   ttls.clear();
   sets.clear();
   lists.clear();
+  zsets.clear();
   calls.clear();
   faults.length = 0;
   hooks.length = 0;
@@ -131,9 +135,96 @@ export function elapse(seconds) {
     if (at > clock) continue;
     store.delete(key);
     sets.delete(key);
+    zsets.delete(key);
     ttls.delete(key);
     deadlines.delete(key);
   }
+}
+
+/** A score bound as Redis takes it: "-inf", "+inf" or a number (inclusive only). */
+function bound(raw) {
+  const text = String(raw);
+  if (text === "-inf") return -Infinity;
+  if (text === "+inf" || text === "inf") return Infinity;
+  const n = Number(text);
+  if (text.trim() === "" || Number.isNaN(n)) throw new Error(`memory-redis: bad score bound ${text}`);
+  return n;
+}
+
+/** A score as Redis prints it in a reply (the scores here are whole ms). */
+function scoreText(score) {
+  return String(score);
+}
+
+/**
+ * The sorted-set commands a script can call, over `zsets` (key -> Map of
+ * member -> score), with Redis's order: score, then member. Synchronous, so
+ * a twin that uses them stays as atomic as EVAL. Exported for tests that run
+ * a twin against their own map.
+ */
+export function zsetOps(zsets) {
+  const sorted = (key) =>
+    [...(zsets.get(key) ?? new Map())].sort(([ma, sa], [mb, sb]) => sa - sb || (ma < mb ? -1 : ma > mb ? 1 : 0));
+  const slice = (list, start, stop) => {
+    const n = list.length;
+    let from = Number(start) < 0 ? n + Number(start) : Number(start);
+    let to = Number(stop) < 0 ? n + Number(stop) : Number(stop);
+    from = Math.max(0, from);
+    to = Math.min(n - 1, to);
+    return from > to ? [] : list.slice(from, to + 1);
+  };
+  const ops = {
+    zadd(key, score, member, { nx = false } = {}) {
+      const set = zsets.get(key) ?? new Map();
+      const m = String(member);
+      const had = set.has(m);
+      if (!(had && nx)) set.set(m, bound(score));
+      zsets.set(key, set);
+      return had ? 0 : 1;
+    },
+    zrem(key, ...members) {
+      const set = zsets.get(key);
+      if (!set) return 0;
+      let removed = 0;
+      for (const m of members.flat()) if (set.delete(String(m))) removed += 1;
+      if (set.size === 0) zsets.delete(key);
+      return removed;
+    },
+    zcard(key) {
+      return zsets.get(key)?.size ?? 0;
+    },
+    zscore(key, member) {
+      const set = zsets.get(key);
+      return set?.has(String(member)) ? scoreText(set.get(String(member))) : null;
+    },
+    /** Members by rank; negative ranks count from the end. */
+    zrange(key, start, stop) {
+      return slice(sorted(key), start, stop).map(([m]) => m);
+    },
+    /** [member, score, member, score, ...] by rank, scores as Redis prints them. */
+    zrangeWithScores(key, start, stop) {
+      return slice(sorted(key), start, stop).flatMap(([m, s]) => [m, scoreText(s)]);
+    },
+    zrangebyscore(key, min, max, offset = 0, count = -1) {
+      const lo = bound(min);
+      const hi = bound(max);
+      const hit = sorted(key)
+        .filter(([, s]) => s >= lo && s <= hi)
+        .map(([m]) => m);
+      const rest = hit.slice(Number(offset));
+      return Number(count) < 0 ? rest : rest.slice(0, Number(count));
+    },
+    zremrangebyscore(key, min, max) {
+      const drop = ops.zrangebyscore(key, min, max);
+      return ops.zrem(key, ...drop);
+    },
+  };
+  return ops;
+}
+
+/** `*` globs of SCAN MATCH as a RegExp (no `?`, `[...]` or escapes: none are used). */
+function globRegExp(pattern) {
+  return new RegExp(`^${String(pattern).split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
 }
 
 /** What the Upstash client does to a reply: JSON-parse what parses back unchanged. */
@@ -191,6 +282,7 @@ const impl = {
         store.set(key, String(next));
         return next;
       },
+      ...zsetOps(zsets),
     };
     return upstashParse(twin(api, keys.map(String), args.map(String)));
   },
@@ -218,6 +310,7 @@ const impl = {
     for (const key of keys.flat()) {
       if (store.delete(key)) removed += 1;
       if (sets.delete(key)) removed += 1;
+      if (zsets.delete(key)) removed += 1;
       ttls.delete(key);
       deadlines.delete(key);
     }
@@ -278,6 +371,10 @@ const impl = {
     const set = sets.get(key);
     return members.map((m) => (set?.has(String(m)) ? 1 : 0));
   },
+  async zrem(key, ...members) {
+    maybeFail("zrem", key);
+    return zsetOps(zsets).zrem(key, ...members);
+  },
   async lpush(key, ...values) {
     maybeFail("lpush", key);
     const list = lists.get(key) ?? [];
@@ -302,8 +399,8 @@ const impl = {
     const match = typeof opts.match === "string" ? opts.match : "*";
     maybeFail("scan", match);
     if (String(cursor) !== "0") throw new Error(`memory-redis: scan answers in one page, cursor ${cursor} is not one it gave`);
-    const re = new RegExp(`^${match.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
-    const keys = new Set([...store.keys(), ...sets.keys(), ...lists.keys()]);
+    const re = globRegExp(match);
+    const keys = new Set([...store.keys(), ...sets.keys(), ...lists.keys(), ...zsets.keys()]);
     return ["0", [...keys].filter((k) => re.test(k)).sort()];
   },
   multi() {
