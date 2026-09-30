@@ -2,7 +2,7 @@
 //
 // Admin-only broadcast endpoint.
 //
-// Auth: X-Admin-Key header must match env ADMIN_API_KEY.
+// Auth: X-Admin-Key header must match env ADMIN_API_KEY (constant time).
 // Limit: synchronous send. Vercel function timeout caps how many users we can
 // reach in one call:
 //   - Hobby tier:  ~10s  -> ~250 users per call (at 25 msg/sec)
@@ -22,19 +22,22 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-  BroadcastTarget,
+  type BroadcastTarget,
   broadcastToUsers,
   getAllTelegramTargets,
   resolveUserIds,
 } from "@/lib/broadcast";
+import { checkAdminRequest } from "@/lib/admin-key";
 
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";
+/** Constant-time admin key check (lib/admin-key.ts); unset key = 401, as before. */
+function unauthorized(req: NextRequest): NextResponse | null {
+  if (checkAdminRequest(req) === "ok") return null;
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
 export async function GET(req: NextRequest) {
-  const key = req.headers.get("x-admin-key");
-  if (!ADMIN_API_KEY || key !== ADMIN_API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const no = unauthorized(req);
+  if (no) return no;
 
   const targets = await getAllTelegramTargets();
   return NextResponse.json({
@@ -44,10 +47,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const key = req.headers.get("x-admin-key");
-  if (!ADMIN_API_KEY || key !== ADMIN_API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const no = unauthorized(req);
+  if (no) return no;
 
   let body: {
     message?: string;

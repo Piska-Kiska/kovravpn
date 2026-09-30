@@ -63,7 +63,8 @@ import {
 } from "@/lib/bot-v2/controller";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+// No fallback to the bot token (KS-7): lib/auth.ts accepts INTERNAL_API_KEY only.
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
 const PLAN_NAMES: Record<string, string> = {

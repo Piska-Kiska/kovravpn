@@ -128,7 +128,8 @@ function internalSiteUrl(): string {
 }
 
 async function createDeviceViaApi(userId: string, device: DeviceKind): Promise<CreateDeviceResult> {
-  const key = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+  // No fallback to the bot token (KS-7): lib/auth.ts accepts INTERNAL_API_KEY only.
+  const key = process.env.INTERNAL_API_KEY || "";
   try {
     const res = await fetch(`${internalSiteUrl()}/api/vpn/create`, {
       method: "POST",

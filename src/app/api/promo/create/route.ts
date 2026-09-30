@@ -1,13 +1,14 @@
 // src/app/api/promo/create/route.ts
 //
-// Create a promo code (admin). Auth: X-Internal-Key = the bot token, compared
-// in constant time. Promo amounts are US DOLLARS credited to the wallet
+// Create a promo code (admin). Auth: X-Admin-Key = ADMIN_API_KEY, compared in
+// constant time; 503 while it is unset (lib/admin-key.ts; it used to be the
+// bot token, KM-14). Promo amounts are US DOLLARS credited to the wallet
 // (balance_usd), from $0.01 to PROMO_MAX_USD; lib/promo.ts enforces the same
 // limit when the code is created and when it is redeemed.
 
 import { NextRequest, NextResponse } from "next/server";
 import { PROMO_MAX_USD, createPromo, isValidPromoAmount } from "@/lib/promo";
-import { safeEqual } from "@/lib/safe-compare";
+import { checkAdminRequest } from "@/lib/admin-key";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
@@ -17,9 +18,11 @@ function intOrZero(v: unknown, max: number): number | null {
 }
 
 export async function POST(req: NextRequest) {
-  const adminToken = process.env.TELEGRAM_BOT_TOKEN || "";
-  const key = req.headers.get("x-internal-key");
-  if (!adminToken || !key || !safeEqual(key, adminToken)) {
+  const auth = checkAdminRequest(req);
+  if (auth === "disabled") {
+    return NextResponse.json({ error: "Admin API is disabled" }, { status: 503, headers: NO_STORE });
+  }
+  if (auth !== "ok") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: NO_STORE });
   }
 

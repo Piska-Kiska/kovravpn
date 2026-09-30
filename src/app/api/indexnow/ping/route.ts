@@ -18,8 +18,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pingIndexNow } from "@/lib/indexnow";
+import { safeEqual } from "@/lib/safe-compare";
 
-const INTERNAL_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
+// Its own secret only, no fallback to the bot token (KS-7); unset = closed.
+const INTERNAL_KEY = process.env.INTERNAL_API_KEY || "";
 
 // Public pages worth notifying search engines about. Keep in sync with
 // src/app/sitemap.ts — all indexable URLs live here.
@@ -34,7 +36,7 @@ type Body = { urls?: unknown };
 
 export async function POST(req: NextRequest) {
   const key = req.headers.get("x-internal-key");
-  if (!INTERNAL_KEY || key !== INTERNAL_KEY) {
+  if (!INTERNAL_KEY || !key || !safeEqual(key, INTERNAL_KEY)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
