@@ -421,16 +421,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: "no purchase" });
   }
 
+  // The account the order's id belongs to now: a Telegram account linked to
+  // an e-mail one after the order was made moved there, so the plan lands
+  // where it is seen (as top-ups already do).
+  let grantee: string;
+  try {
+    grantee = await resolveUserId(userId);
+  } catch (err) {
+    console.error("[lava-webhook] owner lookup failed, requesting retry:", err);
+    return retry("owner_lookup_failed");
+  }
+
   // ── Ступень 1: выдача (граница, после которой повтор удваивал бы) ─────────
   let summaryLine = "";
   try {
     if (parsed.type === "plan") {
       const plan = resolvePlan(parsed.kind, parsed.term);
       if (!plan) return NextResponse.json({ ok: true, ignored: "bad plan" });
-      await applyPlanPurchase(userId, plan);
+      await applyPlanPurchase(grantee, plan);
       summaryLine = `${parsed.kind === "plan3" ? "3 devices" : "1 device"} · ${parsed.term} mo`;
     } else {
-      await applyDeviceAddon(userId);
+      await applyDeviceAddon(grantee);
       summaryLine = "+1 device · 30 days";
     }
   } catch (err) {
@@ -440,17 +451,17 @@ export async function POST(req: NextRequest) {
 
   // ── Ступень 2: синхронизация и уведомления (повтору не подлежит) ──────────
   try {
-    await syncAllExpiry(userId);
-    await markTopup(userId);
+    await syncAllExpiry(grantee);
+    await markTopup(grantee);
   } catch (err) {
     console.error("[lava-webhook] post-grant sync failed:", err);
     await sendTelegram(
       ADMIN_TG_ID,
-      `⚠️ <b>lava.top: выдано, но синхронизация не прошла</b>\nuser <code>${esc(userId)}</code>, contract <code>${esc(contractId)}</code>. Запустить syncAllExpiry вручную.`,
+      `⚠️ <b>lava.top: выдано, но синхронизация не прошла</b>\nuser <code>${esc(grantee)}</code>, contract <code>${esc(contractId)}</code>. Запустить syncAllExpiry вручную.`,
     );
   }
 
-  const subs = await getSubscriptions(userId).catch(() => []);
+  const subs = await getSubscriptions(grantee).catch(() => []);
   const s = summarize(subs);
   const lines = [
     `✅ <b>Payment received</b>`,
@@ -460,7 +471,7 @@ export async function POST(req: NextRequest) {
   ];
   if (s.maxExpiry > 0) lines.push(`📅 Active until: <b>${fmtDate(s.maxExpiry)}</b>`);
   await notifyUser(
-    userId,
+    grantee,
     { kind: "purchase", product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
     lines.join("\n"),
   );
@@ -473,14 +484,14 @@ export async function POST(req: NextRequest) {
       ``,
       `${summaryLine}`,
       `списано: ${paid} ${esc(currency)}` + (Number.isFinite(fee) ? ` · комиссия ${fee}` : ""),
-      `user <code>${esc(userId)}</code>`,
+      `user <code>${esc(grantee)}</code>`,
       `contract <code>${esc(contractId)}</code>`,
     ].join("\n"),
   );
 
   // ── Реферальная награда за первую оплаченную покупку ──────────────────────
   try {
-    const ref = await grantReferralReward(userId);
+    const ref = await grantReferralReward(grantee);
     if (ref.rewarded && ref.referrerId) {
       await applyReferralReward(ref.referrerId);
       await syncAllExpiry(ref.referrerId);

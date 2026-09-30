@@ -15,7 +15,7 @@
 // nothing is granted (admin gets an alert instead).
 
 import { NextRequest, NextResponse } from "next/server";
-import { markTopup } from "@/lib/accounts";
+import { markTopup, resolveUserId } from "@/lib/accounts";
 import {
   parseSubOrderId,
   resolvePlan,
@@ -195,7 +195,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: "amount mismatch" });
     }
 
-    const userId = parsed.userId;
+    // The account the order's id belongs to now: a Telegram account linked
+    // to an e-mail one after the order was made moved there (as top-ups do).
+    // A Redis error here goes to the handler below: key released, retry.
+    const userId = await resolveUserId(parsed.userId);
 
     // ─── Stage 1: persist entitlement (retry-safe boundary) ───
     let summaryLine = "";

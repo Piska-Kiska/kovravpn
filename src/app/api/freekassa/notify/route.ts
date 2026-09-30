@@ -8,7 +8,7 @@
 // неё best-effort, иначе ретрай FK выдаёт второй раз. Сумма зафиксирована при
 // createOrder и на стороне FK неизменяема, поэтому отдельная сверка суммы не нужна.
 
-import { markTopup } from '@/lib/accounts';
+import { markTopup, resolveUserId } from '@/lib/accounts';
 import {
   parseSubOrderId, resolvePlan, applyPlanPurchase, applyDeviceAddon,
   applyReferralReward, summarize, getSubscriptions,
@@ -59,7 +59,15 @@ export async function POST(req: Request) {
 
   const parsed = parseSubOrderId(orderId);
   if (!parsed) { console.warn('[fk] non-subscription order_id:', orderId); return ok('YES'); }
-  const userId = parsed.userId;
+  // The account the order's id belongs to now: a Telegram account linked to
+  // an e-mail one after the order was made moved there (as top-ups do).
+  let userId: string;
+  try {
+    userId = await resolveUserId(parsed.userId);
+  } catch (e) {
+    console.error('[fk] owner lookup failed, requesting retry', { orderId, intid }, e);
+    return ok('error', 500);
+  }
   console.log('[fk] paid', { orderId, intid, amount, curId }); // наблюдаемость: валюта/сумма
 
   // Dedup on the order id: SIGN covers MERCHANT_ORDER_ID, not intid, so a

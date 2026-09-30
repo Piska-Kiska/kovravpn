@@ -208,7 +208,10 @@ export async function POST(req: NextRequest) {
       console.warn("[crypto-webhook] non-subscription order_id ignored:", payload.order_id);
       return NextResponse.json({ ok: true, ignored: "non-subscription order_id" });
     }
-    const userId = parsed.userId;
+    // The account the order's id belongs to now: a Telegram account linked
+    // to an e-mail one after the order was made moved there (as top-ups do).
+    // A Redis error here goes to the handler below (no key held yet: retry).
+    const userId = await resolveUserId(parsed.userId);
 
     const paymentId = String(payload.payment_id);
     if (!/^[a-zA-Z0-9_\-]{1,128}$/.test(paymentId)) {

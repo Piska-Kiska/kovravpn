@@ -317,7 +317,10 @@ export async function POST(req: NextRequest) {
       console.error("[cashera-webhook] paid for unknown external_id:", extId);
       return NextResponse.json({ ok: true, ignored: "bad external_id" });
     }
-    const userId = parsed.userId;
+    // The account the order's id belongs to now: a Telegram account linked
+    // to an e-mail one after the order was made moved there (as top-ups do).
+    // A Redis error here goes to the handler below: key released, retry.
+    const userId = await resolveUserId(parsed.userId);
 
     const order = await getOrderRecord(extId);
     if (!order) {
