@@ -14,31 +14,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCryptoBotSignature, type CryptoBotWebhookUpdate } from "@/lib/cryptobot";
 import { addBalanceUsd } from "@/lib/bot-wallet";
 import { reserveDedupKey } from "@/lib/dedup";
-import { getUserRecord } from "@/lib/accounts";
-import { fetchWithTimeout } from "@/lib/fetch-timeout";
+import { noticeCents, notifyUser } from "@/lib/bot-v2/notify";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
-
-async function notifyTelegram(userId: string, message: string): Promise<void> {
-  try {
-    let chatId: string | null = null;
-    if (userId.startsWith("tg_")) chatId = userId.slice(3);
-    else {
-      const u = await getUserRecord(userId);
-      if (u?.telegramId) chatId = String(u.telegramId);
-    }
-    if (!chatId || !BOT_TOKEN) return;
-    await fetchWithTimeout(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "HTML" }),
-      timeoutMs: 5000,
-    });
-  } catch (err) {
-    console.error("[cryptobot-webhook] notify error:", err);
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,8 +65,9 @@ export async function POST(req: NextRequest) {
     if (usd <= 0) return NextResponse.json({ ok: true, ignored: "zero amount" });
 
     const newBal = await addBalanceUsd(userId, usd);
-    await notifyTelegram(
+    await notifyUser(
       userId,
+      { kind: "topup", amountCents: noticeCents(usd), balanceCents: noticeCents(newBal) },
       [`✅ <b>Balance topped up</b>`, ``, `💵 +$${usd.toFixed(2)}`, `💰 Balance: <b>$${newBal.toFixed(2)}</b>`].join("\n"),
     );
     return NextResponse.json({ ok: true, credited: usd });

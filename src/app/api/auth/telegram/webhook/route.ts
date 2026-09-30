@@ -49,12 +49,22 @@ import {
   tryHandleAdminCallback,
   tryHandleAdminText,
 } from "@/lib/admin-bot";
+import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
+import { isBotV2 } from "@/lib/bot-v2/gate";
+import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
+import {
+  handleV2Callback,
+  handleV2Command,
+  handleV2Fallback,
+  handleV2Reply,
+  handleV2Start,
+  parseCommand,
+} from "@/lib/bot-v2/controller";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://www.kovravpn.com").replace(/\/$/, "");
 const BANNER_URL = `${SITE_URL}/og-image.png`;
-const ADMIN_TG_ID = "6944217115";
 const PLAN_NAMES: Record<string, string> = {
   free: "Пробный",
   base: "Базовый",
@@ -105,6 +115,9 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
   });
 
   if (!res.ok) {
+    // The same screen again (a double tap, Back to where one already is):
+    // nothing to change. Deleting and resending here made the message jump.
+    if (await isNotModified(res)) return;
     const res2 = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageCaption`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -114,11 +127,17 @@ async function edit(chatId: number, msgId: number, text: string, kb?: InlineBtn[
       }),
     });
 
-    if (!res2.ok) {
+    if (!res2.ok && !(await isNotModified(res2))) {
       try { await tg("deleteMessage", { chat_id: chatId, message_id: msgId }); } catch {}
       await send(chatId, text, kb);
     }
   }
+}
+
+/** Telegram's "message is not modified" answer to an edit. */
+async function isNotModified(res: Response): Promise<boolean> {
+  const body = (await res.json().catch(() => null)) as { description?: unknown } | null;
+  return typeof body?.description === "string" && body.description.includes("message is not modified");
 }
 
 async function answerCb(id: string, text?: string) {
@@ -857,10 +876,10 @@ async function screenReferral(chatId: number, msgId: number) {
   ]);
 }
 
-async function handleCopyRef(chatId: number, msgId: number, code: string) {
+async function handleCopyRef(chatId: number, callbackId: string, code: string) {
   const lang = await resolveLang(await getUserId(chatId));
   await send(chatId, `${SITE_URL}/register?ref=${code}`);
-  await answerCb("", t("ref.sent", lang));
+  await answerCb(callbackId, t("ref.sent", lang));
 }
 
 // ─── Auth code handlers ──────────────────────────────
@@ -938,18 +957,34 @@ export async function POST(req: NextRequest) {
 
     if (body.callback_query) {
       const cb = body.callback_query;
+      // Buttons on inline-mode messages carry no message; the bot has none.
+      if (!cb.message?.chat?.id || typeof cb.data !== "string") {
+        if (typeof cb.id === "string") await answerCb(cb.id);
+        return NextResponse.json({ ok: true });
+      }
       const chatId: number = cb.message.chat.id;
       const msgId: number = cb.message.message_id;
       const data: string = cb.data;
 
-      await answerCb(cb.id);
+      // New interface (owner first, then the kovra:botv2:users set). It
+      // answers the callback itself, with a toast where one is needed.
+      if (!data.startsWith("adm:") && (await isBotV2(chatId))) {
+        await handleV2Callback({ chatId, messageId: msgId, callbackId: String(cb.id), data });
+        return NextResponse.json({ ok: true });
+      }
+
+      // The copy button answers with its own toast ("Link sent").
+      if (!data.startsWith("copy_ref_")) await answerCb(cb.id);
 
       if (data.startsWith("adm:")) {
         const handled = await tryHandleAdminCallback(chatId, msgId, data, send, edit);
         if (handled) return NextResponse.json({ ok: true });
       }
 
-      if (data === "menu") await screenMenu(chatId, msgId);
+      // A button of the new interface in a chat that is back on the old one
+      // (the gate was narrowed): the old menu instead of silence.
+      if (isV2CallbackData(data)) await screenMenu(chatId, msgId);
+      else if (data === "menu") await screenMenu(chatId, msgId);
       else if (data === "lang") await screenLanguage(chatId, msgId);
       else if (data.startsWith("setlang_")) await handleSetLang(chatId, msgId, data.slice(8));
       else if (data === "account") await screenAccount(chatId, msgId);
@@ -1021,7 +1056,7 @@ export async function POST(req: NextRequest) {
         const k = data.slice("buyplan_".length);
         if (k === "plan1" || k === "plan3") await screenBuyTerm(chatId, msgId, k as PlanKind);
       }
-      else if (data.startsWith("copy_ref_")) await handleCopyRef(chatId, msgId, data.slice(9));
+      else if (data.startsWith("copy_ref_")) await handleCopyRef(chatId, cb.id, data.slice(9));
       else if (data.startsWith("link_")) await handleLink(chatId, msgId, data.slice(5));
       else if (data.startsWith("del_")) await handleDel(chatId, msgId, data.slice(4));
       else if (data.startsWith("cdel_")) await handleConfirmDel(chatId, msgId, data.slice(5));
@@ -1076,9 +1111,14 @@ export async function POST(req: NextRequest) {
       if (handled) return NextResponse.json({ ok: true });
     }
 
+    // New interface for this chat? (Owner first; see lib/bot-v2/gate.ts.)
+    const v2 = await isBotV2(chatId);
+
     // /start with code
     if (text.startsWith("/start ")) {
       const param = text.replace("/start ", "").trim();
+      // Referral and payment-return links; a login code goes on below.
+      if (v2 && (await handleV2Start(chatId, param)) === "handled") return NextResponse.json({ ok: true });
       const lang = await resolveLang(await getUserId(chatId));
 
       // Referral link: /start ref_CODE
@@ -1122,8 +1162,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // /whoami | /me | /id — admin/support identity card (RU, admin-only utility)
-    if (text === "/whoami" || text === "/me" || text === "/id") {
+    // /whoami | /me | /id — admin/support identity card (RU, admin-only
+    // utility). Anyone else gets the ordinary reply to an unknown message.
+    if (isAdminChat(chatId) && (text === "/whoami" || text === "/me" || text === "/id")) {
       const uid = await resolveUserId(`tg_${chatId}`);
       const [user, account, profiles] = await Promise.all([
         getUserRecord(uid),
@@ -1156,6 +1197,17 @@ export async function POST(req: NextRequest) {
         [{ text: "📊 Открыть меню", callback_data: "menu" }],
       ]);
       return NextResponse.json({ ok: true });
+    }
+
+    if (v2) {
+      // Commands (/start, /menu, /devices, /balance, /help, /language) and
+      // the typed replies the new screens ask for (promo code, amount).
+      const command = parseCommand(text);
+      if (command) {
+        await handleV2Command(chatId, command);
+        return NextResponse.json({ ok: true });
+      }
+      if (await handleV2Reply(chatId, text)) return NextResponse.json({ ok: true });
     }
 
     // /start or /menu
@@ -1297,6 +1349,10 @@ export async function POST(req: NextRequest) {
     }
 
     // User fallback
+    if (v2) {
+      await handleV2Fallback(chatId);
+      return NextResponse.json({ ok: true });
+    }
     const lang = await resolveLang(await getUserId(chatId));
     await send(chatId, t("fallback.user", lang), mainMenuKb(lang));
     return NextResponse.json({ ok: true });
