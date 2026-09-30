@@ -1,4 +1,11 @@
 // src/app/api/vpn/create/route.ts
+//
+// The one place a device is created (bot v1 and v2, the web cabinet and the
+// Mini App all call this route). Its UUID comes from the reserve that the PRO
+// nodes load in advance (lib/uuid-pool.ts): `instant: true` in the answer
+// means every country works at once; `instant: false` (a fresh UUID, the
+// reserve was empty) means the PRO countries follow within ~3 minutes, and
+// the screens say so. tests/uuid-pool-guard.test.mjs keeps it the only way.
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAccount,
@@ -17,8 +24,8 @@ import { canCreateProfileAsync, syncAllExpiry, calcExpiryForUser } from "@/lib/b
 import { authenticateRequest } from "@/lib/auth";
 import { rateLimit, acquireLock } from "@/lib/ratelimit";
 import { redis } from "@/lib/redis";
-import { randomUUID } from "crypto";
 import { newPanelSubId } from "@/lib/panel-sub-id";
+import { releaseTakenMark, takeDeviceUuid } from "@/lib/uuid-pool";
 
 /** VLESS url из первой резолвящейся записи реестра (DE priority 0). */
 async function buildPrimaryVlessUrl(uuid: string): Promise<string> {
@@ -95,7 +102,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const uuid = randomUUID();
+      // After every check, so a refused request does not use up the reserve.
+      const { uuid, instant } = await takeDeviceUuid();
       const email = `vpn_${userId}_${Date.now()}`;
       // Random, not the e-mail: the panels serve a client's config at
       // /sub/<subId> without a login (lib/panel-sub-id.ts).
@@ -132,6 +140,9 @@ export async function POST(req: NextRequest) {
         subToken,
         panelSubId,
       });
+      // The record exists: it now decides whether the nodes list this UUID
+      // (a paused or deleted device is not listed). Never throws.
+      if (instant) await releaseTakenMark(uuid);
 
       if (profiles.length > 0) {
         await syncAllExpiry(userId);
@@ -143,6 +154,7 @@ export async function POST(req: NextRequest) {
         profileCount: profiles.length + 1,
         subToken,
         subUrl: getSubUrl(subToken, userId),
+        instant,
       });
     } finally {
       await unlock();

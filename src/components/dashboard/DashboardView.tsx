@@ -320,6 +320,9 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   const [creating, setCreating] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [lastCreatedDevice, setLastCreatedDevice] = useState<string | null>(null);
+  // The new device took a reserve UUID (lib/uuid-pool.ts): every country works
+  // at once, so the setup steps skip the "within 3 minutes" line.
+  const [lastCreatedInstant, setLastCreatedInstant] = useState(false);
   const [pendingDevice, setPendingDevice] = useState<DeviceId | null>(null);
 
   const [promoCode, setPromoCode] = useState("");
@@ -851,7 +854,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
     try {
       const r = await fetch("/api/vpn/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, deviceType: device }) });
       const d = await r.json();
-      if (d.success) { setLastCreatedDevice(device); await fetchAccount(); }
+      if (d.success) { setLastCreatedInstant(d.instant === true); setLastCreatedDevice(device); await fetchAccount(); }
       else setCreateError(errText(d.error, r.status, t.err_generic));
     } catch { setCreateError(t.err_conn); } finally { setCreating(false); }
   };
@@ -1091,6 +1094,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
           creating={creating}
           pendingDevice={pendingDevice}
           lastCreatedDevice={lastCreatedDevice}
+          lastCreatedInstant={lastCreatedInstant}
           goldSetup={!heroGold}
           resetDoneId={resetDoneId}
           deviceError={deviceError}

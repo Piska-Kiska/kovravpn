@@ -111,7 +111,8 @@ import {
 // ─── Dependencies (real by default, replaced in tests and the harness) ─────
 
 export type CreateDeviceResult =
-  | { ok: true; subToken: string | null }
+  /** `instant`: the UUID came from the reserve the PRO nodes preload (lib/uuid-pool.ts). */
+  | { ok: true; subToken: string | null; instant: boolean }
   | { ok: false; reason: "limit" | CreateFailure };
 
 export interface BotV2Deps {
@@ -138,9 +139,15 @@ async function createDeviceViaApi(userId: string, device: DeviceKind): Promise<C
       body: JSON.stringify({ userId, deviceType: device }),
       signal: AbortSignal.timeout(25_000),
     });
-    const data = (await res.json().catch(() => null)) as { success?: boolean; subToken?: unknown; limit?: boolean } | null;
+    const data = (await res.json().catch(() => null)) as
+      | { success?: boolean; subToken?: unknown; limit?: boolean; instant?: unknown }
+      | null;
     if (res.ok && data?.success === true) {
-      return { ok: true, subToken: typeof data.subToken === "string" ? data.subToken : null };
+      return {
+        ok: true,
+        subToken: typeof data.subToken === "string" ? data.subToken : null,
+        instant: data.instant === true,
+      };
     }
     if (res.status === 403 || data?.limit === true) return { ok: false, reason: "limit" };
     if (res.status === 429) return { ok: false, reason: "busy" };
@@ -575,11 +582,13 @@ async function createDevice(s: Session, msgId: number, device: DeviceKind, answe
     if (!created) return showEdit(s, msgId, devicesScreen(view, s.lang));
     const detail = await deviceDetail(s, profiles, view, created.uuid);
     if (!detail) return showEdit(s, msgId, devicesScreen(view, s.lang));
-    // Only here, on the fresh device: DE/UK/US are panels and take the device
-    // at once; the other locations are PRO nodes whose agents pull the list
-    // every 120 s from an answer cached up to 60 s (lib/node-uuids.ts), so
-    // "within 3 minutes".
-    const ready = `${tr("dev.ready", s.lang, { dev: detail.label })}\n${tr("dev.readyWhere", s.lang)}`;
+    // Only here, on the fresh device. A reserve UUID (r.instant) is already on
+    // every node: nothing to wait for, nothing to say. A fresh UUID: DE/UK/US
+    // are panels and take it at once; the other locations are PRO nodes whose
+    // agents pull the list every 120 s from an answer cached up to 60 s
+    // (lib/node-uuids.ts), so "within 3 minutes".
+    const readyLine = tr("dev.ready", s.lang, { dev: detail.label });
+    const ready = r.instant ? readyLine : `${readyLine}\n${tr("dev.readyWhere", s.lang)}`;
     return showEdit(s, msgId, deviceScreen(view, detail, s.lang, ready));
   } finally {
     await unlock().catch(() => undefined);
