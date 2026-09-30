@@ -25,12 +25,14 @@
 // kept in memory per instance: the endpoint is closed by the token, and a
 // Redis counter would cost two commands on every poll.
 //
-// Logs carry numbers only: never a UUID, never the node's address.
+// Logs carry numbers only: never a UUID, never the node's address (errors go
+// through safe-error-text.ts, which cuts Upstash's command out).
 
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { checkNodeToken } from "@/lib/node-token-auth";
 import { readNodeUuidPairs } from "@/lib/node-uuids";
+import { safeErrorText } from "@/lib/safe-error-text";
 import { NODE_NAME_RE, buildNodeUuidsBody, nodeBeatKey, nodeMinActive } from "@/lib/node-uuids-body";
 
 export const runtime = "nodejs";
@@ -97,7 +99,7 @@ export async function GET(req: NextRequest) {
   try {
     read = await readNodeUuidPairs(now);
   } catch (err) {
-    console.error("[node-uuids] storage unreadable:", err instanceof Error ? err.message : err);
+    console.error("[node-uuids] storage unreadable:", safeErrorText(err));
     return fail(503, "storage unreadable");
   }
   if (read.malformed > 0) console.error(`[node-uuids] ${read.malformed} malformed profile record(s) skipped`);

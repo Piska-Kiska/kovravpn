@@ -26,6 +26,7 @@ import { rateLimit, acquireLock } from "@/lib/ratelimit";
 import { redis } from "@/lib/redis";
 import { newPanelSubId } from "@/lib/panel-sub-id";
 import { releaseTakenMark, takeDeviceUuid } from "@/lib/uuid-pool";
+import { safeErrorText } from "@/lib/safe-error-text";
 
 /** VLESS url из первой резолвящейся записи реестра (DE priority 0). */
 async function buildPrimaryVlessUrl(uuid: string): Promise<string> {
@@ -160,7 +161,8 @@ export async function POST(req: NextRequest) {
       await unlock();
     }
   } catch (error) {
-    console.error("[vpn/create]", error);
+    // Upstash errors carry the failed command (`hy2:<uuid>` and the like): cut it.
+    console.error("[vpn/create]", safeErrorText(error, { stack: true }));
     return NextResponse.json({ error: "Profile creation failed" }, { status: 500 });
   }
 }
