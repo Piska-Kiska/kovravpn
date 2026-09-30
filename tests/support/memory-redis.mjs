@@ -25,6 +25,8 @@ export const store = new Map();
 export const ttls = new Map();
 /** key -> Set of members. */
 export const sets = new Map();
+/** key -> list of strings, head first (LPUSH / LTRIM / LRANGE). */
+export const lists = new Map();
 /** op -> number of calls, for tests that count round trips. */
 export const calls = new Map();
 
@@ -35,6 +37,7 @@ export function reset() {
   store.clear();
   ttls.clear();
   sets.clear();
+  lists.clear();
   calls.clear();
   faults.length = 0;
 }
@@ -161,6 +164,26 @@ const impl = {
     maybeFail("smismember", key);
     const set = sets.get(key);
     return members.map((m) => (set?.has(String(m)) ? 1 : 0));
+  },
+  async lpush(key, ...values) {
+    maybeFail("lpush", key);
+    const list = lists.get(key) ?? [];
+    for (const v of values.flat()) list.unshift(String(v));
+    lists.set(key, list);
+    return list.length;
+  },
+  async ltrim(key, start, stop) {
+    maybeFail("ltrim", key);
+    const list = lists.get(key) ?? [];
+    const end = stop < 0 ? list.length + stop : stop;
+    lists.set(key, list.slice(start, end + 1));
+    return "OK";
+  },
+  async lrange(key, start, stop) {
+    maybeFail("lrange", key);
+    const list = lists.get(key) ?? [];
+    const end = stop < 0 ? list.length + stop : stop;
+    return list.slice(start, end + 1);
   },
 };
 

@@ -39,6 +39,8 @@ export interface UserSnapshot {
   account: UserAccount | null;
   user: UserRecord | null;
   profiles: VpnProfile[];
+  /** The real balance: `balance_usd:{userId}` in integer cents (lib/bot-wallet.ts). */
+  walletCents: number;
   resolvedVia: "alias" | "direct" | "username";
 }
 
@@ -92,14 +94,15 @@ export async function findUser(rawInput: string): Promise<UserSnapshot | null> {
     resolvedVia = "alias";
   }
 
-  const [account, user, profiles] = await Promise.all([
+  const [account, user, profiles, walletCents] = await Promise.all([
     getAccount(resolved),
     getUserRecord(resolved),
     getProfiles(resolved),
+    getBalanceCents(resolved),
   ]);
 
   // No data at all under that userId → not found
-  if (!account && !user && profiles.length === 0) return null;
+  if (!account && !user && profiles.length === 0 && walletCents <= 0) return null;
 
   return {
     userId: resolved,
@@ -107,6 +110,7 @@ export async function findUser(rawInput: string): Promise<UserSnapshot | null> {
     account,
     user,
     profiles,
+    walletCents,
     resolvedVia,
   };
 }
