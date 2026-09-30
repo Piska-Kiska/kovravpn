@@ -5,7 +5,7 @@
 // Security model (mirrors crypto-webhook):
 //   1. Authenticate via X-Api-Key + X-Secret headers, constant-time compare
 //      against our credentials. Reject 401 on mismatch.
-//   2. ATOMIC dedup via `cashera_payment_done:<uuid>:<status>` SET NX (90d),
+//   2. ATOMIC dedup via `cashera_payment_done:<uuid>:<status>` SET NX (200d),
 //      reserved BEFORE any side effect. Status is part of the key because a
 //      transaction legitimately moves paid → refunded/chargeback and each
 //      transition must be processed exactly once (Cashera retries up to 3x).
@@ -49,7 +49,11 @@ import { ADMIN_TG_ID } from "@/lib/admin-bot";
 import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const DEDUP_TTL_SEC = 90 * 86400;
+// The dedup key must outlive the order record (cashera_order / cashera_tx,
+// ORDER_TTL_SEC = 180 days in lib/cashera-order.ts): once the key is gone and
+// the record is still there, a repeated "paid" for the same transaction grants
+// (or credits a top-up) again.
+const DEDUP_TTL_SEC = 200 * 86400;
 // A refund/chargeback marker must outlive any late or retried "paid" for the
 // same transaction; the order record lives 180 days, so does this.
 const REVOKED_TTL_SEC = 180 * 86400;
@@ -280,7 +284,7 @@ export async function POST(req: NextRequest) {
 
     const order = await getOrderRecord(extId);
     if (!order) {
-      // Record expired (7d TTL) or was never written — cannot verify the
+      // Record expired (180d TTL) or was never written — cannot verify the
       // charged amount, so nothing is granted. Deliberate 200: retries
       // won't restore the record; admin verifies via getTransaction(uuid)
       // and grants manually.

@@ -39,7 +39,7 @@ const PAYMENT_METHOD = process.env.CASHERA_PAYMENT_METHOD || "";
 // её полгода дешевле одного разбора вручную. Указатель uuid → externalId живёт
 // столько же: он нужен ровно тогда, когда что-то пошло не так, то есть позже
 // всех остальных сроков.
-const ORDER_TTL_SEC = 180 * 86400; // см. комментарий ниже
+export const ORDER_TTL_SEC = 180 * 86400; // см. комментарий ниже
 const TX_PTR_TTL_SEC = 180 * 86400; // uuid → externalId, живёт столько же
 
 export type CardPurchase =

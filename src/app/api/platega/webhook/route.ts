@@ -35,7 +35,10 @@ import { ADMIN_TG_ID } from "@/lib/admin-bot";
 import { noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const DEDUP_TTL_SEC = 90 * 86400;
+// The dedup key must outlive the order record (platega_order / platega_tx,
+// ORDER_TTL_SEC = 180 days in lib/platega-order.ts): once the key is gone and
+// the record is still there, a repeated CONFIRMED for the same tx grants again.
+const DEDUP_TTL_SEC = 200 * 86400;
 
 interface CallbackPayload {
   id?: string;

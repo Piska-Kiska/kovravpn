@@ -37,7 +37,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
 // CONFIRMED that arrives after it expired is refused ("order record missing").
 // That is how a Cashera payment was lost on 26.08.2026 (see cashera-order.ts);
 // a record weighs ~200 bytes.
-const ORDER_TTL_SEC = 180 * 86400;
+export const ORDER_TTL_SEC = 180 * 86400;
 
 export type PlategaPurchase =
   | { type: "plan"; kind: PlanKind; term: Term }
