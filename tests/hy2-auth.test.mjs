@@ -8,7 +8,10 @@
 //   • only a device holding a running slot is let in;
 //   • unknown, malformed and stale-key UUIDs are refused, and a malformed
 //     password costs no storage read;
-//   • the list is read once a minute per instance, never per connect;
+//   • the list is read once a minute per instance, never per connect; a
+//     UUID the list does not know re-reads it at once (at most one such read
+//     per UNKNOWN_REREAD_EVERY_MS), so a device created a moment ago, which
+//     /api/vpn/create may have promised works everywhere, is let in at once;
 //   • when storage fails OR HANGS the last good list answers for a few
 //     minutes from when it was read, then every connect is refused (fail
 //     closed); a hung read costs a connect at most READ_TIMEOUT_MS, and after
@@ -37,9 +40,16 @@ registerUuidPoolScripts(mem, poolBody);
 const { POOL_READY_KEY, POOL_TAKEN_KEY, POOL_REFRESH_MS } = poolBody;
 
 const { NextRequest } = await import("next/server");
-const { decideHy2, indexPairs, createHy2Access, STALE_IF_ERROR_MS, READ_TIMEOUT_MS, RETRY_AFTER_FAILURE_MS } = await import(
-  "../src/lib/hy2-access.ts"
-);
+const {
+  decideHy2,
+  indexPairs,
+  createHy2Access,
+  STALE_IF_ERROR_MS,
+  READ_TIMEOUT_MS,
+  RETRY_AFTER_FAILURE_MS,
+  UNKNOWN_REREAD_AFTER_MS,
+  UNKNOWN_REREAD_EVERY_MS,
+} = await import("../src/lib/hy2-access.ts");
 const { REBUILD_EVERY_MS } = await import("../src/lib/node-uuids.ts");
 const { resetUuidPoolInstance } = await import("../src/lib/uuid-pool.ts");
 const { POST } = await import("../src/app/api/hy2/auth/route.ts");
@@ -166,6 +176,111 @@ describe("storage failures", () => {
     readAt = NOW + STALE_IF_ERROR_MS + 2 * RETRY_AFTER_FAILURE_MS;
     failing = false;
     assert.deepEqual(await access(A, readAt), { ok: true, id: A }, "a new read lets everyone back");
+  });
+});
+
+describe("a device created since the list was read", () => {
+  /**
+   * A readPairs like readDevicePairs: a cached copy (read at `copyAt`) unless
+   * forced; a forced read sees `devices` now. `forced` records each forced read.
+   */
+  const storage = (devices) => {
+    const st = { devices, copy: [...devices], copyAt: NOW, forced: [], failing: false };
+    st.deps = {
+      async readPairs(now, opts) {
+        if (opts?.force) {
+          st.forced.push(now);
+          if (st.failing) throw new Error("storage down");
+          st.copy = [...st.devices];
+          st.copyAt = now;
+        }
+        return { pairs: st.copy, malformed: 0, at: st.copyAt };
+      },
+    };
+    return st;
+  };
+  const slot = (uuid) => ({ uuid, until: NOW + DAY });
+  const made = (n) => `0a1b2c3d-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
+  afterEach(() => mock.restoreAll());
+
+  test("an unknown UUID re-reads the devices once the list is a few seconds old: the new device gets in", async () => {
+    const st = storage([slot(A)]);
+    const access = createHy2Access(st.deps);
+    assert.deepEqual(await access(A, NOW), { ok: true, id: A });
+    st.devices.push(slot(C)); // /api/vpn/create wrote C's record
+    assert.deepEqual(
+      await access(C, NOW + UNKNOWN_REREAD_AFTER_MS - 1),
+      { ok: false, reason: "unknown" },
+      "a list read a moment ago is not read again",
+    );
+    assert.deepEqual(st.forced, []);
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS), { ok: true, id: C });
+    assert.deepEqual(st.forced, [NOW + UNKNOWN_REREAD_AFTER_MS]);
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS + 1), { ok: true, id: C }, "and it stays in");
+  });
+
+  test("known, paused or expired devices and malformed passwords never force a read", async () => {
+    const st = storage([slot(A), { uuid: B, until: NOW - DAY }]);
+    const access = createHy2Access(st.deps);
+    const t = NOW + 30_000;
+    assert.deepEqual(await access(A, t), { ok: true, id: A });
+    assert.deepEqual(await access(B, t), { ok: false, reason: "inactive" });
+    assert.deepEqual(await access("not-a-uuid", t), { ok: false, reason: "malformed" });
+    assert.deepEqual(st.forced, []);
+  });
+
+  test("a flood of made-up UUIDs forces at most one read per UNKNOWN_REREAD_EVERY_MS", async () => {
+    const st = storage([slot(A)]);
+    const access = createHy2Access(st.deps);
+    await access(A, NOW);
+    const start = NOW + UNKNOWN_REREAD_AFTER_MS;
+    const span = 3 * UNKNOWN_REREAD_EVERY_MS;
+    let n = 0;
+    for (let t = start; t <= start + span; t += 100) {
+      assert.deepEqual(await access(made(0x1000 + n), t), { ok: false, reason: "unknown" });
+      n += 1;
+    }
+    const wave = await Promise.all(Array.from({ length: 50 }, (_, i) => access(made(0x9000 + i), start + span + 1)));
+    assert.ok(wave.every((v) => v.ok === false));
+    assert.equal(st.forced.length, span / UNKNOWN_REREAD_EVERY_MS + 1, `${n + 50} unknown connects`);
+  });
+
+  test("a forced read that fails keeps the answer and pauses reads like any failure", async () => {
+    mock.method(console, "error", () => {});
+    const st = storage([slot(A)]);
+    let reads = 0;
+    const counting = {
+      readPairs(now, opts) {
+        reads += 1;
+        return st.deps.readPairs(now, opts);
+      },
+    };
+    const access = createHy2Access(counting);
+    await access(A, NOW);
+    st.failing = true;
+    st.devices.push(slot(C));
+    const t = NOW + UNKNOWN_REREAD_AFTER_MS;
+    assert.deepEqual(await access(C, t), { ok: false, reason: "unknown" });
+    reads = 0;
+    assert.deepEqual(await access(A, t + 1), { ok: true, id: A }, "the list still answers");
+    assert.deepEqual(await access(C, t + UNKNOWN_REREAD_EVERY_MS), { ok: false, reason: "unknown" });
+    assert.equal(reads, 0, "no read at all inside the pause");
+    st.failing = false;
+    assert.deepEqual(await access(C, t + RETRY_AFTER_FAILURE_MS), { ok: true, id: C }, "after the pause it tries again");
+  });
+
+  test("a forced read that hangs costs the connect one timeout, then the list answers", async () => {
+    mock.method(console, "error", () => {});
+    const st = storage([slot(A)]);
+    const access = createHy2Access({
+      readTimeoutMs: 20,
+      readPairs: (now, opts) => (opts?.force ? new Promise(() => {}) : st.deps.readPairs(now, opts)),
+    });
+    await access(A, NOW);
+    const started = performance.now();
+    assert.deepEqual(await access(C, NOW + UNKNOWN_REREAD_AFTER_MS), { ok: false, reason: "unknown" });
+    assert.ok(performance.now() - started < 500);
+    assert.deepEqual(await access(A, NOW + UNKNOWN_REREAD_AFTER_MS + 1), { ok: true, id: A });
   });
 });
 

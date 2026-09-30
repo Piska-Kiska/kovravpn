@@ -160,11 +160,17 @@ async function rebuildNodeRead(now: number): Promise<NodeUuidRead> {
 
 /**
  * Every profile UUID with its access date, and nothing else: from Redis or
- * from this instance's copy younger than REBUILD_EVERY_MS. Concurrent callers
- * share one rebuild. Never reads the reserve. Throws when Redis cannot be read.
+ * from this instance's copy younger than REBUILD_EVERY_MS. `force` skips the
+ * copy (Hysteria2 asking about a UUID its copy does not know: maybe a device
+ * created since, lib/hy2-access.ts). Concurrent callers share one rebuild,
+ * forced or not: one in flight has just started. Never reads the reserve.
+ * Throws when Redis cannot be read.
  */
-export async function readDevicePairs(now: number = Date.now()): Promise<DevicePairsRead> {
-  if (devices && isYoung(devices.at, now)) return devices;
+export async function readDevicePairs(
+  now: number = Date.now(),
+  opts: { readonly force?: boolean } = {},
+): Promise<DevicePairsRead> {
+  if (!opts.force && devices && isYoung(devices.at, now)) return devices;
   if (devicesInflight) return devicesInflight;
   const run = rebuildDevices(now);
   devicesInflight = run;

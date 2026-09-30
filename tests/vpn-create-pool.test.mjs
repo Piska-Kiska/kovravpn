@@ -3,11 +3,12 @@
 // POST /api/vpn/create end to end, on the in-memory Redis and a fake 3X-UI
 // panel: the new device's UUID comes from the reserve the PRO nodes preload
 // (src/lib/uuid-pool.ts) and is the same everywhere (panel, device record,
-// subscription token); the answer says `instant`. An empty reserve, a
-// reserve the nodes have not confirmed or a failing take falls back to a
-// fresh UUID and still creates the device. Hosts, keys and ids are made up.
+// subscription token); the answer says `instant`, and Hysteria2 lets such a
+// device in at once as well. An empty reserve, a reserve the nodes have not
+// confirmed or a failing take falls back to a fresh UUID and still creates
+// the device. Hosts, keys and ids are made up.
 
-import { test, describe, beforeEach, afterEach } from "node:test";
+import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
 const INTERNAL = ["kovra", "internal", "create", "test"].join("-");
@@ -26,6 +27,8 @@ const { POOL_READY_KEY: READY, POOL_TAKEN_KEY: TAKEN, POOL_SPENT_KEY: SPENT, POO
 
 const { NextRequest } = await import("next/server");
 const { POST: create } = await import("../src/app/api/vpn/create/route.ts");
+const { POST: hy2Auth } = await import("../src/app/api/hy2/auth/route.ts");
+const { UNKNOWN_REREAD_AFTER_MS } = await import("../src/lib/hy2-access.ts");
 
 const USER = "tg_100000002";
 const DAY = 86_400_000;
@@ -84,6 +87,18 @@ async function post(userId = USER) {
     }),
   );
   return { status: res.status, body: await res.json() };
+}
+
+/** A Hysteria2 server asking POST /api/hy2/auth whether `uuid` may connect. */
+async function hy2(uuid) {
+  const res = await hy2Auth(
+    new NextRequest("https://kovra.test/api/hy2/auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ addr: "198.51.100.7:40000", auth: uuid, tx: 0 }),
+    }),
+  );
+  return res.json();
 }
 
 const profiles = () => JSON.parse(mem.store.get(`profiles:${USER}`) ?? "[]");
@@ -196,6 +211,28 @@ describe("POST /api/vpn/create takes the device UUID from the reserve", () => {
     assert.equal(status, 500);
     assert.ok(lines.some((l) => l.includes("[vpn/create]") && l.includes("injected set failure")));
     for (const l of lines) assert.doesNotMatch(l, ANY_UUID);
+  });
+
+  test("instant covers Hysteria2 too: the new device gets in at once, not after the instance's minute-long copy", async () => {
+    mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    try {
+      // Someone connected a moment ago: this instance holds a copy of the devices.
+      const OTHER = "tg_100000003";
+      const OLD = u(0xc1);
+      mem.store.set(`profiles:${OTHER}`, JSON.stringify([{ uuid: OLD, createdAt: 1 }]));
+      mem.store.set(`subs:${OTHER}`, JSON.stringify([{ id: "o1", kind: "plan1", slots: 1, createdAt: 1, expiresAt: Date.now() + DAY }]));
+      assert.deepEqual(await hy2(OLD), { ok: true, id: OLD });
+      mock.timers.tick(UNKNOWN_REREAD_AFTER_MS);
+
+      const P = u(0xc2);
+      mem.zsets.set(READY, new Map([[P, Date.now() - DAY]]));
+      const { status, body } = await post();
+      assert.equal(status, 200);
+      assert.equal(body.instant, true, "the screens promise every country at once");
+      assert.deepEqual(await hy2(P), { ok: true, id: P });
+    } finally {
+      mock.timers.reset();
+    }
   });
 
   test("two devices in a row get two different reserve UUIDs", async () => {
