@@ -56,8 +56,10 @@ export function Dialog({ open, onClose, title, children, labelledBy, size = "md"
         d.setAttribute("open", "");
       }
       // React does not render the autofocus attribute, so the platform would
-      // focus the first control (the close button). Honour data-autofocus.
-      d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+      // focus the first control (the close button). Honour data-autofocus;
+      // without one, start on the title (read first, and no focus ring on
+      // the close button after a tap).
+      (d.querySelector<HTMLElement>("[data-autofocus]") ?? d.querySelector<HTMLElement>(".kc-dialog-head > h2"))?.focus();
     } else if (!open && d.open) {
       d.close();
     }
@@ -95,7 +97,7 @@ export function Dialog({ open, onClose, title, children, labelledBy, size = "md"
       {open ? (
         <div className="kc-dialog-panel">
           <div className="kc-dialog-head">
-            <h2 id={titleId} className="kc-h2">
+            <h2 id={titleId} className="kc-h2" tabIndex={-1}>
               {title}
             </h2>
             <Button
