@@ -53,7 +53,9 @@ import {
 // Re-import broadcast types from FSM for convenience inside this module.
 import type { BroadcastMediaRef, BroadcastBtnRef } from "./admin-fsm";
 
-export const ADMIN_TG_ID = "6944217115";
+import { ADMIN_TG_ID } from "./bot-owner";
+
+export { ADMIN_TG_ID };
 
 // ─── Types for UI plumbing ───────────────────────────────────────────────────
 // We don't import the bot's tg helpers directly to keep this file
