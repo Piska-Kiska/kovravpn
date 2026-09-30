@@ -24,6 +24,7 @@ import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } fr
 import { deleteOwnProfile } from "@/lib/profile-delete";
 import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
+import { isReferralCode } from "@/lib/telegram-login";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
@@ -949,7 +950,10 @@ async function tryAuth(code: string, chatId: number): Promise<boolean> {
   if (!raw) return false;
   const d = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (d.verified) return false;
-  await redis.set(`auth:${code}`, JSON.stringify({ verified: true, telegramId: chatId }), { ex: 600 });
+  // Keep the referral code the site stored with the sign-in code
+  // (/register?ref=…): /verify applies it when it creates the account (KP-03).
+  const ref = isReferralCode(d.ref) ? { ref: d.ref } : {};
+  await redis.set(`auth:${code}`, JSON.stringify({ ...ref, verified: true, telegramId: chatId }), { ex: 600 });
   return true;
 }
 
