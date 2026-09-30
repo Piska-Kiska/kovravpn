@@ -24,8 +24,12 @@ export const PLATEGA_METHOD_CARD = 12; // «Международная опла�
 export const PLATEGA_METHOD_CRYPTO = 13; // «Криптовалюта»
 
 export class PlategaError extends Error {
-  constructor(message: string, public status?: number) {
+  public status?: number;
+
+  // No parameter properties: Node's type stripping (unit tests) rejects them.
+  constructor(message: string, status?: number) {
     super(message);
+    this.status = status;
     this.name = "PlategaError";
   }
 }
