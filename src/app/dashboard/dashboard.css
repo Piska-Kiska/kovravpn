@@ -505,3 +505,87 @@ html:has(.kc-dash) {
 .kc-bnav-item[aria-current="page"]::after { transform: scaleX(1); }
 .kc-bnav-item:focus-visible { outline-offset: -4px; border-radius: var(--kc-r-sm); }
 .kc-bnav-label { max-width: 100%; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 10. Balance (the wallet shared with the Telegram bot) ─────────────── */
+.kc-wallet { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+@media (min-width: 768px) { .kc-wallet { flex-direction: row; align-items: center; justify-content: space-between; } }
+.kc-wallet-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kc-wallet-figure {
+  margin-top: 2px; font: 600 32px/1.05 var(--k-font); letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums; color: var(--kc-text);
+}
+.kc-wallet > .kc-btn { flex: none; }
+@media (max-width: 767px) { .kc-wallet > .kc-btn { width: 100%; } }
+
+/* the balance chip: header (site) and top bar (Mini App). Every property is
+   set: inside .kh-bar the cabinet resets do not apply. */
+.kc-wchip {
+  display: inline-flex; align-items: center; gap: 8px; flex: none; height: 36px; margin: 0; padding: 0 4px 0 12px;
+  border: 1px solid var(--kc-line-strong); border-radius: var(--kc-r-pill); background: transparent; color: var(--kc-text);
+  font: 500 13px/1 var(--k-mono); letter-spacing: .02em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--kc-d2) var(--kc-ease), background-color var(--kc-d2) var(--kc-ease);
+}
+.kc-wchip > svg { color: var(--kc-text-2); }
+@media (hover: hover) { .kc-wchip:hover { background: var(--kc-well); } }
+.kc-wchip:focus-visible { outline: 2px solid var(--kc-focus); outline-offset: 2px; }
+.kc-wchip-plus {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--k-accent-wash); color: var(--k-accent-ink);
+}
+.kc-wchip-spin { animation: kc-rot .9s linear infinite; }
+/* the site header on a narrow phone also holds the language | theme capsule:
+   the chip drops its glyph */
+@media (max-width: 400px) { .kc-header .kc-wchip { gap: 6px; padding-left: 10px; } .kc-header .kc-wchip > svg:first-child { display: none; } }
+@media (prefers-reduced-motion: reduce) { .kc-wchip-spin { animation-duration: 2.4s; } }
+
+/* the balance row of the payment picker when it does not cover the price:
+   readable (not faded), marked by a dashed dot and the missing amount */
+.kc-pay-row.is-unavailable:has(input:disabled) { opacity: 1; cursor: default; }
+.kc-pay-row.is-unavailable:hover { background: transparent; }
+.kc-pay-row.is-unavailable .kc-radio-dot { border-style: dashed; }
+.kc-pay-row.is-unavailable .kc-pay-label, .kc-pay-row.is-unavailable .kc-pay-icon { color: var(--kc-text-2); }
+.kc-pay-row.is-unavailable .kc-pay-sub { color: var(--kc-warn); }
+
+/* top-up sheet */
+.kc-topup { display: flex; flex-direction: column; gap: 18px; }
+.kc-topup-balance {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--kc-line); border-radius: var(--kc-r-md); background: var(--kc-well);
+}
+.kc-topup-balance-amount { font: 500 15px/1 var(--k-mono); letter-spacing: .02em; color: var(--kc-text); font-variant-numeric: tabular-nums; }
+.kc-topup-quick { min-width: 0; margin: 0; padding: 0; border: 0; }
+.kc-topup-quick > legend { padding: 0; margin-bottom: 10px; }
+.kc-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kc-chip {
+  position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; height: 44px;
+  border: 1px solid var(--kc-line-strong); border-radius: var(--kc-r-md); color: var(--kc-text);
+  font: 500 14px/1 var(--k-mono); letter-spacing: .01em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--kc-d2) var(--kc-ease), border-color var(--kc-d2) var(--kc-ease);
+}
+@media (hover: hover) { .kc-chip:hover { background: var(--kc-well); } }
+.kc-chip.is-on { border-color: var(--kc-text); background: var(--kc-well); }
+.kc-chip:has(input:focus-visible) { outline: 2px solid var(--kc-focus); outline-offset: 2px; }
+.kc-chip:has(input:disabled) { cursor: default; }
+.kc-topup-min { margin-bottom: 10px; color: var(--kc-warn); }
+/* sticky action: the dialog panel is the scroller; the bar covers the rows
+   scrolling under it with the panel colour and a hairline */
+.kc-topup-foot {
+  position: sticky; bottom: -24px; z-index: 1; order: 99;
+  margin: 0 -24px -24px; padding: 14px 24px 24px;
+  background: var(--kc-panel); box-shadow: 0 -1px 0 var(--kc-line);
+}
+@media (max-width: 767px) {
+  .kc-topup-foot {
+    bottom: calc(-1 * max(24px, env(safe-area-inset-bottom)));
+    margin: 0 calc(-1 * var(--kc-gutter-r)) calc(-1 * max(24px, env(safe-area-inset-bottom))) calc(-1 * var(--kc-gutter));
+    padding: 14px var(--kc-gutter-r) max(24px, env(safe-area-inset-bottom)) var(--kc-gutter);
+  }
+  .kc-embedded .kc-topup-foot {
+    bottom: calc(-1 * max(24px, var(--kc-safe-b)));
+    margin-bottom: calc(-1 * max(24px, var(--kc-safe-b)));
+    padding-bottom: max(24px, var(--kc-safe-b));
+  }
+}
+

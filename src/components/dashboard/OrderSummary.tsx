@@ -1,8 +1,10 @@
 // src/components/dashboard/OrderSummary.tsx
 // Right column of the Plan view: total, discount, payment method and the
-// view's only gold action. Sticky from 1024px.
+// view's only gold action. Sticky from 1024px. With "Balance" selected the
+// action pays from the unified balance right here, no redirect.
 "use client";
 
+import type { ReactNode } from "react";
 import DigitRoll from "@/components/fx/DigitRoll";
 import { Button, Notice } from "@/components/cabinet";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
@@ -31,13 +33,21 @@ export interface OrderSummaryProps {
   loading: boolean;
   onPay(): void;
   error: string | null;
+  errorAction?: ReactNode;
   onDismissError(): void;
+  /** Paid from the balance: the confirmation under the action. */
+  done: string | null;
+  onDismissDone(): void;
 }
 
 export function OrderSummary(p: OrderSummaryProps) {
   const { t } = p;
   const shell = useShellT();
   const amount = p.selected.amount ?? fmtUsd(p.total, p.lang);
+  const fromBalance = p.selected.route.kind === "wallet";
+  const cta = fromBalance
+    ? fmt(p.isRenewal ? t.renew_balance_cta : t.pay_balance_cta, { amount })
+    : fmt(p.isRenewal ? t.renew_cta : t.pay_cta, { amount });
   return (
     <section className="kc-panel kc-panel--accent kc-summary" aria-labelledby="kc-summary-title">
       <h2 id="kc-summary-title" className="kc-mono kc-t2">
@@ -61,14 +71,19 @@ export function OrderSummary(p: OrderSummaryProps) {
       <hr className="kc-hair" />
       <PaymentMethodPicker t={t} lang={p.lang} name="kc-pay-plan" options={p.options} value={p.selected.key} onChange={p.onSelect} disabled={p.busy} />
       <Button variant="cta" block loading={p.loading} disabled={p.busy} onClick={p.onPay} className="kc-summary-cta">
-        {p.loading ? t.redirecting : fmt(p.isRenewal ? t.renew_cta : t.pay_cta, { amount })}
+        {p.loading ? (fromBalance ? t.paying : t.redirecting) : cta}
       </Button>
       <p className="kc-small kc-fineprint" aria-live="polite">
         {p.selected.note}
       </p>
       {p.error ? (
-        <Notice tone="error" onDismiss={p.onDismissError} dismissLabel={shell.dismiss}>
+        <Notice tone="error" onDismiss={p.onDismissError} dismissLabel={shell.dismiss} action={p.errorAction}>
           {p.error}
+        </Notice>
+      ) : null}
+      {p.done ? (
+        <Notice tone="success" onDismiss={p.onDismissDone} dismissLabel={shell.dismiss}>
+          {p.done}
         </Notice>
       ) : null}
     </section>

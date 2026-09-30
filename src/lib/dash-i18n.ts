@@ -291,6 +291,45 @@ export interface DashDict {
   link_resend_in: Str;
   link_back: Str;
   link_code_sent: Str;
+  // ── balance (the wallet shared with the Telegram bot) and top-up ──
+  wallet_title: Str;
+  wallet_body: Str;
+  wallet_topup: Str;
+  wallet_chip_label: Str;
+  m_wallet: Str;
+  m_wallet_sub: Str;
+  m_wallet_short: Str;
+  m_wallet_note: Str;
+  pay_balance_cta: Str;
+  renew_balance_cta: Str;
+  paying: Str;
+  wallet_paid_plan: Str;
+  wallet_paid_slot: Str;
+  wallet_err_short: Str;
+  wallet_err_busy: Str;
+  wallet_err_other_plan: Str;
+  wallet_err_refunded: Str;
+  wallet_err_stuck: Str;
+  topup_title: Str;
+  topup_current: Str;
+  topup_amount: Str;
+  topup_other: Str;
+  topup_cta: Str;
+  topup_opening: Str;
+  topup_min: Str;
+  topup_max: Str;
+  topup_format: Str;
+  topup_note: Str;
+  topup_unavailable: Str;
+  topup_pending: Str;
+  topup_done: Str;
+  m_cryptobot: Str;
+  m_cryptobot_sub: Str;
+  m_cryptobot_note: Str;
+  m_crypto_topup_note: Str;
+  // ── payment check ──
+  paid_checking: Str;
+  paid_slow: Str;
 }
 
 /** @deprecated alias kept for older imports; use DashDict. */
@@ -559,6 +598,43 @@ const en: DashDict = {
   link_resend_in: "Resend in",
   link_back: "Back",
   link_code_sent: "Code sent to",
+  wallet_title: "Balance",
+  wallet_body: "The same balance as in the Telegram bot. Pay for a plan or an extra slot in one tap.",
+  wallet_topup: "Top up",
+  wallet_chip_label: "Balance {amount}. Top up",
+  m_wallet: "Balance",
+  m_wallet_sub: "{balance} available · paid instantly",
+  m_wallet_short: "{balance} on balance · {need} short",
+  m_wallet_note: "Paid instantly from your Kovra balance. Nothing else to confirm.",
+  pay_balance_cta: "Pay {amount} from balance",
+  renew_balance_cta: "Renew for {amount} from balance",
+  paying: "Paying…",
+  wallet_paid_plan: "Done: {amount} paid from your balance. Your plan is updated.",
+  wallet_paid_slot: "Done: {amount} paid from your balance. The extra slot is ready.",
+  wallet_err_short: "Not enough on the balance: {need} short. Top up or pick another way to pay.",
+  wallet_err_busy: "Your previous payment is still going through. Try again in a few seconds.",
+  wallet_err_other_plan: "Another plan is running. Renew that one, or wait until it ends.",
+  wallet_err_refunded: "We couldn’t activate it, so the money went back to your balance. Please try again.",
+  wallet_err_stuck: "Something went wrong with this payment. Write to support and we’ll sort it out.",
+  topup_title: "Top up balance",
+  topup_current: "On balance now",
+  topup_amount: "Amount",
+  topup_other: "Or enter an amount, USD",
+  topup_cta: "Top up {amount}",
+  topup_opening: "Opening payment…",
+  topup_min: "The minimum for this method is {amount}.",
+  topup_max: "The most you can add at once is {amount}.",
+  topup_format: "Enter an amount in dollars, like 25 or 25.50.",
+  topup_note: "The balance never expires. It pays for plans and extra slots here and in the Telegram bot.",
+  topup_unavailable: "Top-ups are not available right now. Try again later or pay for the plan directly.",
+  topup_pending: "Checking payment… The balance updates by itself: usually within a minute for cards, up to 30 minutes for crypto.",
+  topup_done: "Payment received. Your balance is {amount}.",
+  m_cryptobot: "CryptoBot",
+  m_cryptobot_sub: "Crypto wallet in Telegram · USDT, TON, BTC",
+  m_cryptobot_note: "You’ll pay in @CryptoBot. The balance updates as soon as the payment is confirmed.",
+  m_crypto_topup_note: "You’ll pick the coin on the next page. The balance updates after network confirmation, usually 5–30 minutes.",
+  paid_checking: "Checking payment… Your plan or balance updates by itself: usually within a minute for cards, up to 30 minutes for crypto.",
+  paid_slow: "We haven’t seen the payment yet. If you paid, it will show up here by itself; you can close this message.",
 };
 
 const ru: DashDict = {
@@ -829,6 +905,43 @@ const ru: DashDict = {
   link_resend_in: "Повторно через",
   link_back: "Назад",
   link_code_sent: "Код отправлен на",
+  wallet_title: "Баланс",
+  wallet_body: "Тот же баланс, что в Telegram-боте. Оплачивайте тариф или дополнительный слот в одно касание.",
+  wallet_topup: "Пополнить",
+  wallet_chip_label: "Баланс {amount}. Пополнить",
+  m_wallet: "Баланс",
+  m_wallet_sub: "Доступно {balance} · списание сразу",
+  m_wallet_short: "На балансе {balance} · не хватает {need}",
+  m_wallet_note: "Списание сразу с баланса Kovra. Больше ничего подтверждать не нужно.",
+  pay_balance_cta: "Оплатить {amount} с баланса",
+  renew_balance_cta: "Продлить за {amount} с баланса",
+  paying: "Оплачиваем…",
+  wallet_paid_plan: "Готово: {amount} списано с баланса. Тариф обновлён.",
+  wallet_paid_slot: "Готово: {amount} списано с баланса. Дополнительный слот добавлен.",
+  wallet_err_short: "На балансе не хватает {need}. Пополните баланс или выберите другой способ оплаты.",
+  wallet_err_busy: "Предыдущая оплата ещё проходит. Попробуйте через несколько секунд.",
+  wallet_err_other_plan: "У вас действует другой тариф. Продлите его или дождитесь окончания.",
+  wallet_err_refunded: "Не удалось активировать, деньги вернулись на баланс. Попробуйте ещё раз.",
+  wallet_err_stuck: "С этой оплатой что-то пошло не так. Напишите в поддержку, мы разберёмся.",
+  topup_title: "Пополнение баланса",
+  topup_current: "Сейчас на балансе",
+  topup_amount: "Сумма",
+  topup_other: "Или введите сумму в долларах",
+  topup_cta: "Пополнить на {amount}",
+  topup_opening: "Открываем оплату…",
+  topup_min: "Минимум для этого способа: {amount}.",
+  topup_max: "За один раз можно пополнить не больше чем на {amount}.",
+  topup_format: "Введите сумму в долларах, например 25 или 25,50.",
+  topup_note: "Баланс не сгорает. Им можно оплатить тариф и дополнительные слоты здесь и в Telegram-боте.",
+  topup_unavailable: "Пополнение сейчас недоступно. Попробуйте позже или оплатите тариф напрямую.",
+  topup_pending: "Проверяем оплату… Баланс обновится сам: по карте обычно за минуту, по криптовалюте до 30 минут.",
+  topup_done: "Оплата получена. На балансе {amount}.",
+  m_cryptobot: "CryptoBot",
+  m_cryptobot_sub: "Криптокошелёк в Telegram · USDT, TON, BTC",
+  m_cryptobot_note: "Оплата в @CryptoBot. Баланс обновится, как только платёж подтвердится.",
+  m_crypto_topup_note: "Монету выберете на следующей странице. Баланс обновится после подтверждения в сети, обычно за 5–30 минут.",
+  paid_checking: "Проверяем оплату… Тариф или баланс обновится сам: по карте обычно за минуту, по криптовалюте до 30 минут.",
+  paid_slow: "Мы пока не видим оплату. Если вы заплатили, она появится здесь сама; это сообщение можно закрыть.",
 };
 
 const es: DashDict = {
@@ -1094,6 +1207,43 @@ const es: DashDict = {
   link_resend_in: "Reenviar en",
   link_back: "Atrás",
   link_code_sent: "Código enviado a",
+  wallet_title: "Saldo",
+  wallet_body: "El mismo saldo que en el bot de Telegram. Paga un plan o un espacio extra con un toque.",
+  wallet_topup: "Recargar",
+  wallet_chip_label: "Saldo {amount}. Recargar",
+  m_wallet: "Saldo",
+  m_wallet_sub: "{balance} disponible · cobro inmediato",
+  m_wallet_short: "{balance} de saldo · faltan {need}",
+  m_wallet_note: "Se cobra al instante de tu saldo de Kovra. No hay nada más que confirmar.",
+  pay_balance_cta: "Pagar {amount} con el saldo",
+  renew_balance_cta: "Renovar por {amount} con el saldo",
+  paying: "Pagando…",
+  wallet_paid_plan: "Listo: {amount} pagados con tu saldo. Tu plan está actualizado.",
+  wallet_paid_slot: "Listo: {amount} pagados con tu saldo. El espacio extra ya está disponible.",
+  wallet_err_short: "No tienes saldo suficiente: faltan {need}. Recarga o elige otra forma de pago.",
+  wallet_err_busy: "Tu pago anterior aún se está procesando. Inténtalo de nuevo en unos segundos.",
+  wallet_err_other_plan: "Tienes otro plan activo. Renuévalo o espera a que termine.",
+  wallet_err_refunded: "No pudimos activarlo, así que el dinero volvió a tu saldo. Inténtalo de nuevo.",
+  wallet_err_stuck: "Algo salió mal con este pago. Escribe a soporte y lo resolveremos.",
+  topup_title: "Recargar saldo",
+  topup_current: "Saldo actual",
+  topup_amount: "Importe",
+  topup_other: "O escribe un importe en USD",
+  topup_cta: "Recargar {amount}",
+  topup_opening: "Abriendo el pago…",
+  topup_min: "El mínimo para este método es {amount}.",
+  topup_max: "Puedes recargar como máximo {amount} de una vez.",
+  topup_format: "Escribe un importe en dólares, por ejemplo 25 o 25,50.",
+  topup_note: "El saldo no caduca. Sirve para pagar planes y espacios extra aquí y en el bot de Telegram.",
+  topup_unavailable: "Las recargas no están disponibles ahora. Inténtalo más tarde o paga el plan directamente.",
+  topup_pending: "Comprobando el pago… El saldo se actualiza solo: normalmente en un minuto con tarjeta y hasta 30 minutos con cripto.",
+  topup_done: "Pago recibido. Tu saldo es de {amount}.",
+  m_cryptobot: "CryptoBot",
+  m_cryptobot_sub: "Monedero cripto en Telegram · USDT, TON, BTC",
+  m_cryptobot_note: "Pagarás en @CryptoBot. El saldo se actualiza en cuanto se confirma el pago.",
+  m_crypto_topup_note: "Elegirás la moneda en la página siguiente. El saldo se actualiza tras la confirmación de la red, normalmente en 5–30 minutos.",
+  paid_checking: "Comprobando el pago… Tu plan o tu saldo se actualizan solos: normalmente en un minuto con tarjeta y hasta 30 minutos con cripto.",
+  paid_slow: "Aún no vemos el pago. Si ya pagaste, aparecerá aquí solo; puedes cerrar este mensaje.",
 };
 
 const de: DashDict = {
@@ -1359,6 +1509,43 @@ const de: DashDict = {
   link_resend_in: "Erneut senden in",
   link_back: "Zurück",
   link_code_sent: "Code gesendet an",
+  wallet_title: "Guthaben",
+  wallet_body: "Dasselbe Guthaben wie im Telegram-Bot. Bezahle deinen Tarif oder einen Zusatzplatz mit einem Tippen.",
+  wallet_topup: "Aufladen",
+  wallet_chip_label: "Guthaben {amount}. Aufladen",
+  m_wallet: "Guthaben",
+  m_wallet_sub: "{balance} verfügbar · sofort abgebucht",
+  m_wallet_short: "{balance} Guthaben · es fehlen {need}",
+  m_wallet_note: "Wird sofort von deinem Kovra-Guthaben abgebucht. Sonst ist nichts zu bestätigen.",
+  pay_balance_cta: "{amount} vom Guthaben zahlen",
+  renew_balance_cta: "Für {amount} vom Guthaben verlängern",
+  paying: "Wird bezahlt…",
+  wallet_paid_plan: "Erledigt: {amount} vom Guthaben bezahlt. Dein Tarif ist aktualisiert.",
+  wallet_paid_slot: "Erledigt: {amount} vom Guthaben bezahlt. Der Zusatzplatz ist bereit.",
+  wallet_err_short: "Dein Guthaben reicht nicht: Es fehlen {need}. Lade auf oder wähle eine andere Zahlungsart.",
+  wallet_err_busy: "Deine vorherige Zahlung läuft noch. Versuch es in ein paar Sekunden erneut.",
+  wallet_err_other_plan: "Ein anderer Tarif läuft noch. Verlängere ihn oder warte, bis er endet.",
+  wallet_err_refunded: "Wir konnten es nicht aktivieren, das Geld ist zurück auf deinem Guthaben. Versuch es bitte erneut.",
+  wallet_err_stuck: "Bei dieser Zahlung ist etwas schiefgelaufen. Schreib dem Support, wir klären das.",
+  topup_title: "Guthaben aufladen",
+  topup_current: "Aktuelles Guthaben",
+  topup_amount: "Betrag",
+  topup_other: "Oder Betrag in USD eingeben",
+  topup_cta: "{amount} aufladen",
+  topup_opening: "Zahlung wird geöffnet…",
+  topup_min: "Das Minimum für diese Zahlungsart ist {amount}.",
+  topup_max: "Du kannst höchstens {amount} auf einmal aufladen.",
+  topup_format: "Gib einen Betrag in Dollar ein, zum Beispiel 25 oder 25,50.",
+  topup_note: "Das Guthaben verfällt nicht. Damit bezahlst du Tarife und Zusatzplätze hier und im Telegram-Bot.",
+  topup_unavailable: "Aufladen ist gerade nicht möglich. Versuch es später oder bezahle den Tarif direkt.",
+  topup_pending: "Zahlung wird geprüft… Dein Guthaben aktualisiert sich automatisch: mit Karte meist innerhalb einer Minute, mit Krypto bis zu 30 Minuten.",
+  topup_done: "Zahlung erhalten. Dein Guthaben: {amount}.",
+  m_cryptobot: "CryptoBot",
+  m_cryptobot_sub: "Krypto-Wallet in Telegram · USDT, TON, BTC",
+  m_cryptobot_note: "Du bezahlst in @CryptoBot. Das Guthaben aktualisiert sich, sobald die Zahlung bestätigt ist.",
+  m_crypto_topup_note: "Die Coin wählst du auf der nächsten Seite. Das Guthaben aktualisiert sich nach der Netzwerkbestätigung, meist in 5–30 Minuten.",
+  paid_checking: "Zahlung wird geprüft… Dein Tarif oder Guthaben aktualisiert sich automatisch: mit Karte meist innerhalb einer Minute, mit Krypto bis zu 30 Minuten.",
+  paid_slow: "Wir sehen die Zahlung noch nicht. Wenn du bezahlt hast, erscheint sie hier von selbst; du kannst diese Meldung schließen.",
 };
 
 const fr: DashDict = {
@@ -1624,6 +1811,43 @@ const fr: DashDict = {
   link_resend_in: "Renvoyer dans",
   link_back: "Retour",
   link_code_sent: "Code envoyé à",
+  wallet_title: "Solde",
+  wallet_body: "Le même solde que dans le bot Telegram. Payez un forfait ou un emplacement supplémentaire en un geste.",
+  wallet_topup: "Recharger",
+  wallet_chip_label: "Solde {amount}. Recharger",
+  m_wallet: "Solde",
+  m_wallet_sub: "{balance} disponibles · débit immédiat",
+  m_wallet_short: "{balance} de solde · il manque {need}",
+  m_wallet_note: "Débité immédiatement de votre solde Kovra. Rien d’autre à confirmer.",
+  pay_balance_cta: "Payer {amount} avec le solde",
+  renew_balance_cta: "Renouveler pour {amount} avec le solde",
+  paying: "Paiement en cours…",
+  wallet_paid_plan: "C’est fait : {amount} payés avec votre solde. Votre forfait est à jour.",
+  wallet_paid_slot: "C’est fait : {amount} payés avec votre solde. L’emplacement supplémentaire est prêt.",
+  wallet_err_short: "Solde insuffisant : il manque {need}. Rechargez ou choisissez un autre moyen de paiement.",
+  wallet_err_busy: "Votre paiement précédent est encore en cours. Réessayez dans quelques secondes.",
+  wallet_err_other_plan: "Un autre forfait est en cours. Renouvelez-le ou attendez qu’il se termine.",
+  wallet_err_refunded: "L’activation a échoué, l’argent est revenu sur votre solde. Veuillez réessayer.",
+  wallet_err_stuck: "Un problème est survenu avec ce paiement. Écrivez à l’assistance, nous allons régler cela.",
+  topup_title: "Recharger le solde",
+  topup_current: "Solde actuel",
+  topup_amount: "Montant",
+  topup_other: "Ou saisissez un montant en USD",
+  topup_cta: "Recharger {amount}",
+  topup_opening: "Ouverture du paiement…",
+  topup_min: "Le minimum pour ce moyen de paiement est de {amount}.",
+  topup_max: "Vous pouvez recharger au plus {amount} en une fois.",
+  topup_format: "Saisissez un montant en dollars, par exemple 25 ou 25,50.",
+  topup_note: "Le solde n’expire pas. Il paie les forfaits et les emplacements supplémentaires ici et dans le bot Telegram.",
+  topup_unavailable: "La recharge n’est pas disponible pour le moment. Réessayez plus tard ou payez le forfait directement.",
+  topup_pending: "Vérification du paiement… Le solde se met à jour automatiquement : en général en une minute par carte, jusqu’à 30 minutes en crypto.",
+  topup_done: "Paiement reçu. Votre solde : {amount}.",
+  m_cryptobot: "CryptoBot",
+  m_cryptobot_sub: "Portefeuille crypto dans Telegram · USDT, TON, BTC",
+  m_cryptobot_note: "Vous paierez dans @CryptoBot. Le solde se met à jour dès que le paiement est confirmé.",
+  m_crypto_topup_note: "Vous choisirez la cryptomonnaie à l’étape suivante. Le solde se met à jour après confirmation du réseau, en général sous 5 à 30 minutes.",
+  paid_checking: "Vérification du paiement… Votre forfait ou votre solde se met à jour automatiquement : en général en une minute par carte, jusqu’à 30 minutes en crypto.",
+  paid_slow: "Nous ne voyons pas encore le paiement. Si vous avez payé, il apparaîtra ici automatiquement ; vous pouvez fermer ce message.",
 };
 
 export const DASH_DICT: Readonly<Record<DashLang, DashDict>> = { en, ru, es, de, fr };

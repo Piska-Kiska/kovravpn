@@ -22,6 +22,23 @@ export const DASH_VIEWS: readonly DashView[] = ["devices", "plan", "rewards", "a
 
 const NAV_EVENT = "kovra:dash-nav";
 
+export function isDashView(v: unknown): v is DashView {
+  return typeof v === "string" && (DASH_VIEWS as readonly string[]).includes(v);
+}
+
+/**
+ * Replace the address without a history entry and let the view follow: for
+ * an entry point that names the view in its query (`?view=plan` from a bot
+ * button) rather than a tap. The state argument is null on purpose: Next's
+ * router syncs a replaceState into its own state only when the state is not
+ * its own; passing `history.state` back makes it skip the sync and later
+ * restore the old address over ours.
+ */
+export function replaceDashUrl(pathSearchHash: string): void {
+  window.history.replaceState(null, "", pathSearchHash);
+  window.dispatchEvent(new Event(NAV_EVENT));
+}
+
 function parseHash(hash: string): NavTarget | null {
   const h = hash.replace(/^#/, "");
   if (h === "help") return "help";

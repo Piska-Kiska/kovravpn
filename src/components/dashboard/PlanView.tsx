@@ -1,20 +1,23 @@
 // src/components/dashboard/PlanView.tsx
 // Plan & billing (spec §9.4). >= 1024px: 7/5 grid, the order summary sticks
-// on the right; the extra-slot and subscriptions panels sit under the plan
-// panel. Below: plan -> billing period -> summary -> slot -> subscriptions.
+// on the right; the balance, extra-slot and subscriptions panels sit under the
+// plan panel. Below: plan -> billing period -> summary -> balance -> slot ->
+// subscriptions.
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Check, Plus } from "lucide-react";
 import { Button, Icon, cx } from "@/components/cabinet";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
 import { fmtDate, fmtUsd } from "@/lib/dashboard/format";
-import { buildPayOptions, effectivePayMethod, readPayMethod, writePayMethod, type PayRoute } from "@/lib/dashboard/pay-methods";
+import { buildPayOptions, choosePayKey, readPayMethod, writePayMethod, type PayRoute } from "@/lib/dashboard/pay-methods";
+import { usdToCentsClient } from "@/lib/dashboard/wallet";
 import type { AccountData, PlanKind, Pricing, Term } from "@/lib/dashboard/types";
 import { OrderSummary } from "./OrderSummary";
 import { SubsList } from "./SubsList";
 import { TermRadios, discountOf, termLabel } from "./TermRadios";
+import { WalletPanel } from "./WalletPanel";
 import { ViewHead, useRise } from "./shared";
 
 export interface PlanViewProps {
@@ -32,8 +35,16 @@ export interface PlanViewProps {
   isLoading(route: PayRoute): boolean;
   onPay(route: PayRoute): void;
   planError: string | null;
+  /** A control under the error (e.g. "Top up" when the balance fell short). */
+  planErrorAction?: ReactNode;
   onDismissPlanError(): void;
+  /** Success after paying from the balance, shown in the summary. */
+  planDone: string | null;
+  onDismissPlanDone(): void;
   onBuySlot(): void;
+  /** The unified balance in cents; null while unknown (no balance UI). */
+  balanceCents: number | null;
+  onTopup(): void;
 }
 
 const KINDS: readonly PlanKind[] = ["plan3", "plan1"];
@@ -41,7 +52,9 @@ const KINDS: readonly PlanKind[] = ["plan3", "plan1"];
 export function PlanView(p: PlanViewProps) {
   const { t, lang, pricing, account } = p;
   const rise = useRise();
-  const [preferred, setPreferred] = useState<string | null>(() => (typeof window === "undefined" ? null : readPayMethod()));
+  // Picked on this page view (wins), and remembered from earlier visits.
+  const [picked, setPicked] = useState<string | null>(null);
+  const [remembered] = useState<string | null>(() => (typeof window === "undefined" ? null : readPayMethod()));
 
   if (!pricing) {
     return <ViewHead kicker={t.billing_kicker} title={t.plan_title} />;
@@ -51,12 +64,19 @@ export function PlanView(p: PlanViewProps) {
   const sel = prices[String(p.term)];
   const total = sel?.total ?? 0;
   const disc = discountOf(sel);
-  const options = buildPayOptions({ lang, t, priceUsd: sel?.total, lavaEnabled: pricing.lavaEnabled });
-  const key = effectivePayMethod(options, preferred);
+  const priceCents = sel ? usdToCentsClient(sel.total) : null;
+  const options = buildPayOptions({
+    lang,
+    t,
+    priceUsd: sel?.total,
+    lavaEnabled: pricing.lavaEnabled,
+    wallet: p.balanceCents !== null ? { balanceCents: p.balanceCents, priceCents } : null,
+  });
+  const key = choosePayKey(options, picked, remembered);
   const selected = options.find((o) => o.key === key) ?? options[0];
 
   const onSelect = (k: string) => {
-    setPreferred(k);
+    setPicked(k);
     writePayMethod(k);
   };
 
@@ -129,11 +149,15 @@ export function PlanView(p: PlanViewProps) {
             loading={p.isLoading(selected.route)}
             onPay={() => p.onPay(selected.route)}
             error={p.planError}
+            errorAction={p.planErrorAction}
             onDismissError={p.onDismissPlanError}
+            done={p.planDone}
+            onDismissDone={p.onDismissPlanDone}
           />
         </div>
 
         <div className={cx("kc-plan-extra", r3.className)} style={r3.style}>
+          {p.balanceCents !== null ? <WalletPanel t={t} lang={lang} balanceCents={p.balanceCents} onTopup={p.onTopup} disabled={p.busy} /> : null}
           <section className="kc-panel kc-slotpanel" aria-labelledby="kc-slot-title">
             <div className="kc-slotpanel-text">
               <h2 id="kc-slot-title" className="kc-h3">

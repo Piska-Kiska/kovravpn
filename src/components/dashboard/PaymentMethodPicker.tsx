@@ -2,7 +2,8 @@
 // Payment method radiogroup (spec §9.5): primary rows plus a "More ways to
 // pay" disclosure. A selected method from the "more" group stays visible in
 // the primary list while the disclosure is closed. Everything is disabled
-// while a payment request is in flight.
+// while a payment request is in flight; a single row can be disabled on its
+// own (the balance that does not cover the price) and still explains why.
 "use client";
 
 import { useId, useState } from "react";
@@ -17,16 +18,16 @@ export interface PaymentMethodPickerProps {
   lang: Lang;
   /** Radio group name, unique per picker on the page. */
   name: string;
-  options: readonly PayOption[];
+  options: readonly PayOption<{ kind: string }>[];
   value: string;
   onChange(key: string): void;
   disabled: boolean;
 }
 
-function Row({ o, name, checked, disabled, onChange }: { o: PayOption; name: string; checked: boolean; disabled: boolean; onChange(key: string): void }) {
+function Row({ o, name, checked, disabled, onChange }: { o: PayOption<{ kind: string }>; name: string; checked: boolean; disabled: boolean; onChange(key: string): void }) {
   return (
-    <label className={cx("kc-radio-row kc-pay-row", o.sub && "has-sub")}>
-      <input className="kc-sr" type="radio" name={name} value={o.key} checked={checked} disabled={disabled} onChange={() => onChange(o.key)} />
+    <label className={cx("kc-radio-row kc-pay-row", o.sub && "has-sub", o.disabled && "is-unavailable")}>
+      <input className="kc-sr" type="radio" name={name} value={o.key} checked={checked} disabled={disabled || o.disabled === true} onChange={() => onChange(o.key)} />
       <span className="kc-radio-dot" aria-hidden="true" />
       <span className="kc-pay-icon" aria-hidden="true">
         <Icon as={o.icon} size={18} />

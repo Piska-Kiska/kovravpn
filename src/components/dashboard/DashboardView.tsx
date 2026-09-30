@@ -1,15 +1,22 @@
 // src/components/dashboard/DashboardView.tsx
 //
-// The personal dashboard (rendered by src/app/dashboard/page.tsx). This file owns all state, data loading and the
-// request handlers (URLs, payloads, trackEvent calls and redirects are
-// unchanged); the views in src/components/dashboard/* are presentational.
+// The personal dashboard (rendered by src/app/dashboard/page.tsx). This file
+// owns all state, data loading and the request handlers; the views in
+// src/components/dashboard/* are presentational.
 //
 // Views (hash-routed, see useDashView): #devices (home), #plan, #rewards,
-// #account (#help scrolls to the Help panel).
+// #account (#help scrolls to the Help panel). `?view=<view>` or `?view=topup`
+// opens a view (or the top-up sheet) once, for entry points like the bot's
+// buttons.
+//
+// The unified balance: the bot's USD wallet (integer cents) is shown and
+// spent here too. "Pay from balance" calls /api/wallet/purchase with a request
+// id that is kept until the purchase succeeds (lib/dashboard/wallet.ts), and
+// "Top up" creates an invoice with /api/wallet/topup.
 "use client";
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { trackEvent, stripQueryParam } from "@/lib/attribution";
+import { trackEvent } from "@/lib/attribution";
 import { useDashLang } from "@/lib/dash-i18n";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
 import { Button, CabinetRoot, ConfirmDialog, Notice, cx, readJson, useDocumentTitle } from "@/components/cabinet";
@@ -19,67 +26,120 @@ import { copyText } from "@/lib/clipboard";
 import { useShellT } from "@/lib/i18n-shell";
 import { DEVICE_DEFS, isDeviceId, type DeviceId } from "@/lib/dashboard/devices";
 import { dashError } from "@/lib/dashboard/errors";
-import { daysLeft, fmtDate, heroState } from "@/lib/dashboard/format";
-import type { PayRoute } from "@/lib/dashboard/pay-methods";
+import { daysLeft, fmtDate, fmtMoney, heroState } from "@/lib/dashboard/format";
+import type { PayRoute, TopupMethodInfo, TopupRoute } from "@/lib/dashboard/pay-methods";
 import type { AccountData, PlanKind, Pricing, Profile, ReferralData, SubItem, Term } from "@/lib/dashboard/types";
-import { AccountView, type UserInfo } from "@/components/dashboard/AccountView";
-import { AppsSection } from "@/components/dashboard/AppsSection";
-import { BottomNav } from "@/components/dashboard/BottomNav";
-import { DashHeader } from "@/components/dashboard/DashHeader";
-import { DashSkeleton } from "@/components/dashboard/DashSkeleton";
-import { DevicesSection } from "@/components/dashboard/DevicesSection";
-import { ExtraSlotDialog } from "@/components/dashboard/ExtraSlotDialog";
-import { PaymentReturnNotice } from "@/components/dashboard/PaymentReturnNotice";
-import { PlanView } from "@/components/dashboard/PlanView";
-import { RewardsView, type PromoMsg } from "@/components/dashboard/RewardsView";
-import { StatusHero } from "@/components/dashboard/StatusHero";
-import { FirstVisitProvider } from "@/components/dashboard/shared";
-import { useDashView, type DashView } from "@/components/dashboard/useDashView";
+import {
+  clearRequestId,
+  keepsRequestId,
+  purchaseOutcome,
+  requestIdFor,
+  type KeyValueStore,
+  type PurchaseOutcome,
+  type WalletProduct,
+} from "@/lib/dashboard/wallet";
+import {
+  PAID_BASE_KEY,
+  PAID_POLL_MAX_MS,
+  PAID_RECENT_MS,
+  detectPaid,
+  isPaidReturnValue,
+  parseBaseline,
+  serializeBaseline,
+  type PaidBaseline,
+  type PaidKind,
+} from "@/lib/payment-return";
+import { AccountView, type UserInfo } from "./AccountView";
+import { AppsSection } from "./AppsSection";
+import { BottomNav } from "./BottomNav";
+import { DashHeader } from "./DashHeader";
+import { DashSkeleton } from "./DashSkeleton";
+import { DevicesSection } from "./DevicesSection";
+import { ExtraSlotDialog } from "./ExtraSlotDialog";
+import { PaymentReturnNotice } from "./PaymentReturnNotice";
+import { PlanView } from "./PlanView";
+import { RewardsView, type PromoMsg } from "./RewardsView";
+import { StatusHero } from "./StatusHero";
+import { TopupDialog, type TopupConfig } from "./TopupDialog";
+import { WalletChip, fmtCents } from "./WalletPanel";
+import { FirstVisitProvider } from "./shared";
+import { isDashView, replaceDashUrl, useDashView, type DashView } from "./useDashView";
 import "@/app/dashboard/dashboard.css";
 
-/** After ?paid=1, a subscription created this long before the page opened counts as the payment. */
-const PAID_RECENT_MS = 30 * 60 * 1000;
-/** sessionStorage key: the plan as it was when the user left for a payment page. */
-const PAID_BASE_KEY = "kovra_paid_base";
-/** A stored baseline older than this is ignored (a payment abandoned long ago). */
-const PAID_BASE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Poll the account this often while a payment is being checked. */
+const PAID_POLL_MS = 15_000;
 
-type PaidBaseline = { maxExpiry: number; activeSlots: number };
-
-/** Remembers the plan before leaving for a payment page, so a renewal (which
- *  extends an existing subscription and keeps its createdAt) is recognised on
- *  return even when the webhook landed before the first load. */
-function savePaidBaseline(base: PaidBaseline | null): void {
+function localStore(): Storage | null {
   try {
-    // Unknown plan (account not loaded): drop any older baseline rather than keep a wrong one.
-    if (base === null) sessionStorage.removeItem(PAID_BASE_KEY);
-    else sessionStorage.setItem(PAID_BASE_KEY, JSON.stringify({ ...base, at: Date.now() }));
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function sessionStore(): KeyValueStore | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Remembers the plan and the balance before leaving for a payment page. */
+function saveBaseline(base: PaidBaseline | null): void {
+  const s = localStore();
+  try {
+    // Unknown plan (account not loaded): drop an older baseline rather than keep a wrong one.
+    if (base === null) s?.removeItem(PAID_BASE_KEY);
+    else s?.setItem(PAID_BASE_KEY, serializeBaseline(base, Date.now()));
   } catch {
     // Storage blocked: the first load after the return serves as the baseline.
   }
 }
 
 /** Reads and clears the stored baseline; null when missing, stale or malformed. */
-function takePaidBaseline(): PaidBaseline | null {
+function takeBaseline(): PaidBaseline | null {
+  const s = localStore();
   let raw: string | null = null;
   try {
-    raw = sessionStorage.getItem(PAID_BASE_KEY);
-    sessionStorage.removeItem(PAID_BASE_KEY);
+    raw = s?.getItem(PAID_BASE_KEY) ?? null;
+    s?.removeItem(PAID_BASE_KEY);
   } catch {
     return null;
   }
-  if (!raw) return null;
-  try {
-    const v: unknown = JSON.parse(raw);
-    if (typeof v !== "object" || v === null) return null;
-    const { maxExpiry, activeSlots, at } = v as Record<string, unknown>;
-    if (typeof maxExpiry !== "number" || !Number.isFinite(maxExpiry)) return null;
-    if (typeof activeSlots !== "number" || !Number.isFinite(activeSlots)) return null;
-    if (typeof at !== "number" || !(Date.now() - at < PAID_BASE_MAX_AGE_MS)) return null;
-    return { maxExpiry, activeSlots };
-  } catch {
-    return null;
-  }
+  return parseBaseline(raw, Date.now());
+}
+
+interface WalletState {
+  balanceCents: number;
+  topup: TopupConfig;
+}
+
+const TOPUP_IDS: readonly TopupMethodInfo["id"][] = ["card", "cryptobot", "crypto", "lava"];
+
+/** `wallet` of /api/account; null when absent (an older deployment) or malformed. */
+function parseWallet(v: unknown): WalletState | null {
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as { balanceUsdCents?: unknown; topup?: unknown };
+  if (typeof o.balanceUsdCents !== "number" || !Number.isFinite(o.balanceUsdCents)) return null;
+  const tp = (typeof o.topup === "object" && o.topup !== null ? o.topup : {}) as { methods?: unknown; maxUsd?: unknown; quickUsd?: unknown };
+  const methods: TopupMethodInfo[] = Array.isArray(tp.methods)
+    ? tp.methods.flatMap((m: unknown) => {
+        if (typeof m !== "object" || m === null) return [];
+        const x = m as { id?: unknown; minUsd?: unknown; enabled?: unknown };
+        const id = TOPUP_IDS.find((k) => k === x.id);
+        if (!id || typeof x.minUsd !== "number" || !Number.isFinite(x.minUsd)) return [];
+        return [{ id, minUsd: x.minUsd, enabled: x.enabled === true }];
+      })
+    : [];
+  const maxUsd = typeof tp.maxUsd === "number" && Number.isFinite(tp.maxUsd) && tp.maxUsd > 0 ? tp.maxUsd : 1000;
+  const quickUsd = Array.isArray(tp.quickUsd)
+    ? tp.quickUsd.filter((n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= maxUsd)
+    : [];
+  return {
+    balanceCents: Math.max(0, Math.floor(o.balanceUsdCents)),
+    topup: { methods, maxUsd, quickUsd: quickUsd.length > 0 ? quickUsd : [10, 20, 50, 100] },
+  };
 }
 
 // ── Dev-only mock (design preview without Redis): NEXT_PUBLIC_DASH_MOCK=1 ──
@@ -104,6 +164,23 @@ const MOCK_PROFILES: Profile[] = [
   { uuid: "1b2e7c10-demo-4f00-8d2a-bbbbbbbbbbbb", clientEmail: "vpn_web_demo_2", vlessUrl: "vless://demo@de.kovravpn.com:443?security=reality&sni=example.com#Kovra-DE", createdAt: MOCK_NOW - 5 * 864e5, deviceType: "android", subToken: "demoToken2" },
 ];
 const MOCK_REFERRAL: ReferralData = { code: "45288149", link: "https://kovravpn.com/register?ref=45288149", botLink: "https://t.me/kovravpn_bot?start=45288149", total: 3, rewarded: 1, pending: 2 };
+const MOCK_TOPUP: TopupConfig = {
+  methods: [
+    { id: "card", minUsd: 5, enabled: true },
+    { id: "cryptobot", minUsd: 5, enabled: true },
+    { id: "crypto", minUsd: 8, enabled: true },
+    { id: "lava", minUsd: 5, enabled: true },
+  ],
+  maxUsd: 1000,
+  quickUsd: [10, 20, 50, 100],
+};
+
+/** ?mockBalance=<cents> (default $12.50: covers a month of one device, not a year of three). */
+function mockWallet(): WalletState {
+  const param = new URLSearchParams(window.location.search).get("mockBalance");
+  const raw = param === null || param.trim() === "" ? NaN : Number(param);
+  return { balanceCents: Number.isFinite(raw) && raw >= 0 && raw <= 1e7 ? Math.floor(raw) : 1250, topup: MOCK_TOPUP };
+}
 
 /**
  * Dev-only variants for the design preview (?mockState=…, read only when
@@ -146,6 +223,19 @@ function mockData(state: string | null): { account: AccountData; profiles: Profi
   }
 }
 
+/** Mock of POST /api/wallet/purchase: same answers, no server. */
+async function mockPurchase(product: WalletProduct, balanceCents: number): Promise<{ status: number; body: unknown }> {
+  await new Promise((r) => setTimeout(r, 700));
+  const priceCents =
+    product.kind === "device"
+      ? Math.round(MOCK_PRICING.deviceAddonPrice * 100) * product.term
+      : Math.round((MOCK_PRICING[product.kind][String(product.term)]?.total ?? 0) * 100);
+  if (balanceCents < priceCents) {
+    return { status: 402, body: { ok: false, error: "insufficient_balance", priceCents, balanceCents, needCents: priceCents - balanceCents } };
+  }
+  return { status: 200, body: { ok: true, product, priceCents, balanceCents: balanceCents - priceCents, replayed: false } };
+}
+
 /** Mounts once per view switch: rise-in on the first visit, a quick fade after. */
 function ViewFrame({ view, firstVisit, onVisit, children }: { view: DashView; firstVisit: boolean; onVisit(v: DashView): void; children: ReactNode }) {
   const [first] = useState(firstVisit);
@@ -168,6 +258,7 @@ export function DashboardView() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [account, setAccount] = useState<AccountData | null>(null);
   const [pricing, setPricing] = useState<Pricing | null>(null);
+  const [wallet, setWallet] = useState<WalletState | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
@@ -184,6 +275,20 @@ export function DashboardView() {
   const [buyingLava, setBuyingLava] = useState<string | null>(null);
   const [buyingCardDevice, setBuyingCardDevice] = useState(false);
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
+
+  // the unified balance
+  const [walletBusy, setWalletBusy] = useState<"plan" | "slot" | null>(null);
+  const [planDone, setPlanDone] = useState<string | null>(null);
+  const [slotDone, setSlotDone] = useState<string | null>(null);
+  /** Cents missing for the last balance purchase that did not fit (offers a top-up). */
+  const [shortCents, setShortCents] = useState<number | null>(null);
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [topupSeq, setTopupSeq] = useState(0);
+  const [topupBusy, setTopupBusy] = useState(false);
+  const [topupError, setTopupError] = useState<string | null>(null);
+  const [topupSuggest, setTopupSuggest] = useState<number | null>(null);
+  const [topupWanted, setTopupWanted] = useState(false);
+  const requestIds = useRef(new Map<string, string>());
 
   // device create
   const [creating, setCreating] = useState(false);
@@ -209,8 +314,13 @@ export function DashboardView() {
   const [deviceError, setDeviceError] = useState<Record<string, string>>({});
 
   const [referral, setReferral] = useState<ReferralData | null>(null);
-  const [cryptoPending, setCryptoPending] = useState(false);
+
+  // Payment return: "Checking payment…" until the plan or the balance changes.
+  const [paidPending, setPaidPending] = useState(false);
+  /** The pending check started from a ?paid= return (not from a payment opened on this page view). */
+  const [paidFromUrl, setPaidFromUrl] = useState(false);
   const [paidBaseline, setPaidBaseline] = useState<PaidBaseline | null>(null);
+  const [paidSlow, setPaidSlow] = useState(false);
   // When the dashboard opened: a subscription created within 30 minutes before
   // it counts as the payment the user is returning from.
   const [mountTs] = useState(() => Date.now());
@@ -227,36 +337,65 @@ export function DashboardView() {
       return next;
     });
 
-  // return-from-payment detection
+  // Entry-point parameters, once: ?paid= (back from a payment page), ?view=.
+  // Both are removed from the address in one replaceState (see replaceDashUrl).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const p = new URLSearchParams(window.location.search);
-    if (p.get("paid") === "1") {
-      trackEvent("payment_initiated", { type: "plan", method: "crypto_return" });
-      setCryptoPending(true);
-      const stored = takePaidBaseline();
-      if (stored) setPaidBaseline(stored);
-      stripQueryParam("paid");
+    const url = new URL(window.location.href);
+    let changed = false;
+    if (url.searchParams.has("paid")) {
+      if (isPaidReturnValue(url.searchParams.get("paid"))) {
+        trackEvent("payment_initiated", { type: "plan", method: "crypto_return" });
+        setPaidPending(true);
+        setPaidFromUrl(true);
+        const stored = takeBaseline();
+        if (stored) setPaidBaseline(stored);
+      }
+      url.searchParams.delete("paid");
+      changed = true;
     }
+    const v = url.searchParams.get("view");
+    if (v !== null) {
+      url.searchParams.delete("view");
+      changed = true;
+      if (v === "topup") {
+        url.hash = "plan";
+        setTopupWanted(true);
+      } else if (isDashView(v)) {
+        url.hash = v;
+      }
+    }
+    if (changed) replaceDashUrl(`${url.pathname}${url.search}${url.hash}`);
   }, []);
 
   // current user
-  useEffect(() => {
+  const loadUser = useCallback(async () => {
     if (MOCK) {
       setUserId("mock-user");
       setUserInfo({ authMethod: "email", email: "demo@kovravpn.com" });
       return;
     }
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.authenticated) {
-          setUserId(d.userId);
-          setUserInfo({ authMethod: d.authMethod, email: d.email, telegramId: d.telegramId });
-        } else window.location.href = "/login";
-      })
-      .catch(() => { window.location.href = "/login"; });
+    try {
+      const r = await fetch("/api/auth/me");
+      const d = await readJson(r);
+      if (d.authenticated === true && typeof d.userId === "string") {
+        setUserId(d.userId);
+        setUserInfo({
+          authMethod: typeof d.authMethod === "string" ? d.authMethod : "",
+          email: typeof d.email === "string" ? d.email : undefined,
+          telegramId: typeof d.telegramId === "string" || typeof d.telegramId === "number" ? String(d.telegramId) : undefined,
+        });
+      } else {
+        window.location.href = "/login";
+      }
+    } catch {
+      window.location.href = "/login";
+    }
   }, []);
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
 
@@ -267,6 +406,7 @@ export function DashboardView() {
       setAccount(m.account);
       setPricing(MOCK_PRICING);
       setProfiles(m.profiles);
+      setWallet((w) => w ?? mockWallet());
       setLoadError(false);
       setLoading(false);
       return;
@@ -289,6 +429,7 @@ export function DashboardView() {
         });
       }
       if (d.pricing) setPricing(d.pricing);
+      setWallet(parseWallet(d.wallet));
       // attach profiles via a parallel field
       setProfiles(d.profiles || []);
       setLoadError(false);
@@ -312,29 +453,71 @@ export function DashboardView() {
     if (ak) setPlanKind(ak as "plan1" | "plan3");
   }, [account]);
 
-  // ?paid=1: done once a purchased subscription from the last 30 minutes is on the
-  // account (card webhooks usually land before the redirect back), or once the
-  // plan differs from the baseline: the one saved before leaving for the payment
-  // page (a renewal keeps its createdAt), else the first load here; until then, poll.
-  if (cryptoPending && account && paidBaseline === null) {
-    setPaidBaseline({ maxExpiry: account.maxExpiry, activeSlots: account.activeSlots });
+  // Back from a payment: done once the plan or the balance moved against the
+  // baseline saved before leaving (else the first load here). A plan bought
+  // within 30 minutes before a ?paid= return also counts (card webhooks
+  // usually land before the redirect back). Until then, poll.
+  const balanceCents = wallet?.balanceCents ?? null;
+  if (paidPending && account && paidBaseline === null) {
+    setPaidBaseline({ maxExpiry: account.maxExpiry, activeSlots: account.activeSlots, balanceCents, kind: null });
   }
   const recentPaid =
-    cryptoPending && account !== null && account.subs.some((x) => x.kind !== "referral" && x.createdAt > mountTs - PAID_RECENT_MS);
-  const paidDone =
-    recentPaid ||
-    (cryptoPending && paidBaseline !== null && account !== null &&
-      (account.maxExpiry !== paidBaseline.maxExpiry || account.activeSlots !== paidBaseline.activeSlots));
+    paidPending && paidFromUrl && account !== null && account.subs.some((x) => x.kind !== "referral" && x.createdAt > mountTs - PAID_RECENT_MS);
+  const paidKind =
+    paidPending && account
+      ? detectPaid(paidBaseline, { maxExpiry: account.maxExpiry, activeSlots: account.activeSlots, balanceCents }, recentPaid)
+      : null;
+  const paidDone = paidKind !== null;
 
   useEffect(() => {
-    if (MOCK || !cryptoPending || paidDone || !userId) return;
+    if (!paidPending || paidDone || !userId) return;
     const started = Date.now();
+    setPaidSlow(false);
     const id = window.setInterval(() => {
-      if (Date.now() - started > 30 * 60 * 1000) { window.clearInterval(id); return; }
-      void fetchAccount();
-    }, 15000);
-    return () => window.clearInterval(id);
-  }, [cryptoPending, paidDone, userId, fetchAccount]);
+      if (Date.now() - started > PAID_POLL_MAX_MS) {
+        window.clearInterval(id);
+        setPaidSlow(true);
+        return;
+      }
+      if (!MOCK) void fetchAccount();
+    }, PAID_POLL_MS);
+    // Coming back to the page (from the payment tab, or to Telegram from the
+    // browser): check at once instead of waiting for the next tick.
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !MOCK) void fetchAccount();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [paidPending, paidDone, userId, fetchAccount]);
+
+  useEffect(() => {
+    // Seen: a later ?paid= must not compare against this payment's baseline.
+    if (paidKind) saveBaseline(null);
+  }, [paidKind]);
+
+  /**
+   * Leave for a payment page. The baseline is saved first. In the preview the
+   * page stays, so the check starts right away.
+   */
+  const openPayment = (url: string, kind: PaidKind) => {
+    const base: PaidBaseline | null = account
+      ? { maxExpiry: account.maxExpiry, activeSlots: account.activeSlots, balanceCents, kind }
+      : null;
+    saveBaseline(base);
+    if (MOCK) {
+      console.info("[dash-mock] payment page:", url);
+    } else {
+      window.location.href = url;
+    }
+    if (MOCK) {
+      setPaidBaseline(base);
+      setPaidFromUrl(false);
+      setPaidPending(true);
+    }
+  };
 
   const handleBuyPlan = async () => {
     setBuying(true); setPlanError(null);
@@ -343,7 +526,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "platega", kind: planKind, term });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "plan");
       } else setPlanError(errText(d.error, r.status, t.err_pay));
     } catch { setPlanError(t.err_conn); } finally { setBuying(false); }
   };
@@ -355,7 +538,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "platega" });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "slot");
       } else setSlotError(errText(d.error, r.status, t.err_pay));
     } catch { setSlotError(t.err_conn); } finally { setBuyingDevice(false); }
   };
@@ -367,7 +550,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "card", provider: "cashera", kind: planKind, term });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "plan");
       } else setPlanError(errText(d.error, r.status, t.err_pay));
     } catch { setPlanError(t.err_conn); } finally { setBuyingCard(false); }
   };
@@ -379,7 +562,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "card", provider: "cashera" });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "slot");
       } else setSlotError(errText(d.error, r.status, t.err_pay));
     } catch { setSlotError(t.err_conn); } finally { setBuyingCardDevice(false); }
   };
@@ -392,7 +575,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "plan", method: "crypto", provider: "nowpayments", kind: planKind, term });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "plan");
       } else setPlanError(errText(d.error, r.status, t.err_pay));
     } catch { setPlanError(t.err_conn); } finally { setBuyingAlt(false); }
   };
@@ -404,7 +587,7 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { type: "device", method: "crypto", provider: "nowpayments" });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, "slot");
       } else setSlotError(errText(d.error, r.status, t.err_pay));
     } catch { setSlotError(t.err_conn); } finally { setBuyingAltDevice(false); }
   };
@@ -413,12 +596,13 @@ export function DashboardView() {
   // Способ и валюта уходят вместе: лава показывает покупателю ровно один
   // способ на счёт, а подпись на кнопке обязана совпасть со списанием.
   const handleBuyLava = async (
-    body: Record<string, unknown>,
+    body: Record<string, string | number>,
     id: LavaMethodId,
     currency: LavaCurrency,
     tag: string,
   ) => {
-    const setError = tag.startsWith("device:") ? setSlotError : setPlanError;
+    const isSlot = tag.startsWith("device:");
+    const setError = isSlot ? setSlotError : setPlanError;
     setBuyingLava(tag); setError(null);
     try {
       const r = await fetch("/api/subscribe/lava", {
@@ -429,9 +613,142 @@ export function DashboardView() {
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { ...body, method: id, currency, provider: "lava" });
-        window.location.href = d.paymentUrl;
+        openPayment(d.paymentUrl, isSlot ? "slot" : "plan");
       } else setError(errText(d.error, r.status, t.err_pay));
     } catch { setError(t.err_conn); } finally { setBuyingLava(null); }
+  };
+
+  /** Text for a balance purchase that did not go through. */
+  const walletErrText = (o: PurchaseOutcome): string => {
+    switch (o.kind) {
+      case "insufficient":
+        return fmt(t.wallet_err_short, { need: fmtCents(o.needCents, lang) });
+      case "busy":
+        return t.wallet_err_busy;
+      case "other_plan":
+        return t.wallet_err_other_plan;
+      case "refunded":
+        return t.wallet_err_refunded;
+      case "stuck":
+        return t.wallet_err_stuck;
+      case "rate_limited":
+        return errText(undefined, 429, t.err_generic);
+      default:
+        return t.err_generic;
+    }
+  };
+
+  /**
+   * "Pay from balance": one tap, no redirect. The request id is kept per
+   * product until the purchase succeeds, so a lost answer or a second tap
+   * can never charge twice.
+   */
+  const payFromBalance = async (target: "plan" | "slot") => {
+    const product: WalletProduct = target === "plan" ? { kind: effectiveKind, term } : { kind: "device", term: 1 };
+    const setErr = target === "plan" ? setPlanError : setSlotError;
+    const setDone = target === "plan" ? setPlanDone : setSlotDone;
+    setErr(null); setDone(null); setShortCents(null);
+    setWalletBusy(target);
+    const store = sessionStore();
+    const requestId = requestIdFor(store, product, requestIds.current);
+    try {
+      let status: number;
+      let body: unknown;
+      if (MOCK) {
+        ({ status, body } = await mockPurchase(product, balanceCents ?? 0));
+      } else {
+        const r = await fetch("/api/wallet/purchase", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: product.kind, term: product.term, requestId, source: "web" }),
+        });
+        status = r.status;
+        body = await readJson(r);
+      }
+      const o = purchaseOutcome(status, body);
+      if (!keepsRequestId(o)) clearRequestId(store, product, requestIds.current);
+      if (o.kind === "ok") {
+        setWallet((w) => (w ? { ...w, balanceCents: o.balanceCents } : w));
+        const amount = fmtCents(o.priceCents, lang);
+        setDone(fmt(target === "plan" ? t.wallet_paid_plan : t.wallet_paid_slot, { amount }));
+        trackEvent("wallet_purchase", { kind: product.kind, term: product.term, cents: o.priceCents, source: "web" });
+        await fetchAccount();
+        return;
+      }
+      if (o.kind === "unauthorized") {
+        window.location.href = "/login";
+        return;
+      }
+      if (o.kind === "insufficient") {
+        setWallet((w) => (w ? { ...w, balanceCents: o.balanceCents } : w));
+        setShortCents(o.needCents);
+      }
+      setErr(walletErrText(o));
+    } catch {
+      setErr(t.err_conn);
+    } finally {
+      setWalletBusy(null);
+    }
+  };
+
+  const openTopup = (suggest: number | null) => {
+    setTopupSuggest(suggest);
+    setTopupError(null);
+    setTopupSeq((n) => n + 1);
+    setTopupOpen(true);
+  };
+
+  // ?view=topup: open the sheet once the balance is known.
+  useEffect(() => {
+    if (!topupWanted || !wallet) return;
+    setTopupWanted(false);
+    setTopupSuggest(null);
+    setTopupError(null);
+    setTopupSeq((n) => n + 1);
+    setTopupOpen(true);
+  }, [topupWanted, wallet]);
+
+  const topupErrText = (status: number, d: Record<string, unknown>): string => {
+    if (d.error === "invalid_amount" && typeof d.minUsd === "number") {
+      return fmt(t.topup_min, { amount: fmtMoney(d.minUsd, "USD", lang) });
+    }
+    if (status === 503) return t.topup_unavailable;
+    return errText(undefined, status, t.err_pay);
+  };
+
+  const startTopup = async (route: TopupRoute, amountUsd: number) => {
+    setTopupBusy(true); setTopupError(null);
+    try {
+      if (MOCK) {
+        await new Promise((r) => setTimeout(r, 700));
+        setTopupOpen(false);
+        openPayment("https://kovravpn.com/#mock-topup", "topup");
+        // The "webhook" of the preview: the money lands a few seconds later.
+        window.setTimeout(() => setWallet((w) => (w ? { ...w, balanceCents: w.balanceCents + Math.round(amountUsd * 100) } : w)), 3500);
+        return;
+      }
+      const r = await fetch("/api/wallet/topup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: route.kind,
+          amountUsd,
+          returnTo: "web",
+          ...(route.kind === "lava" ? { lavaMethod: route.id, lavaCurrency: route.currency } : {}),
+        }),
+      });
+      const d = await readJson(r);
+      if (r.ok && typeof d.payUrl === "string") {
+        trackEvent("payment_initiated", { type: "topup", method: route.kind, amountUsd });
+        openPayment(d.payUrl, "topup");
+      } else {
+        setTopupError(topupErrText(r.status, d));
+      }
+    } catch {
+      setTopupError(t.err_conn);
+    } finally {
+      setTopupBusy(false);
+    }
   };
 
   // Runs after the user confirms in the reset dialog.
@@ -535,13 +852,13 @@ export function DashboardView() {
   const subUrlOf = (p: Profile) =>
     p.subToken ? (happEnabled ? `https://kovravpn.com/p/${p.subToken}` : `https://kovravpn.com/api/sub/${p.subToken}`) : "";
 
-  const payBusy = buying || buyingCard || buyingAlt || buyingDevice || buyingCardDevice || buyingAltDevice || buyingLava !== null;
+  const payBusy =
+    buying || buyingCard || buyingAlt || buyingDevice || buyingCardDevice || buyingAltDevice || buyingLava !== null || walletBusy !== null || topupBusy;
 
-  const rememberPaidBaseline = () =>
-    savePaidBaseline(account ? { maxExpiry: account.maxExpiry, activeSlots: account.activeSlots } : null);
   const payPlan = (route: PayRoute) => {
-    rememberPaidBaseline();
+    setPlanDone(null);
     switch (route.kind) {
+      case "wallet": return void payFromBalance("plan");
       case "platega": return void handleBuyPlan();
       case "cashera": return void handleBuyPlanCard();
       case "nowpayments": return void handleBuyPlanAlt();
@@ -549,8 +866,8 @@ export function DashboardView() {
     }
   };
   const paySlot = (route: PayRoute) => {
-    rememberPaidBaseline();
     switch (route.kind) {
+      case "wallet": return void payFromBalance("slot");
       case "platega": return void handleBuyDevice();
       case "cashera": return void handleBuyDeviceCard();
       case "nowpayments": return void handleBuyDeviceAlt();
@@ -558,9 +875,11 @@ export function DashboardView() {
     }
   };
   const planLoading = (route: PayRoute) =>
-    route.kind === "platega" ? buying : route.kind === "cashera" ? buyingCard : route.kind === "nowpayments" ? buyingAlt : buyingLava === `plan:${route.id}`;
+    route.kind === "wallet" ? walletBusy === "plan"
+    : route.kind === "platega" ? buying : route.kind === "cashera" ? buyingCard : route.kind === "nowpayments" ? buyingAlt : buyingLava === `plan:${route.id}`;
   const slotLoading = (route: PayRoute) =>
-    route.kind === "platega" ? buyingDevice : route.kind === "cashera" ? buyingCardDevice : route.kind === "nowpayments" ? buyingAltDevice : buyingLava === `device:${route.id}`;
+    route.kind === "wallet" ? walletBusy === "slot"
+    : route.kind === "platega" ? buyingDevice : route.kind === "cashera" ? buyingCardDevice : route.kind === "nowpayments" ? buyingAltDevice : buyingLava === `device:${route.id}`;
 
   const fallbackView: DashView | null = loading ? null : loadError && !account ? "devices" : account?.hasActive || profiles.length > 0 ? "devices" : "plan";
   const { view, navigate } = useDashView(!loading, fallbackView);
@@ -585,7 +904,19 @@ export function DashboardView() {
       }
     : null;
 
-  const openSlotDialog = () => { setSlotError(null); setSlotDialogOpen(true); };
+  const openSlotDialog = () => { setSlotError(null); setSlotDone(null); setShortCents(null); setSlotDialogOpen(true); };
+  const topupFromShort = () => openTopup(shortCents);
+  const shortAction = (visible: boolean) =>
+    visible && shortCents !== null && wallet ? (
+      <Button variant="quiet" size="sm" onClick={topupFromShort}>
+        {t.wallet_topup}
+      </Button>
+    ) : null;
+
+  const walletChip = () =>
+    wallet && wallet.balanceCents > 0 ? (
+      <WalletChip t={t} lang={lang} balanceCents={wallet.balanceCents} pending={paidPending && !paidDone && !paidSlow} onClick={() => openTopup(null)} />
+    ) : null;
 
   let content: ReactNode = null;
   if (view === "devices") {
@@ -647,14 +978,19 @@ export function DashboardView() {
         effectiveKind={effectiveKind}
         planKind={planKind}
         term={term}
-        onPlanKind={setPlanKind}
-        onTerm={setTerm}
+        onPlanKind={(k) => { setPlanKind(k); setPlanError(null); setShortCents(null); }}
+        onTerm={(tm) => { setTerm(tm); setPlanError(null); setShortCents(null); }}
         busy={payBusy}
         isLoading={planLoading}
         onPay={payPlan}
         planError={planError}
-        onDismissPlanError={() => setPlanError(null)}
+        planErrorAction={shortAction(!slotDialogOpen)}
+        onDismissPlanError={() => { setPlanError(null); setShortCents(null); }}
+        planDone={planDone}
+        onDismissPlanDone={() => setPlanDone(null)}
         onBuySlot={openSlotDialog}
+        balanceCents={wallet ? wallet.balanceCents : null}
+        onTopup={() => openTopup(null)}
       />
     );
   } else if (view === "rewards") {
@@ -670,23 +1006,40 @@ export function DashboardView() {
       />
     );
   } else if (view === "account") {
-    content = <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} />;
+    content = (
+      <AccountView t={t} userId={userId} userInfo={userInfo} onUserUpdate={refreshUser} onLogout={() => void handleLogout()} />
+    );
   }
 
   return (
     <CabinetRoot variant="dash">
-      <DashHeader t={t} view={view} identity={identity} status={accountStatus} onNavigate={navigate} onLogout={() => void handleLogout()} />
+      <DashHeader
+        t={t}
+        view={view}
+        identity={identity}
+        status={accountStatus}
+        onNavigate={navigate}
+        onLogout={() => void handleLogout()}
+        walletSlot={walletChip()}
+      />
       <main id="kc-main" tabIndex={-1} className="kc-dash-main" aria-busy={loading || undefined}>
         <div className="kc-dash-wrap">
-          {cryptoPending ? (
-            <PaymentReturnNotice t={t} done={paidDone} dismissLabel={shell.dismiss} onDismiss={() => setCryptoPending(false)} />
+          {paidPending ? (
+            <PaymentReturnNotice
+              t={t}
+              state={paidKind ?? (paidSlow ? "slow" : "pending")}
+              kind={paidBaseline?.kind ?? null}
+              balance={wallet ? fmtCents(wallet.balanceCents, lang) : null}
+              dismissLabel={shell.dismiss}
+              onDismiss={() => setPaidPending(false)}
+            />
           ) : null}
           {loadError ? (
             <Notice
               tone="error"
               className="kc-load-error"
               action={
-                <Button variant="ghost" size="sm" onClick={() => void fetchAccount()}>
+                <Button variant="ghost" size="sm" onClick={() => void (userId ? fetchAccount() : loadUser())}>
                   {shell.retry}
                 </Button>
               }
@@ -695,7 +1048,7 @@ export function DashboardView() {
             </Notice>
           ) : null}
           {loading || !view ? (
-            <DashSkeleton label={t.loading_account} />
+            loadError ? null : <DashSkeleton label={t.loading_account} />
           ) : loadError && !account ? null : (
             <ViewFrame key={view} view={view} firstVisit={!visited.has(view)} onVisit={onVisit}>
               {content}
@@ -739,7 +1092,7 @@ export function DashboardView() {
       {pricing ? (
         <ExtraSlotDialog
           open={slotDialogOpen}
-          onClose={() => setSlotDialogOpen(false)}
+          onClose={() => { setSlotDialogOpen(false); setSlotDone(null); setShortCents(null); }}
           t={t}
           lang={lang}
           price={pricing.deviceAddonPrice}
@@ -749,7 +1102,26 @@ export function DashboardView() {
           isLoading={slotLoading}
           onPay={paySlot}
           error={slotError}
-          onDismissError={() => setSlotError(null)}
+          errorAction={shortAction(slotDialogOpen)}
+          onDismissError={() => { setSlotError(null); setShortCents(null); }}
+          balanceCents={wallet ? wallet.balanceCents : null}
+          done={slotDone}
+        />
+      ) : null}
+      {wallet ? (
+        <TopupDialog
+          open={topupOpen}
+          openSeq={topupSeq}
+          onClose={() => setTopupOpen(false)}
+          t={t}
+          lang={lang}
+          balanceCents={wallet.balanceCents}
+          config={wallet.topup}
+          suggestCents={topupSuggest}
+          busy={topupBusy}
+          error={topupError}
+          onDismissError={() => setTopupError(null)}
+          onSubmit={(route, amountUsd) => void startTopup(route, amountUsd)}
         />
       ) : null}
     </CabinetRoot>
