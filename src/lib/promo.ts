@@ -1,11 +1,13 @@
 // src/lib/promo.ts
 import { redis } from "./redis";
 import { randomBytes } from "crypto";
+import { acquireLock } from "./ratelimit";
+import { addBalanceCents, usdToCents } from "./bot-wallet";
 
 export interface PromoCode {
   code: string;
-  type: "balance";         // credits ₽ to balance
-  amount: number;          // ₽ amount
+  type: "balance";         // credits the USD wallet (balance_usd)
+  amount: number;          // USD amount
   maxUses: number;         // 0 = unlimited
   usedCount: number;
   expiresAt: number;       // timestamp, 0 = no expiry
@@ -72,29 +74,133 @@ export async function hasUsedPromo(code: string, userId: string): Promise<boolea
   return !!val;
 }
 
-/** Validate and redeem a promo code. Returns amount credited or throws. */
-export async function redeemPromo(
-  code: string,
-  userId: string
-): Promise<{ amount: number; description: string }> {
-  const normalized = code.toUpperCase().trim();
-  const promo = await getPromo(normalized);
+export type PromoRedeemError =
+  | "empty"
+  | "not_found"
+  | "expired"
+  | "used_up"
+  | "already_used"
+  | "busy"
+  | "internal";
 
-  if (!promo) throw new Error("Промокод не найден");
-  if (promo.expiresAt > 0 && Date.now() > promo.expiresAt) throw new Error("Промокод истёк");
-  if (promo.maxUses > 0 && promo.usedCount >= promo.maxUses) throw new Error("Промокод исчерпан");
+export type PromoRedeemResult =
+  | { ok: true; code: string; amountCents: number; balanceCents: number }
+  | { ok: false; error: PromoRedeemError };
 
-  const used = await hasUsedPromo(normalized, userId);
-  if (used) throw new Error("Вы уже использовали этот промокод");
+/**
+ * Error texts as the cabinet's classifier (lib/server-errors.ts) and the bot
+ * have always shown them. `busy` and `internal` are new and in English.
+ */
+export const PROMO_ERROR_TEXT: Record<PromoRedeemError, string> = {
+  empty: "Введите промокод",
+  not_found: "Промокод не найден",
+  expired: "Промокод истёк",
+  used_up: "Промокод исчерпан",
+  already_used: "Вы уже использовали этот промокод",
+  busy: "Please try again in a moment.",
+  internal: "Could not apply the promo code. Try again later.",
+};
 
-  // Mark as used
-  await redis.set(`promo_used:${normalized}:${userId}`, "1");
+/** Codes: 3–32 letters, digits, '_' or '-', compared upper-cased. */
+const PROMO_CODE_RE = /^[\p{L}\p{N}_-]{3,32}$/u;
 
-  // Increment counter
-  promo.usedCount += 1;
-  await redis.set(`promo:${normalized}`, JSON.stringify(promo));
+/**
+ * Redeem a promo code INTO THE WALLET (`balance_usd:{userId}`, USD cents),
+ * exactly once per code and user. The one implementation for the bot, the
+ * web cabinet and the Mini App.
+ *
+ * Order, under a per-code lock (so `maxUses` cannot be overrun by a race):
+ *   1. check the code (exists, not expired, not used up);
+ *   2. claim `promo_used:{code}:{userId}` with SET NX — a second redemption,
+ *      or a repeat of this one, stops here;
+ *   3. credit the wallet; if the credit fails, the claim is removed, so a code
+ *      is never burned without the money;
+ *   4. mark the claim credited and count the use.
+ * Never throws; every outcome is a typed result.
+ */
+export async function redeemPromoToWallet(rawCode: unknown, userId: string): Promise<PromoRedeemResult> {
+  const code = typeof rawCode === "string" ? rawCode.toUpperCase().trim() : "";
+  if (code.length === 0) return { ok: false, error: "empty" };
+  if (!PROMO_CODE_RE.test(code)) return { ok: false, error: "not_found" };
+  if (typeof userId !== "string" || userId.length === 0 || userId.length > 200) {
+    return { ok: false, error: "internal" };
+  }
 
-  return { amount: promo.amount, description: promo.description };
+  let unlock: (() => Promise<void>) | null;
+  try {
+    unlock = await acquireLock(`promo:${code}`, 15);
+  } catch (err) {
+    console.error("[promo] lock error:", err instanceof Error ? err.message : err);
+    return { ok: false, error: "internal" };
+  }
+  if (!unlock) return { ok: false, error: "busy" };
+
+  try {
+    return await redeemLocked(code, userId);
+  } catch (err) {
+    // Only the reads before the claim can land here: nothing was written.
+    console.error("[promo] redeem error:", err instanceof Error ? err.message : err);
+    return { ok: false, error: "internal" };
+  } finally {
+    try {
+      await unlock();
+    } catch {
+      /* the lock expires by TTL */
+    }
+  }
+}
+
+async function redeemLocked(code: string, userId: string): Promise<PromoRedeemResult> {
+  const promo = await getPromo(code);
+  if (!promo) return { ok: false, error: "not_found" };
+  if (promo.expiresAt > 0 && Date.now() > promo.expiresAt) return { ok: false, error: "expired" };
+  if (promo.maxUses > 0 && promo.usedCount >= promo.maxUses) return { ok: false, error: "used_up" };
+
+  const amountCents = usdToCents(promo.amount);
+  if (amountCents === null) {
+    console.error(`[promo] code ${code} has an unusable amount: ${promo.amount}`);
+    return { ok: false, error: "internal" };
+  }
+
+  const usedKey = `promo_used:${code}:${userId}`;
+  const claimed = await redis.set(
+    usedKey,
+    JSON.stringify({ state: "crediting", amountCents, at: Date.now() }),
+    { nx: true },
+  );
+  if (claimed === null) return { ok: false, error: "already_used" };
+
+  let balanceCents: number;
+  try {
+    balanceCents = await addBalanceCents(userId, amountCents);
+  } catch (err) {
+    console.error("[promo] wallet credit failed, releasing the code:", err instanceof Error ? err.message : err);
+    try {
+      await redis.del(usedKey);
+    } catch (delErr) {
+      console.error(
+        `[promo] CODE BURNED WITHOUT CREDIT, needs review: code=${code} user=${userId} cents=${amountCents}:`,
+        delErr instanceof Error ? delErr.message : delErr,
+      );
+    }
+    return { ok: false, error: "internal" };
+  }
+
+  // Paid. What follows is bookkeeping: a failure is logged, never undone.
+  try {
+    await redis.set(usedKey, JSON.stringify({ state: "credited", amountCents, at: Date.now() }));
+  } catch (err) {
+    console.error("[promo] could not mark the claim credited:", err instanceof Error ? err.message : err);
+  }
+  try {
+    const fresh = (await getPromo(code)) ?? promo;
+    fresh.usedCount += 1;
+    await redis.set(`promo:${code}`, JSON.stringify(fresh));
+  } catch (err) {
+    console.error("[promo] could not count the use:", err instanceof Error ? err.message : err);
+  }
+  console.info(JSON.stringify({ evt: "wallet.promo_credit", code, userId, amountCents, balanceCents }));
+  return { ok: true, code, amountCents, balanceCents };
 }
 
 /** List all promo codes (admin) */

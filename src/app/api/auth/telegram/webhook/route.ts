@@ -25,7 +25,7 @@ import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } fr
 import { removeClientFromStaticPanels } from "@/lib/kovra-servers-sync";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
 import { syncAllExpiry } from "@/lib/balance";
-import { redeemPromo, createPromo, listPromos, deletePromo } from "@/lib/promo";
+import { redeemPromoToWallet, PROMO_ERROR_TEXT, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
 import { formatCharge } from "@/lib/lava-price";
@@ -40,7 +40,7 @@ import {
   minTopupUsd as minForMethod,
   type TopupMethod,
 } from "@/lib/wallet-topup";
-import { getBalanceUsd, addBalanceUsd } from "@/lib/bot-wallet";
+import { getBalanceUsd } from "@/lib/bot-wallet";
 import { PLAN_PRICES, activePlanKindOf, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
 import { purchaseFromWallet, type WalletProduct } from "@/lib/wallet-purchase";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
@@ -1167,16 +1167,21 @@ export async function POST(req: NextRequest) {
       }
       try {
         const userId = await getUserId(chatId);
-        let account = await getAccount(userId);
-        if (!account) account = await createAccount(userId);
-        const result = await redeemPromo(promoCode, userId);
-        const newBal = await addBalanceUsd(userId, result.amount);
-        await send(chatId, [
-          t("promo.ok", lang),
-          ``,
-          t("promo.credit", lang, { amount: result.amount.toFixed(2) }),
-          t("acc.balance", lang, { bal: newBal.toFixed(2) }),
-        ].join("\n"), mainMenuKb(lang));
+        const account = await getAccount(userId);
+        if (!account) await createAccount(userId);
+        // Same function as the web cabinet: once per code and user, and a
+        // code is never burned without the wallet credit.
+        const r = await redeemPromoToWallet(promoCode, userId);
+        if (r.ok) {
+          await send(chatId, [
+            t("promo.ok", lang),
+            ``,
+            t("promo.credit", lang, { amount: (r.amountCents / 100).toFixed(2) }),
+            t("acc.balance", lang, { bal: (r.balanceCents / 100).toFixed(2) }),
+          ].join("\n"), mainMenuKb(lang));
+        } else {
+          await send(chatId, t("common.error", lang, { msg: PROMO_ERROR_TEXT[r.error] }), [backBtn("menu", lang)]);
+        }
       } catch (err) {
         await send(chatId, t("common.error", lang, { msg: err instanceof Error ? err.message : "Error" }), [backBtn("menu", lang)]);
       }
