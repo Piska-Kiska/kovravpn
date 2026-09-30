@@ -664,7 +664,13 @@ async function pendingNeed(s: Session): Promise<PendingOrderView | null> {
   return { product: pending.product, term: pending.term, needCents: productCents(pending.product, pending.term) - balance };
 }
 
-const INVOICES_PER_MINUTE = 10;
+/** Invoices one user may create per minute from the bot (both interfaces share the budget). */
+export const INVOICES_PER_MINUTE = 10;
+
+/** The rate-limit key of that budget (lib/ratelimit.ts adds `rl:`). */
+export function botInvoiceRateKey(userId: string): string {
+  return `bottopup:${userId}`;
+}
 
 /** An amount was chosen: the lava method list, or the invoice itself. Null when only a toast was shown. */
 async function topupAmount(s: Session, method: TopupMethod, cents: number, answer: Answer): Promise<Screen | null> {
@@ -688,7 +694,7 @@ async function topupAmount(s: Session, method: TopupMethod, cents: number, answe
     );
     return lavaMethodsScreen(cents, choices, s.lang);
   }
-  const rl = await rateLimit(`bottopup:${s.userId}`, INVOICES_PER_MINUTE, 60);
+  const rl = await rateLimit(botInvoiceRateKey(s.userId), INVOICES_PER_MINUTE, 60);
   if (!rl.ok) {
     await answer(tr("toast.paying", s.lang));
     return null;
@@ -709,7 +715,7 @@ async function lavaInvoice(
   currency: "USD" | "EUR",
   answer: Answer,
 ): Promise<Screen | null> {
-  const rl = await rateLimit(`bottopup:${s.userId}`, INVOICES_PER_MINUTE, 60);
+  const rl = await rateLimit(botInvoiceRateKey(s.userId), INVOICES_PER_MINUTE, 60);
   if (!rl.ok) {
     await answer(tr("toast.paying", s.lang));
     return null;

@@ -53,6 +53,8 @@ import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
 import { isBotV2 } from "@/lib/bot-v2/gate";
 import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
 import {
+  INVOICES_PER_MINUTE,
+  botInvoiceRateKey,
   handleV2Callback,
   handleV2Command,
   handleV2Fallback,
@@ -828,6 +830,21 @@ async function screenLavaMethods(chatId: number, msgId: number, amountUsd: numbe
   ].join("\n"), rows);
 }
 
+/**
+ * Every tap on an amount creates a real invoice at the provider (Cashera,
+ * NOWPayments, CryptoBot, lava.top), and Cashera and lava also keep a record
+ * in Redis. The cabinet's routes are limited, the old bot interface was not
+ * (KP-13): it now shares bot v2's budget of INVOICES_PER_MINUTE per user.
+ * False after telling the person to try later.
+ */
+async function invoiceAllowed(chatId: number, msgId: number, userId: string, lang: BotLang): Promise<boolean> {
+  const rl = await checkRateLimit(botInvoiceRateKey(userId), INVOICES_PER_MINUTE, 60);
+  if (rl.allowed) return true;
+  console.warn(JSON.stringify({ evt: "bot.invoice_rate_limited", userId }));
+  await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
+  return false;
+}
+
 async function handleTopupLava(
   chatId: number,
   msgId: number,
@@ -837,6 +854,7 @@ async function handleTopupLava(
 ) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  if (!(await invoiceAllowed(chatId, msgId, userId, lang))) return;
   const r = await createWalletTopupInvoice({
     userId,
     method: "lava",
@@ -864,6 +882,7 @@ async function handleTopupLava(
 async function handleTopupBalance(chatId: number, msgId: number, method: TopupMethod, amountUsd: number) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  if (!(await invoiceAllowed(chatId, msgId, userId, lang))) return;
   const r = await createWalletTopupInvoice({ userId, method, amountUsd, returnTo: "bot" });
   if (r.ok) {
     await edit(chatId, msgId,
