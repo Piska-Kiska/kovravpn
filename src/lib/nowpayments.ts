@@ -7,6 +7,11 @@ const IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET || "";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com";
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "KovraVPN_bot";
 
+/** Whether invoices can be created at all (the API key is set). */
+export function nowPaymentsConfigured(): boolean {
+  return API_KEY.length > 0;
+}
+
 // ─── Types ────────────────────────────────────────────
 
 export interface CreateInvoiceParams {
@@ -17,6 +22,9 @@ export interface CreateInvoiceParams {
   description?: string;
   /** Where the invoice was created from — affects success/cancel URLs. */
   source?: "bot" | "web";
+  /** Explicit return URLs; override the ones `source` implies. */
+  successUrl?: string;
+  cancelUrl?: string;
 }
 
 export interface CryptoInvoice {
@@ -61,11 +69,13 @@ export async function createInvoice(
   const source = params.source || "web";
 
   const successUrl =
-    source === "web"
+    params.successUrl ??
+    (source === "web"
       ? `${SITE_URL}/dashboard?paid=1`
-      : `https://t.me/${BOT_USERNAME}?start=paid`;
+      : `https://t.me/${BOT_USERNAME}?start=paid`);
   const cancelUrl =
-    source === "web" ? `${SITE_URL}/dashboard` : `https://t.me/${BOT_USERNAME}`;
+    params.cancelUrl ??
+    (source === "web" ? `${SITE_URL}/dashboard` : `https://t.me/${BOT_USERNAME}`);
 
   const body = {
     price_amount: params.amountUsd,
