@@ -1,9 +1,7 @@
 // src/app/api/sub/[token]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
-import { getProfiles, getAccount } from "@/lib/accounts";
-import { getSubscriptions, activeSlots } from "@/lib/subscriptions";
-import { deviceAccess } from "@/lib/device-capacity";
+import { resolveSubAccess, isSubGrant } from "@/lib/sub-access";
+import { HAPP_UI, balanceInfoHeaders, subRefusalResponse } from "@/lib/sub-notices";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
 import { getEnabledInbounds, getEnabledInboundsForUser, type InboundEntry } from "@/lib/inbounds";
@@ -78,145 +76,6 @@ async function buildLinesForProfile(
   return lines;
 }
 
-const HAPP_THEME = '{"backgroundGradientRotationAngle":45,"backgroundColors":["#07100BFF","#08140EFF","#0B1F16FF"],"elipseColors":["#10B981FF","#047857E0","#064E3BFF"],"backgroundGradientColorIntensity":1,"backgroundImageType":"system","buttonImageType":"light","buttonColor":"#10B981FF","buttonTextColor":"#FFFFFFFF","buttonTimerColor":"#FFFFFFFF","subHeaderButtonColor":"#FFFFFFFF","additionalOptionsButtonColor":"#FFFFFFFF","topBarButtonsColor":"#FFFFFFFF","supportIconColor":"#34D399FF","serverRowBackgroundColor":"#0F1A14CC","selectedServerRowColor":"#065F46FF","serverRowTitleTextColor":"#FFFFFFFF","serverRowSubTitleTextColor":"#6EE7B7FF","serverRowChevronColor":"#FFFFFFFF","subsHeaderColor":"#07100BFF","disclosureHeaderTextColor":"#FFFFFFFF","disclosureSubHeaderTextColor":"#6EE7B7FF","subscriptionTrafficBackgroundColor":"#047857FF","subscriptionInfoBackgroundColor":"#07100BFF","subscriptionInfoTextColor":"#FFFFFFFF","powerIconColor":"#06231AFF","profileWebPageIconColor":"#10B981FF"}';
-
-const HAPP_UI: Record<string, string> = {
-  "providerid": "oPZtVoIH",
-  "profile-title": "base64:8J+boe+4jyBLb3ZyYSDwn4yN",
-  "profile-update-interval": "1",
-  "support-url": "https://t.me/KovraVPN_bot",
-  "subscription-ping-onopen-enabled": "1",
-  "profile-web-page-url": "https://kovravpn.com",
-  "subscription-pin": "1",
-  "routing-enable": "false",
-  "hide-settings": "1",
-  
-};
-
-
-const EMPTY_BALANCE_TITLE = "base64:" + Buffer.from("⚠️ No active plan", "utf-8").toString("base64");
-
-function balanceInfoHeaders(empty: boolean): Record<string, string> {
-  if (!empty) {
-    // Per Happ spec, omitting sub-info-text means "block not displayed".
-    // Sending "0" should also disable it, but current Happ builds render a
-    // literal "0" banner (observed 2026-07) — so send nothing at all.
-    return {};
-  }
-  const text = "No active plan. Buy a plan to keep using Kovra.";
-  return {
-    "sub-info-color": "red",
-    "sub-info-text": "base64:" + Buffer.from(text, "utf-8").toString("base64"),
-    "sub-info-button-text": "Get plan",
-    "sub-info-button-link": "https://kovravpn.com",
-  };
-}
-
-const EMPTY_BALANCE_ANNOUNCE =
-  "base64:" +
-  Buffer.from(
-    "No active plan. Buy a plan at kovravpn.com to keep using Kovra.",
-    "utf-8",
-  ).toString("base64");
-const EMPTY_BALANCE_BODY = Buffer.from(
-  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#No%20active%20plan%20-%20kovravpn.com",
-).toString("base64");
-
-// ── 1 subscription = 1 device (HWID binding) ────────────────────────────
-// Happ sends x-hwid by default; non-Happ clients (v2rayN/sing-box) omit it
-// and pass through unbound. A second device on the same link gets a dummy
-// config telling the user to use a separate link per device.
-const SECOND_DEVICE_TITLE =
-  "base64:" + Buffer.from("Device limit", "utf-8").toString("base64");
-const SECOND_DEVICE_TEXT =
-  "One link works on one device. Use a separate link from your dashboard for each device.";
-const SECOND_DEVICE_BODY = Buffer.from(
-  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
-    encodeURIComponent("One device per link - kovravpn.com"),
-).toString("base64");
-
-function secondDeviceHeaders(): HeadersInit {
-  return {
-    ...HAPP_UI,
-    "sub-info-color": "red",
-    "sub-info-text": "base64:" + Buffer.from(SECOND_DEVICE_TEXT, "utf-8").toString("base64"),
-    announce: "base64:" + Buffer.from(SECOND_DEVICE_TEXT, "utf-8").toString("base64"),
-    "profile-title": SECOND_DEVICE_TITLE,
-    "support-url": "https://t.me/KovraVPN_bot",
-    "profile-web-page-url": "https://kovravpn.com",
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-cache, no-store",
-  };
-}
-
-// ── Deleted-subscription notice ─────────────────────────────────────────
-// removeProfile sets `sub_deleted:{token}` = owner userId; the client then
-// shows "buy a new plan" instead of a stale 404.
-const DELETED_SUB_TITLE =
-  "base64:" + Buffer.from("Subscription removed", "utf-8").toString("base64");
-const DELETED_SUB_TEXT =
-  "You removed this subscription. Create a new one on kovravpn.com or in the bot.";
-const DELETED_SUB_BODY = Buffer.from(
-  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
-    encodeURIComponent("Subscription removed - kovravpn.com"),
-).toString("base64");
-
-function deletedSubHeaders(): HeadersInit {
-  return {
-    ...HAPP_UI,
-    "sub-info-color": "red",
-    "sub-info-text": "base64:" + Buffer.from(DELETED_SUB_TEXT, "utf-8").toString("base64"),
-    announce: "base64:" + Buffer.from(DELETED_SUB_TEXT, "utf-8").toString("base64"),
-    "profile-title": DELETED_SUB_TITLE,
-    "support-url": "https://t.me/KovraVPN_bot",
-    "profile-web-page-url": "https://kovravpn.com",
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-cache, no-store",
-  };
-}
-
-// ── Paused device (KM-03) ───────────────────────────────────────────────
-// More devices than running slots: the newest keep access, the others are
-// paused (lib/device-capacity.ts) and get this notice instead of servers.
-const PAUSED_TITLE = "base64:" + Buffer.from("Device paused", "utf-8").toString("base64");
-const PAUSED_TEXT =
-  "This device is paused: you have more devices than slots. Buy a plan or an extra slot, or delete another device.";
-const PAUSED_BODY = Buffer.from(
-  "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#" +
-    encodeURIComponent("Device paused - no free slot - kovravpn.com"),
-).toString("base64");
-
-function pausedHeaders(): HeadersInit {
-  return {
-    ...HAPP_UI,
-    "sub-info-color": "red",
-    "sub-info-text": "base64:" + Buffer.from(PAUSED_TEXT, "utf-8").toString("base64"),
-    "sub-info-button-text": "Open Kovra",
-    "sub-info-button-link": "https://kovravpn.com/dashboard",
-    announce: "base64:" + Buffer.from(PAUSED_TEXT, "utf-8").toString("base64"),
-    "profile-title": PAUSED_TITLE,
-    "support-url": "https://t.me/KovraVPN_bot",
-    "profile-web-page-url": "https://kovravpn.com",
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-cache, no-store",
-  };
-}
-
-function emptyHeaders(): HeadersInit {
-  // No subscription-userinfo here: an expire value would trigger Happ's
-  // expire message, which suppresses the sub-info block we want to show.
-  return {
-    ...HAPP_UI,
-    ...balanceInfoHeaders(true),
-    announce: EMPTY_BALANCE_ANNOUNCE,
-    "profile-web-page-url": "https://kovravpn.com",
-    "support-url": "https://t.me/KovraVPN_bot",
-    "profile-title": EMPTY_BALANCE_TITLE,
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-cache, no-store",
-  };
-}
-
 function plainHeaders(expireSec: number): HeadersInit {
   return {
     ...HAPP_UI,
@@ -283,64 +142,16 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    if (!token || token.length < 8) {
-      return new NextResponse("Invalid token", { status: 403 });
-    }
-
-    // Deleted-subscription notice (set by removeProfile).
-    try {
-      const delOwner = await redis.get(`sub_deleted:${token}`);
-      if (delOwner) {
-        return new NextResponse(DELETED_SUB_BODY, { status: 200, headers: deletedSubHeaders() });
-      }
-    } catch { /* ignore */ }
-
-    // HWID device binding: 1 subscription = 1 device. Clients that don't send
-    // x-hwid (v2rayN/sing-box) are allowed through unbound.
-    const hwid = (req.headers.get("x-hwid") || "").trim();
-    if (hwid) {
-      const hwidKey = `sub:${token}:hwid`;
-      const bound = await redis.get(hwidKey);
-      if (bound && bound !== hwid) {
-        return new NextResponse(SECOND_DEVICE_BODY, { status: 200, headers: secondDeviceHeaders() });
-      }
-      if (!bound) {
-        // 1-year binding; reset clears it so another device can claim the slot.
-        await redis.set(hwidKey, hwid, { ex: 60 * 60 * 24 * 365 });
-      }
-    }
+    // Deleted link, HWID binding, plan and slot: lib/sub-access.ts, shared
+    // with /api/sub/<token>/vless so both feeds give the same answer.
+    const access = await resolveSubAccess(token, req.headers.get("x-hwid"));
+    if (!isSubGrant(access)) return subRefusalResponse(access);
 
     const format = resolveFormat(req);
     const multi = resolveMultiFormat(req);
 
-    const profData = await redis.get(`sub_prof:${token}`);
-    if (profData) {
-      const { userId, uuid } =
-        typeof profData === "string"
-          ? JSON.parse(profData)
-          : (profData as { userId: string; uuid: string });
-
-      const account = await getAccount(userId);
-      if (!account)
-        return new NextResponse("Account not found", { status: 404 });
-
-      const profiles = await getProfiles(userId);
-      const profile = profiles.find((p) => p.uuid === uuid);
-      if (!profile)
-        return new NextResponse("Profile not found", { status: 404 });
-
-      const _subs = await getSubscriptions(userId);
-      const now = Date.now();
-      if (activeSlots(_subs, now) <= 0) {
-        return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
-      }
-      // This device's own slot (newest devices first); none left: paused.
-      const access = deviceAccess(profiles, _subs, now)[profiles.indexOf(profile)];
-      if (access.state !== "active") {
-        return new NextResponse(PAUSED_BODY, { status: 200, headers: pausedHeaders() });
-      }
-
-      const expire = Math.floor(access.until / 1000);
+    if (access.kind === "device") {
+      const { userId, profile, expireSec: expire } = access;
 
       // Hysteria2 servers can't live in xray JSON array (sing-box engine).
       // If user's registry has any hy2 server, force vless/base64 list format
@@ -349,7 +160,7 @@ export async function GET(
       const hasHy2 = userInbounds.some((e) => e.protocol === "hysteria2");
 
       if (format === "xray" && !hasHy2) {
-        const resp = await respondXray(uuid, expire, multi, userId);
+        const resp = await respondXray(profile.uuid, expire, multi, userId);
         if (resp) return resp;
         console.warn("[sub] xray build empty, falling back to vless");
       }
@@ -362,32 +173,7 @@ export async function GET(
       });
     }
 
-    const userId = await redis.get(`sub_token:${token}`);
-    if (!userId || typeof userId !== "string") {
-      return new NextResponse("Token not found", { status: 404 });
-    }
-
-    const account = await getAccount(userId);
-    if (!account) return new NextResponse("Account not found", { status: 404 });
-
-    const profiles = await getProfiles(userId);
-    if (profiles.length === 0)
-      return new NextResponse("No profiles", { status: 404 });
-
-    const _subs2 = await getSubscriptions(userId);
-    const now2 = Date.now();
-    if (activeSlots(_subs2, now2) <= 0) {
-      return new NextResponse(EMPTY_BALANCE_BODY, { status: 200, headers: emptyHeaders() });
-    }
-    // The legacy link serves every device of the account: only those that
-    // hold a slot (KM-03).
-    const access2 = deviceAccess(profiles, _subs2, now2);
-    const served = profiles.filter((_, i) => access2[i].state === "active");
-    if (served.length === 0) {
-      return new NextResponse(PAUSED_BODY, { status: 200, headers: pausedHeaders() });
-    }
-
-    const expire = Math.floor(Math.max(...access2.map((a) => a.until)) / 1000);
+    const { userId, profiles: served, expireSec: expire } = access;
 
     if (format === "xray") {
       const resp = await respondXray(served[0].uuid, expire, multi, userId);
