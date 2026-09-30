@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { redis } from "@/lib/redis";
 import { getUserRecord, saveUserRecord } from "@/lib/accounts";
 import { rateLimit, getClientIp } from "@/lib/ratelimit";
+import { revokeUserSessions } from "@/lib/session";
 
 /**
  * Сколько неверных попыток переживает код, прежде чем его гасят.
@@ -88,6 +89,23 @@ export async function POST(req: NextRequest) {
     // Clean up
     await redis.del(resetKey);
     await redis.del(ATTEMPTS_KEY(resetKey));
+
+    // A new password ends every session of the account (KS-10): a stolen
+    // "remember" session must not outlive it. That includes sessions of the
+    // linked Telegram id, which act for this account (lib/session.ts
+    // getSession follows alias:tg_X). The Mini App signs in again from
+    // initData on its own. A failure here is logged, not reported: the
+    // password is already changed.
+    try {
+      let revoked = await revokeUserSessions(data.userId);
+      if (user.telegramId) {
+        const tgUserId = `tg_${user.telegramId}`;
+        if ((await redis.get(`alias:${tgUserId}`)) === data.userId) revoked += await revokeUserSessions(tgUserId);
+      }
+      console.info(JSON.stringify({ evt: "auth.reset_sessions_revoked", userId: data.userId, sessions: revoked }));
+    } catch (err) {
+      console.error("[auth/reset] sessions not revoked:", err instanceof Error ? err.message : err);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

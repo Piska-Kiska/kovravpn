@@ -237,7 +237,7 @@ const impl = {
   },
   async expire(key, seconds) {
     maybeFail("expire", key);
-    if (!store.has(key)) return 0;
+    if (!store.has(key) && !sets.has(key)) return 0;
     ttls.set(key, { ex: seconds, px: undefined });
     setDeadline(key, { ex: seconds });
     return 1;
