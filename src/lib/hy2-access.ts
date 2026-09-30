@@ -83,9 +83,15 @@ export function decideHy2(auth: unknown, byUuid: ReadonlyMap<string, number>, no
   return { ok: true, id: uuid };
 }
 
+/**
+ * A device read and nothing more: `reserve?: never` makes the compiler refuse
+ * a read that carries the reserve (node-uuids.ts readNodeUuidPairs).
+ */
+export type DevicesOnlyRead = DevicePairsRead & { readonly reserve?: never };
+
 export interface Hy2AccessDeps {
   /** The devices alone (never the UUID reserve), with the time they were read. */
-  readPairs(now: number): Promise<DevicePairsRead>;
+  readPairs(now: number): Promise<DevicesOnlyRead>;
   /** Overrides READ_TIMEOUT_MS (tests). */
   readTimeoutMs?: number;
 }

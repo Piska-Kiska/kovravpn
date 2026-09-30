@@ -34,7 +34,7 @@ const mem = await import("./support/memory-redis.mjs");
 const { registerUuidPoolScripts } = await import("./support/uuid-pool-twin.mjs");
 const poolBody = await import("../src/lib/uuid-pool-body.ts");
 registerUuidPoolScripts(mem, poolBody);
-const { POOL_READY_KEY, POOL_TAKEN_KEY } = poolBody;
+const { POOL_READY_KEY, POOL_TAKEN_KEY, POOL_REFRESH_MS } = poolBody;
 
 const { NextRequest } = await import("next/server");
 const { decideHy2, indexPairs, createHy2Access, STALE_IF_ERROR_MS, READ_TIMEOUT_MS, RETRY_AFTER_FAILURE_MS } = await import(
@@ -387,6 +387,13 @@ describe("POST /api/hy2/auth", () => {
       assert.deepEqual(await connect(E), { ok: true, id: E });
       assert.equal(mem.calls.get("eval") ?? 0, evals, "Hysteria2 never runs the reserve's script");
       assert.equal(mem.calls.get("scan") ?? 0, scans, "it reuses the device read the node build just made");
+
+      // Later, with the device copy and the view of the reserve both old:
+      // Hysteria2 reads the devices again, and still never the reserve.
+      mock.timers.tick(Math.max(POOL_REFRESH_MS, REBUILD_EVERY_MS));
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.equal(mem.calls.get("scan") ?? 0, scans + 1, "its own device read");
+      assert.equal(mem.calls.get("eval") ?? 0, evals, "no reserve script on its own read either");
     });
 
     test("a UUID taken for a device is refused until the device record holds it with a running slot", async () => {
@@ -405,17 +412,22 @@ describe("POST /api/hy2/auth", () => {
       assert.deepEqual(await connect(R), { ok: true, id: R }, "the device record decides, not the reserve");
     });
 
-    test("the reserve unreadable: the nodes get 503, Hysteria2 still answers from the devices", async () => {
+    test("the reserve unreadable for good: the nodes get 503, Hysteria2 still answers from the devices", async () => {
       mock.method(console, "error", () => {});
       resetUuidPoolInstance();
       mem.zsets.set(POOL_READY_KEY, new Map([[R, Date.now() - DAY]]));
-      mem.failNext("eval");
-      mem.failNext("zrange", { times: 3 });
+      // Every reserve call keeps failing (a one-off fault would let a later
+      // reserve read succeed and hide a Hysteria2 that depends on it).
+      mem.failNext("eval", { times: 1_000 });
+      mem.failNext("zrange", { times: 1_000 });
       const { status } = await nodeLines();
       assert.equal(status, 503, "no view of the reserve: the nodes keep their list");
       assert.deepEqual(await connect(A), { ok: true, id: A });
       assert.deepEqual(await connect(R), { ok: false });
       assert.deepEqual(await connect(C), { ok: false });
+      mock.timers.tick(STALE_IF_ERROR_MS + REBUILD_EVERY_MS);
+      assert.deepEqual(await connect(A), { ok: true, id: A }, "fresh device reads, however long the reserve is down");
+      assert.equal((await nodeLines()).status, 503);
     });
   });
 });
