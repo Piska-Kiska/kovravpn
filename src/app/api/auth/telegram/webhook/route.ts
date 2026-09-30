@@ -50,6 +50,8 @@ import {
   tryHandleAdminText,
 } from "@/lib/admin-bot";
 import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
+import { createTelegramApi } from "@/lib/bot-v2/telegram";
+import { forwardToSupport, isNotForSupport, relayOwnerReply, type ForwardResult } from "@/lib/support-relay";
 import { isBotV2 } from "@/lib/bot-v2/gate";
 import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
 import {
@@ -967,6 +969,38 @@ function isPersonalMedia(message: Record<string, unknown>): boolean {
   );
 }
 
+// ─── Support relay (lib/support-relay.ts) ────────────
+
+interface RelayableMessage {
+  message_id?: number;
+  from?: { id: number; username?: string; first_name?: string; last_name?: string; language_code?: string };
+}
+
+/** Forward a user's message to the owner; "failed" when it has no id to forward. */
+async function relayToSupport(chatId: number, message: RelayableMessage): Promise<ForwardResult> {
+  if (typeof message.message_id !== "number") return "failed";
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  return forwardToSupport(createTelegramApi(BOT_TOKEN), {
+    chatId,
+    messageId: message.message_id,
+    from: message.from,
+    userId,
+    lang,
+  });
+}
+
+/** Tell the person what happened to the message, in the interface they use. */
+async function ackSupport(chatId: number, result: ForwardResult, v2: boolean): Promise<void> {
+  if (v2) {
+    await handleV2Note(chatId, result === "forwarded" ? "forwarded" : result === "rate_limited" ? "supportSlow" : "support");
+    return;
+  }
+  const lang = await resolveLang(await getUserId(chatId));
+  const key = result === "forwarded" ? "support.forwarded" : result === "rate_limited" ? "support.slow" : "fallback.user";
+  await send(chatId, t(key, lang), mainMenuKb(lang));
+}
+
 async function handleCode(code: string, chatId: number): Promise<"auth" | "link" | false> {
   if (await tryAuth(code, chatId)) return "auth";
   if (await tryLink(code, chatId)) return "link";
@@ -1142,6 +1176,13 @@ export async function POST(req: NextRequest) {
     // Text messages
     const message = body.message;
 
+    // The owner answers a forwarded support message with a Telegram reply:
+    // it goes to that user (lib/support-relay.ts), before any admin screen.
+    if (message && String(message.chat?.id) === ADMIN_TG_ID && message.reply_to_message) {
+      const relayed = await relayOwnerReply(createTelegramApi(BOT_TOKEN), message);
+      if (relayed !== "not_a_support_reply") return NextResponse.json({ ok: true });
+    }
+
     // Admin media intake (broadcast composer)
     if (message && String(message.chat?.id) === ADMIN_TG_ID) {
       const adminChatId: number = message.chat.id;
@@ -1160,17 +1201,18 @@ export async function POST(req: NextRequest) {
     }
 
     if (!message?.text) {
-      // A photo, a screenshot, a voice message… In the new interface it gets
-      // Help (nobody reads this chat, here is support), not silence.
+      // A photo, a screenshot, a voice message… goes to support, and the
+      // person is told so (both interfaces).
       const mChat = message?.chat;
       if (
         mChat?.type === "private" &&
         typeof mChat.id === "number" &&
         String(mChat.id) !== ADMIN_TG_ID &&
         isPersonalMedia(message) &&
-        (await isBotV2(mChat.id))
+        !isNotForSupport(message.caption)
       ) {
-        await handleV2Note(mChat.id, "support");
+        const result = await relayToSupport(mChat.id, message);
+        await ackSupport(mChat.id, result, await isBotV2(mChat.id));
       }
       return NextResponse.json({ ok: true });
     }
@@ -1452,7 +1494,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // User fallback
+    // User fallback: free text no screen is waiting for goes to support.
+    // Commands and six-character codes never do (they are handled above, and
+    // isNotForSupport checks again).
+    if (message.chat?.type === "private" && !isNotForSupport(text)) {
+      const result = await relayToSupport(chatId, message);
+      await ackSupport(chatId, result, v2);
+      return NextResponse.json({ ok: true });
+    }
     if (v2) {
       await handleV2Fallback(chatId, text);
       return NextResponse.json({ ok: true });

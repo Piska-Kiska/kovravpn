@@ -86,6 +86,8 @@ const en = {
   "note.authLinked": "✅ Telegram is linked to your account on the site.",
   "note.codeGone": "⚠️ This sign-in code has expired or was already used. Start again on the site.",
   "note.unknown": "Use the buttons below.",
+  "note.forwarded": "✉️ Your message was passed to support. We answer here, in this chat.",
+  "note.supportSlow": "⏳ Support already has your messages. Wait for an answer, or write again in a few minutes.",
 
   // connect
   "connect.title": "➕ <b>Connect a device</b>",
@@ -301,6 +303,8 @@ const ru: V2Dict = {
   "note.authLinked": "✅ Telegram привязан к вашему аккаунту на сайте.",
   "note.codeGone": "⚠️ Этот код входа устарел или уже использован. Начните заново на сайте.",
   "note.unknown": "Пользуйтесь кнопками ниже.",
+  "note.forwarded": "✉️ Сообщение передано в поддержку. Ответим здесь, в этом чате.",
+  "note.supportSlow": "⏳ Поддержка уже получила ваши сообщения. Дождитесь ответа или напишите снова через несколько минут.",
 
   "connect.title": "➕ <b>Подключить устройство</b>",
   "connect.pick": "Какое устройство? Свободно слотов: <b>{free}</b> из <b>{slots}</b>.",
@@ -505,6 +509,8 @@ const es: V2Dict = {
   "note.authLinked": "✅ Telegram está vinculado a tu cuenta del sitio.",
   "note.codeGone": "⚠️ Este código de acceso caducó o ya se usó. Empieza de nuevo en el sitio.",
   "note.unknown": "Usa los botones de abajo.",
+  "note.forwarded": "✉️ Tu mensaje se ha enviado a soporte. Te respondemos aquí, en este chat.",
+  "note.supportSlow": "⏳ Soporte ya tiene tus mensajes. Espera la respuesta o vuelve a escribir en unos minutos.",
 
   "connect.title": "➕ <b>Conectar un dispositivo</b>",
   "connect.pick": "¿Qué dispositivo? Plazas libres: <b>{free}</b> de <b>{slots}</b>.",
@@ -710,6 +716,8 @@ const de: V2Dict = {
   "note.authLinked": "✅ Telegram ist mit deinem Konto auf der Website verbunden.",
   "note.codeGone": "⚠️ Dieser Anmeldecode ist abgelaufen oder wurde schon benutzt. Starte auf der Website neu.",
   "note.unknown": "Nutze die Buttons unten.",
+  "note.forwarded": "✉️ Deine Nachricht ist beim Support. Wir antworten hier in diesem Chat.",
+  "note.supportSlow": "⏳ Der Support hat deine Nachrichten schon. Warte auf die Antwort oder schreib in ein paar Minuten wieder.",
 
   "connect.title": "➕ <b>Gerät verbinden</b>",
   "connect.pick": "Welches Gerät? Freie Plätze: <b>{free}</b> von <b>{slots}</b>.",
@@ -917,6 +925,8 @@ const fr: V2Dict = {
   "note.authLinked": "✅ Telegram est lié à votre compte sur le site.",
   "note.codeGone": "⚠️ Ce code de connexion a expiré ou a déjà servi. Recommencez sur le site.",
   "note.unknown": "Utilisez les boutons ci-dessous.",
+  "note.forwarded": "✉️ Votre message a été transmis au support. Nous répondons ici, dans ce chat.",
+  "note.supportSlow": "⏳ Le support a déjà vos messages. Attendez la réponse ou réécrivez dans quelques minutes.",
 
   "connect.title": "➕ <b>Connecter un appareil</b>",
   "connect.pick": "Quel appareil ? Places libres : <b>{free}</b> sur <b>{slots}</b>.",

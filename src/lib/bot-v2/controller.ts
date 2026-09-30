@@ -924,13 +924,21 @@ export async function handleV2Fallback(
 }
 
 /** A one-line note over a screen the webhook route asks for. */
-export type V2Note = "authOk" | "authLinked" | "codeGone" | "support";
+export type V2Note = "authOk" | "authLinked" | "codeGone" | "support" | "forwarded" | "supportSlow";
 
-const NOTE_KEY: Readonly<Record<V2Note, "note.authOk" | "note.authLinked" | "note.codeGone" | "note.support">> = {
+const NOTE_KEY: Readonly<
+  Record<
+    V2Note,
+    "note.authOk" | "note.authLinked" | "note.codeGone" | "note.support" | "note.forwarded" | "note.supportSlow"
+  >
+> = {
   authOk: "note.authOk",
   authLinked: "note.authLinked",
   codeGone: "note.codeGone",
   support: "note.support",
+  // A message passed to the owner (lib/support-relay.ts), or over its limit.
+  forwarded: "note.forwarded",
+  supportSlow: "note.supportSlow",
 };
 
 /**
