@@ -3,6 +3,8 @@
 // Deleting a device (lib/profile-delete.ts, used by the bot and
 // POST /api/vpn/delete): a panel that does not confirm keeps the device and
 // alerts the owner, instead of freeing the slot while the old link works on.
+// removeProfile (lib/accounts.ts) itself touches nothing for a uuid that is
+// not one of the user's devices: hy2:<uuid> is keyed by the uuid alone.
 //
 // Ids, codes and tokens are made up.
 
@@ -17,6 +19,7 @@ setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
 const mem = await import("./support/memory-redis.mjs");
 
 const { deleteOwnProfile } = await import("../src/lib/profile-delete.ts");
+const { removeProfile } = await import("../src/lib/accounts.ts");
 
 const TG = "tg_100000001";
 
@@ -81,5 +84,34 @@ describe("deleting a device keeps it when a panel does not confirm", () => {
     });
     assert.equal(r, "not_found");
     assert.equal(JSON.parse(mem.store.get(`profiles:${TG}`)).length, 1);
+  });
+});
+
+describe("removeProfile touches nothing for a uuid the user does not own", () => {
+  const MINE = "0a1b2c3d-0000-4000-8000-00000000d00a";
+  const THEIRS = "0a1b2c3d-0000-4000-8000-00000000d00b";
+  const OTHER = "tg_100000002";
+  const prof = (uuid) => ({ uuid, clientEmail: `kovra_${uuid.slice(-4)}`, vlessUrl: "", createdAt: 1, deviceType: "android" });
+
+  beforeEach(() => {
+    mem.store.set(`profiles:${TG}`, JSON.stringify([prof(MINE)]));
+    mem.store.set(`profiles:${OTHER}`, JSON.stringify([prof(THEIRS)]));
+    mem.store.set(`hy2:${MINE}`, TG);
+    mem.store.set(`hy2:${THEIRS}`, OTHER);
+  });
+
+  test("another user's uuid: no write, no delete, their hy2 entry stays", async () => {
+    const snapshot = new Map(mem.store);
+    await removeProfile(TG, THEIRS);
+    assert.deepEqual(new Map(mem.store), snapshot);
+    assert.equal(mem.calls.get("set") ?? 0, 0);
+    assert.equal(mem.calls.get("del") ?? 0, 0);
+  });
+
+  test("the user's own uuid goes, with its hy2 entry", async () => {
+    await removeProfile(TG, MINE);
+    assert.deepEqual(JSON.parse(mem.store.get(`profiles:${TG}`)), []);
+    assert.equal(mem.store.has(`hy2:${MINE}`), false);
+    assert.equal(mem.store.get(`hy2:${THEIRS}`), OTHER);
   });
 });
