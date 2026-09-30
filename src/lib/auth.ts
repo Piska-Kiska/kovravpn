@@ -1,14 +1,15 @@
 // src/lib/auth.ts
 import { NextRequest } from "next/server";
 import { getSessionFromRequest } from "./session";
+import { safeEqual } from "./safe-compare";
 
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
 
 /**
  * Authenticate API request. Returns userId or null.
  * Supports:
- * 1. Session cookie (website)
- * 2. X-Internal-Key header (bot/server-to-server)
+ * 1. Session: `Authorization: Bearer <sid>` (Mini App) or the cookie (website)
+ * 2. X-Internal-Key header (bot/server-to-server), compared in constant time
  *
  * Pass `preParsedBody` when the caller has already consumed the request
  * stream via `await req.json()`. Otherwise `req.clone().json()` below
@@ -25,7 +26,7 @@ export async function authenticateRequest(
 
   // 2. Internal API key (bot / server-to-server)
   const internalKey = req.headers.get("x-internal-key");
-  if (internalKey && internalKey === INTERNAL_KEY) {
+  if (internalKey && INTERNAL_KEY && safeEqual(internalKey, INTERNAL_KEY)) {
     // Prefer pre-parsed body
     if (preParsedBody && typeof preParsedBody.userId === "string" && preParsedBody.userId) {
       return { userId: preParsedBody.userId };

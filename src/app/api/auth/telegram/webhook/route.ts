@@ -22,6 +22,7 @@ import {
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
 import { deleteOwnProfile } from "@/lib/profile-delete";
+import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
@@ -891,9 +892,9 @@ async function handleCode(code: string, chatId: number): Promise<"auth" | "link"
 // ─── Webhook entry ───────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-telegram-bot-api-secret-token");
+  const secret = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
-  if (!expectedSecret || secret !== expectedSecret) {
+  if (!expectedSecret || !safeEqual(secret, expectedSecret)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -913,21 +914,25 @@ export async function POST(req: NextRequest) {
       if (fresh === null) return NextResponse.json({ ok: true });
     }
 
-    // Sync Telegram identity on every update (fire-and-forget).
+    // Sync Telegram identity on every update. Awaited and one after the
+    // other: both rewrite the same `user:` record (read-modify-write), so
+    // running them in parallel could drop one write, and on Vercel a promise
+    // left running after the response is simply lost. Failures never block
+    // the update.
     const fromUser = body.message?.from ?? body.callback_query?.from;
     if (fromUser?.id) {
-      const syncUserId = await resolveUserId(`tg_${fromUser.id}`);
-      syncTelegramIdentity(syncUserId, {
-        username: fromUser.username,
-        first_name: fromUser.first_name,
-        last_name: fromUser.last_name,
-      }).catch((e) => console.warn("[tg] syncTelegramIdentity failed:", e));
-      // First-contact language: persist Telegram language_code only if unset.
-      const tgLang = normalizeLang(fromUser.language_code);
-      if (tgLang) {
-        getUserLang(syncUserId).then((cur) => {
-          if (!cur) setUserLang(syncUserId, tgLang).catch(() => {});
-        }).catch(() => {});
+      try {
+        const syncUserId = await resolveUserId(`tg_${fromUser.id}`);
+        await syncTelegramIdentity(syncUserId, {
+          username: fromUser.username,
+          first_name: fromUser.first_name,
+          last_name: fromUser.last_name,
+        });
+        // First-contact language: persist Telegram language_code only if unset.
+        const tgLang = normalizeLang(fromUser.language_code);
+        if (tgLang && !(await getUserLang(syncUserId))) await setUserLang(syncUserId, tgLang);
+      } catch (e) {
+        console.warn("[tg] identity/lang sync failed:", e instanceof Error ? e.message : e);
       }
     }
 
