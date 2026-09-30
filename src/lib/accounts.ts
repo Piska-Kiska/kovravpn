@@ -98,13 +98,16 @@ export async function removeProfile(userId: string, uuid: string): Promise<void>
   const profiles = await getProfiles(userId);
   const removed = profiles.find((p) => p.uuid === uuid);
   // Not this user's device: touch nothing. `hy2:<uuid>` below is keyed by the
-  // uuid alone, so deleting it for a uuid the caller does not own would cut
-  // another user's Hysteria2 access.
+  // uuid alone, so deleting it for a uuid the caller does not own would touch
+  // another user's record.
   if (!removed) return;
   const filtered = profiles.filter((p) => p.uuid !== uuid);
   await redis.set(`profiles:${userId}`, JSON.stringify(filtered));
 
-  // Revoke Hysteria2 access immediately (auth: http checks hy2:<uuid> per-connect)
+  // Legacy Hysteria2 key. Access is no longer read from it (lib/hy2-access.ts
+  // decides from the profiles and subscriptions, so a deleted device loses
+  // Hysteria2 within a minute); devices created before 30.09.2026 still have
+  // one, and this is where it goes.
   try {
     await redis.del(`hy2:${uuid}`);
   } catch (err) {

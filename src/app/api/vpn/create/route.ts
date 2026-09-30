@@ -119,7 +119,6 @@ export async function POST(req: NextRequest) {
       const vlessUrl = await buildPrimaryVlessUrl(uuid);
 
       const subToken = await createProfileSubToken(userId, uuid);
-      await redis.set(`hy2:${uuid}`, "1");
       await addProfile(userId, {
         uuid,
         clientEmail: email,
