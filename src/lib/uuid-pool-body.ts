@@ -65,6 +65,17 @@
 // has been silent that long, nothing is handed out (instant: false). With no
 // node known at all (an empty hash), the age alone decides.
 //
+// Known gap: a rollback of this code, then a redeploy within
+// SEEN_HORIZON_MS. The old code lists no reserve, so an agent that polled
+// meanwhile dropped it, yet its confirmation from before the rollback still
+// counts (and "the age alone" assumes every recent list carried the
+// reserve). A device created after the redeploy and before that agent's
+// next poll gets instant: true for a UUID the node does not hold; the poll
+// puts it back (one step, 120 s, longer while the agent backs off), and
+// the screens skipped the "within 3 minutes" line. Closing it needs a mark
+// that the reserve was listed without a break (a heartbeat on every served
+// list); not worth it for an operator's rollback.
+//
 // ── Atomicity and order ─────────────────────────────────
 // TAKE_LUA moves one UUID from `ready` to `taken` in one script: no two
 // devices get the same UUID, and the UUID is always in one set or the other.
