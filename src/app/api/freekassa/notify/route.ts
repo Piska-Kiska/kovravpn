@@ -3,7 +3,9 @@
 // Freekassa notification receiver (subscription model, USD card i=32).
 // Выдача идентична крипто-вебхуку: parseSubOrderId -> applyPlanPurchase/
 // applyDeviceAddon -> syncAllExpiry -> markTopup -> referral.
-// Гейт: SIGN (secret2) + IP FK + atomic dedup. Сумма зафиксирована при
+// Гейт: SIGN (secret2) + IP FK + atomic dedup по подписанному order id.
+// Выдача (stage 1) — единственное, что может вернуть 500 и ретрай; всё после
+// неё best-effort, иначе ретрай FK выдаёт второй раз. Сумма зафиксирована при
 // createOrder и на стороне FK неизменяема, поэтому отдельная сверка суммы не нужна.
 
 import { markTopup } from '@/lib/accounts';
@@ -60,10 +62,26 @@ export async function POST(req: Request) {
   const userId = parsed.userId;
   console.log('[fk] paid', { orderId, intid, amount, curId }); // наблюдаемость: валюта/сумма
 
-  if (!(await reserveDedupKey(`fk_payment_done:${intid}`, DEDUP_TTL_SEC))) return ok('YES');
-
+  // Dedup on the order id: SIGN covers MERCHANT_ORDER_ID, not intid, so a
+  // replay of the same signed payment with a new intid used to grant again.
+  // Our order ids are unique per payment (sub_/dev_ + timestamp).
+  const dedupKey = `fk_payment_done:${orderId}`;
+  let reserved: boolean;
   try {
-    let summaryLine = '';
+    reserved = await reserveDedupKey(dedupKey, DEDUP_TTL_SEC);
+  } catch (e) {
+    // Nothing is reserved and nothing granted: FK retries on a non-YES answer.
+    console.error('[fk] dedup reserve failed, requesting retry', { orderId, intid }, e);
+    return ok('error', 500);
+  }
+  if (!reserved) return ok('YES');
+
+  // ─── Stage 1: grant (the only retry-safe boundary) ───
+  // If this throws, nothing was granted: release the key and answer 500 so
+  // FK retries. After it, a retry would grant a second time, so nothing below
+  // may release the key or fail the response.
+  let summaryLine = '';
+  try {
     if (parsed.type === 'plan') {
       const plan = resolvePlan(parsed.kind, parsed.term);
       if (!plan) return ok('YES');
@@ -73,10 +91,21 @@ export async function POST(req: Request) {
       await applyDeviceAddon(userId);
       summaryLine = '+1 device · 30 days';
     }
+  } catch (e) {
+    await releaseDedupKey(dedupKey).catch(() => {}); // отпускаем для ретрая FK
+    console.error('[fk] grant failed, requesting retry', { orderId, intid }, e);
+    return ok('error', 500);
+  }
 
+  // ─── Stage 2: sync, notify, referral (best-effort, never retried) ───
+  try {
     await syncAllExpiry(userId);
     await markTopup(userId);
+  } catch (err) {
+    console.error('[fk] granted, but post-grant sync failed', { orderId, intid }, err);
+  }
 
+  try {
     const s = summarize(await getSubscriptions(userId));
     const lines = [
       `✅ <b>Payment received</b>`, ``,
@@ -89,24 +118,20 @@ export async function POST(req: Request) {
       { kind: 'purchase', product: noticeProductOf(parsed), activeSlots: s.activeSlots, untilMs: s.maxExpiry },
       lines.join('\n'),
     );
+  } catch (err) { console.error('[fk] notify error:', err); }
 
-    try {
-      const ref = await grantReferralReward(userId);
-      if (ref.rewarded && ref.referrerId) {
-        await applyReferralReward(ref.referrerId);
-        await syncAllExpiry(ref.referrerId);
-        await notifyUser(ref.referrerId, { kind: 'referral_reward' }, [
-          `🎁 <b>Referral reward!</b>`, ``,
-          `Your friend bought a subscription.`,
-          `You got <b>+14 days</b> for 1 device.`,
-        ].join('\n'));
-      }
-    } catch (err) { console.error('[fk] referral error:', err); }
-  } catch (e) {
-    await releaseDedupKey(`fk_payment_done:${intid}`).catch(() => {}); // отпускаем для ретрая FK
-    console.error('[fk] activate failed', { orderId, intid }, e);
-    return ok('error', 500);
-  }
+  try {
+    const ref = await grantReferralReward(userId);
+    if (ref.rewarded && ref.referrerId) {
+      await applyReferralReward(ref.referrerId);
+      await syncAllExpiry(ref.referrerId);
+      await notifyUser(ref.referrerId, { kind: 'referral_reward' }, [
+        `🎁 <b>Referral reward!</b>`, ``,
+        `Your friend bought a subscription.`,
+        `You got <b>+14 days</b> for 1 device.`,
+      ].join('\n'));
+    }
+  } catch (err) { console.error('[fk] referral error:', err); }
 
   return ok('YES'); // [факт] FK ждёт ровно YES
 }
