@@ -13,8 +13,11 @@
 //      same scheme as NOWPayments order_id). Amount and currency re-verified
 //      against the server-side price list BEFORE granting.
 //
-// paid                  → grant subscription (same sequence as crypto-webhook)
-// refunded / chargeback → alert admin, manual handling (no auto-revoke)
+// paid                  → grant subscription (same sequence as crypto-webhook),
+//                         unless this transaction was already refunded or
+//                         charged back (cashera_revoked:<uuid>, 180d)
+// refunded / chargeback → remember it, alert admin, manual handling (no
+//                         auto-revoke)
 // failed / expired      → acknowledged, no action
 //
 // Response codes: 2xx = delivered (Cashera stops), 5xx = retry (up to 3x),
@@ -47,6 +50,9 @@ import { noticeCents, noticeProductOf, notifyUser } from "@/lib/bot-v2/notify";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const DEDUP_TTL_SEC = 90 * 86400;
+// A refund/chargeback marker must outlive any late or retried "paid" for the
+// same transaction; the order record lives 180 days, so does this.
+const REVOKED_TTL_SEC = 180 * 86400;
 
 interface WebhookTransaction {
   uuid: string;
@@ -151,8 +157,18 @@ export async function POST(req: NextRequest) {
     const extId = String(tx.external_id || "").slice(0, 255);
     const parsed = parseSubOrderId(extId);
 
-    // ─── Money moved back: alert admin, handle manually ───
+    // ─── Money moved back: remember it, alert admin, handle manually ───
     if (status === "refunded" || status === "chargeback") {
+      // The marker is what stops a later "paid" for this transaction (a failed
+      // delivery retried after the refund, or plain reordering) from granting.
+      // Without it the refund must be retried, so a failed write asks for one.
+      try {
+        await redis.set(`cashera_revoked:${uuid}`, status, { ex: REVOKED_TTL_SEC });
+      } catch (err) {
+        console.error("[cashera-webhook] revoked marker write failed, requesting retry:", err);
+        await releaseDedupKey(dedupKey).catch(() => {});
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
       console.error("[cashera-webhook] payment revoked", {
         status,
         uuid,
@@ -172,6 +188,28 @@ export async function POST(req: NextRequest) {
         ].join("\n"),
       );
       return NextResponse.json({ ok: true });
+    }
+
+    // ─── paid after a refund/chargeback of the same transaction: never grant ───
+    let revokedAs: unknown;
+    try {
+      revokedAs = await redis.get(`cashera_revoked:${uuid}`);
+    } catch (err) {
+      console.error("[cashera-webhook] revoked marker read failed, requesting retry:", err);
+      await releaseDedupKey(dedupKey).catch(() => {});
+      return NextResponse.json({ error: "internal" }, { status: 500 });
+    }
+    if (revokedAs !== null && revokedAs !== undefined) {
+      console.error("[cashera-webhook] paid after revocation, NOT granted", {
+        uuid,
+        external_id: extId,
+        revokedAs,
+      });
+      await sendTelegram(
+        ADMIN_TG_ID,
+        `⚠️ <b>Cashera: paid after ${String(revokedAs)}</b>\ntx <code>${uuid}</code>, order <code>${extId}</code>, ${(Number(tx.amount) / 100).toFixed(2)} ${tx.currency}. NOT granted — check the transaction in Cashera.`,
+      );
+      return NextResponse.json({ ok: true, ignored: "revoked" });
     }
 
     // ─── Bot prepaid balance top-up (topup_<userId>_<ts>) ───
