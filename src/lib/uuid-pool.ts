@@ -192,10 +192,11 @@ function logView(source: "maintain" | "read", state: PoolState, now: number): vo
  * twice within it): reused. Otherwise refreshed with MAINTAIN_LUA; if the
  * script fails, the sets are read with plain commands; if that fails too,
  * the last view is kept, whatever its age: a UUID only moves forward, so an
- * old view never drops one (it may keep listing ahead a pool device deleted
- * since, until a view is read again; see uuid-pool-body.ts). Throws only when
- * there is no view at all: the list build then fails (503) and the nodes keep
- * what they have.
+ * old view never drops one. It may still say "ready" for a pool device
+ * deleted since, so once it is older than POOL_VIEW_STALE_MS its lines stop
+ * moving ahead (reservePairs `viewAt`) and run out on the nodes within
+ * POOL_LINE_AHEAD_MS. Throws only when there is no view at all: the list
+ * build then fails (503) and the nodes keep what they have.
  */
 export async function currentUuidPool(now: number): Promise<PoolView> {
   if (view && now - view.at >= 0 && now - view.at < POOL_REFRESH_MS) return view;

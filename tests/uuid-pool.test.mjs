@@ -39,6 +39,7 @@ const {
   POOL_REFRESH_MS,
   POOL_ROTATE_PER_PASS,
   POOL_LINE_AHEAD_MS,
+  POOL_VIEW_STALE_MS,
   TAKEN_GRACE_MS,
   SEEN_HORIZON_MS,
   SEEN_FORGET_MS,
@@ -706,6 +707,38 @@ describe("the device record decides: the reserve keeps no one alive", () => {
     assert.equal(lines.get(P), NOW + MIN, "spent: its release time, past");
     assert.deepEqual(agent.poll(lines, NOW + 2 * MIN), [], "an expiry, not a drop");
     assert.ok(!agent.live.has(P));
+  });
+
+  test("the reserve unreadable for long: a deleted pool device still runs out on the nodes", async () => {
+    // P is taken, recorded, released and deleted; the view this instance
+    // still has was read before, so it says P is ready (and so is Q).
+    const P = u(0x62);
+    const Q = u(0x63);
+    seedReady([[P, NOW - DAY], [Q, NOW - DAY]]);
+    const agent = new Agent();
+    agent.poll((await answer(NOW)).lines, NOW);
+    zset(READY).delete(P);
+    mem.zsets.set(SPENT, new Map([[P, NOW + MIN]]));
+    // From here on neither the script nor the plain reads work.
+    mem.failNext("eval", { times: 1_000 });
+    mem.failNext("zrange", { times: 1_000 });
+    await captureLogs(async () => {
+      // A blip: the last view keeps its dates.
+      let t = NOW + POOL_VIEW_STALE_MS - MIN;
+      let { lines } = await rebuild(t);
+      assert.equal(lines.get(P), poolLineUntil(t));
+      // Hours on, the view has not been read again: its lines stay dated as of
+      // when it was read, so P (and the unused Q) run out on the node by the
+      // clock, never as a drop, and never stay for as long as the outage lasts.
+      for (t = NOW + HOUR; t <= NOW + POOL_LINE_AHEAD_MS + 2 * HOUR; t += HOUR) {
+        ({ lines } = await rebuild(t));
+        assert.equal(lines.get(P), poolLineUntil(NOW), `+${(t - NOW) / HOUR} h`);
+        assert.deepEqual(agent.poll(lines, t), [], "not a drop");
+      }
+      assert.ok(!agent.live.has(P), "off the node");
+      assert.ok(!agent.live.has(Q));
+      assert.ok(agent.live.has(DEV), "the paying device stays");
+    });
   });
 
   test("a device whose plan ended keeps its own past date, not the reserve's", async () => {

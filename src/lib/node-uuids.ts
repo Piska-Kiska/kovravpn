@@ -153,7 +153,7 @@ async function rebuildNodeRead(now: number): Promise<NodeUuidRead> {
   const pool = await currentUuidPool(now);
   const { read, users } = await scanDevices(now);
   keepDevices(read);
-  const reserve = reservePairs(pool.state, profileUuids(users), now);
+  const reserve = reservePairs(pool.state, profileUuids(users), now, pool.at);
   const built: NodeUuidRead = { ...read, reserve, pool: poolCounts(pool.state, now), poolAt: pool.at };
   nodeRead = built;
   return built;

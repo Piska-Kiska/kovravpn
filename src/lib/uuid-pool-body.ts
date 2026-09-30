@@ -130,6 +130,15 @@ export const POOL_MAX_AGE_MS = 7 * DAY_MS;
 export const POOL_ROTATE_PER_PASS = 2;
 /** Reserve lines are dated this far after the start of the current hour. */
 export const POOL_LINE_AHEAD_MS = 6 * HOUR_MS;
+/**
+ * A view of the reserve that could not be refreshed for this long (the
+ * script and the plain reads both failing, lib/uuid-pool.ts currentUuidPool)
+ * stops moving its lines ahead: they keep the date of the hour the view was
+ * read in, so they run out on the nodes within POOL_LINE_AHEAD_MS. Such a
+ * view may still say "ready" for a pool device deleted since; that device
+ * must not keep the PRO nodes for as long as the reserve stays unreadable.
+ */
+export const POOL_VIEW_STALE_MS = 10 * MINUTE_MS;
 /** A taken UUID with no visible device record is kept ahead this long. */
 export const TAKEN_GRACE_MS = 10 * MINUTE_MS;
 /** Marks are forgotten this long after their past-dated lines have left the answer. */
@@ -400,17 +409,24 @@ export function parsePoolSets(replies: unknown): PoolState {
  * device record. A reserve line never keeps a known UUID alive: it gets a
  * past date, and when the device holds a running slot its own line replaces
  * this one (buildNodeUuidsBody drops a reserve line that has a device pair).
- * O(n).
- *   ready, unknown                → poolLineUntil(now)
+ * `viewAt` is when `state` was read (default: now); a view older than
+ * POOL_VIEW_STALE_MS dates its lines "ahead" as of then, not now. O(n).
+ *   ready, unknown                → ahead: poolLineUntil(now), or
+ *                                   poolLineUntil(viewAt) for a stale view
  *   ready, known (a stale view)   → the start of the current hour (past)
  *   taken, known                  → taken-at (past)
- *   taken, unknown, within grace  → poolLineUntil(now)
+ *   taken, unknown, within grace  → ahead
  *   taken, unknown, grace over    → taken-at + grace (past)
  *   spent                         → spent-at (past); a spent mark wins over
  *                                   a taken one for the same UUID
  */
-export function reservePairs(state: PoolState, known: ReadonlySet<string>, now: number): UuidPair[] {
-  const ahead = poolLineUntil(now);
+export function reservePairs(
+  state: PoolState,
+  known: ReadonlySet<string>,
+  now: number,
+  viewAt: number = now,
+): UuidPair[] {
+  const ahead = poolLineUntil(now - viewAt >= POOL_VIEW_STALE_MS ? viewAt : now);
   const past = (at: number): number => Math.min(at, now);
   const spent = new Set(state.spent.map((e) => e.uuid));
   const out: UuidPair[] = [];
