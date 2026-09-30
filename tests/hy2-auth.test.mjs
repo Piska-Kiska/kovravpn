@@ -14,22 +14,36 @@
 //     closed); a hung read costs a connect at most READ_TIMEOUT_MS, and after
 //     a failure no read is tried for RETRY_AFTER_FAILURE_MS;
 //   • the wire contract Hysteria2 expects stays: always 200, {ok, id}.
+//   • the reserve of UUIDs the PRO nodes preload (lib/uuid-pool.ts) never
+//     opens Hysteria2: those UUIDs are dated ahead in the nodes' list but
+//     belong to no device, and Hysteria2 reads the devices alone, so it
+//     neither runs the reserve's script nor fails when the reserve does.
 //
-// UUIDs and ids are made up.
+// UUIDs, ids and the node token are made up.
 
 import { test, describe, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
+process.env.KOVRA_NODE_TOKEN = ["node", "token", "for", "hy2", "tests"].join("-");
+delete process.env.KOVRA_NODE_MIN_ACTIVE;
+delete process.env.KOVRA_UUID_POOL_SIZE;
+
 import { setRedisModule } from "./support/load-ts.mjs";
 setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
 const mem = await import("./support/memory-redis.mjs");
+const { registerUuidPoolScripts } = await import("./support/uuid-pool-twin.mjs");
+const poolBody = await import("../src/lib/uuid-pool-body.ts");
+registerUuidPoolScripts(mem, poolBody);
+const { POOL_READY_KEY, POOL_TAKEN_KEY } = poolBody;
 
 const { NextRequest } = await import("next/server");
 const { decideHy2, indexPairs, createHy2Access, STALE_IF_ERROR_MS, READ_TIMEOUT_MS, RETRY_AFTER_FAILURE_MS } = await import(
   "../src/lib/hy2-access.ts"
 );
 const { REBUILD_EVERY_MS } = await import("../src/lib/node-uuids.ts");
+const { resetUuidPoolInstance } = await import("../src/lib/uuid-pool.ts");
 const { POST } = await import("../src/app/api/hy2/auth/route.ts");
+const { GET: nodeUuidsGet } = await import("../src/app/api/internal/node-uuids/route.ts");
 
 const NOW = 1_790_000_000_000;
 const DAY = 86_400_000;
@@ -38,6 +52,8 @@ const B = "0a1b2c3d-0000-4000-8000-00000000000b";
 const C = "0a1b2c3d-0000-4000-8000-00000000000c";
 const D = "0a1b2c3d-0000-4000-8000-00000000000d";
 const E = "0a1b2c3d-0000-4000-8000-00000000000e";
+/** A reserve UUID: listed for the PRO nodes, held by no device. */
+const R = "0a1b2c3d-0000-4000-8000-0000000000f1";
 
 describe("the pure decision", () => {
   const byUuid = indexPairs([
@@ -315,5 +331,71 @@ describe("POST /api/hy2/auth", () => {
     assert.deepEqual(await connect(D), { ok: false });
     mock.timers.tick(STALE_IF_ERROR_MS);
     assert.deepEqual(await connect(A), { ok: false });
+  });
+
+  describe("the UUID reserve of the PRO nodes", () => {
+    /** GET /api/internal/node-uuids as an agent asks it: `uuid -> date` of every line. */
+    const nodeLines = async () => {
+      const res = await nodeUuidsGet(
+        new NextRequest("https://kovra.test/api/internal/node-uuids?node=pl", {
+          headers: { authorization: `Bearer ${process.env.KOVRA_NODE_TOKEN}` },
+        }),
+      );
+      if (res.status !== 200) return { status: res.status, lines: new Map() };
+      const lines = new Map(
+        (await res.text())
+          .trim()
+          .split("\n")
+          .map((line) => line.split(" "))
+          .map(([id, until]) => [id, Number(until)]),
+      );
+      return { status: res.status, lines };
+    };
+
+    test("a reserve UUID the nodes list ahead is refused; the devices of the same list get in", async () => {
+      mem.zsets.set(POOL_READY_KEY, new Map([[R, Date.now() - DAY]]));
+      const { status, lines } = await nodeLines();
+      assert.equal(status, 200);
+      assert.ok(lines.get(R) > Date.now(), "the nodes' list carries it, dated ahead");
+      assert.ok(lines.get(A) > Date.now());
+
+      const evals = mem.calls.get("eval") ?? 0;
+      const scans = mem.calls.get("scan") ?? 0;
+      assert.deepEqual(await connect(R), { ok: false });
+      assert.deepEqual(await connect(R.toUpperCase()), { ok: false });
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.deepEqual(await connect(E), { ok: true, id: E });
+      assert.equal(mem.calls.get("eval") ?? 0, evals, "Hysteria2 never runs the reserve's script");
+      assert.equal(mem.calls.get("scan") ?? 0, scans, "it reuses the device read the node build just made");
+    });
+
+    test("a UUID taken for a device is refused until the device record holds it with a running slot", async () => {
+      // The take happened, the record is not written yet: the nodes list it ahead.
+      mem.zsets.set(POOL_TAKEN_KEY, new Map([[R, Date.now()]]));
+      const { lines } = await nodeLines();
+      assert.ok(lines.get(R) > Date.now(), "listed ahead while in flight");
+      assert.deepEqual(await connect(R), { ok: false });
+
+      // /api/vpn/create writes the record: R is the third device on a 3-slot plan.
+      mem.store.set(
+        "profiles:tg_1",
+        JSON.stringify([{ uuid: A, createdAt: 1 }, { uuid: B, createdAt: 2 }, { uuid: R, createdAt: 3 }]),
+      );
+      mock.timers.tick(REBUILD_EVERY_MS);
+      assert.deepEqual(await connect(R), { ok: true, id: R }, "the device record decides, not the reserve");
+    });
+
+    test("the reserve unreadable: the nodes get 503, Hysteria2 still answers from the devices", async () => {
+      mock.method(console, "error", () => {});
+      resetUuidPoolInstance();
+      mem.zsets.set(POOL_READY_KEY, new Map([[R, Date.now() - DAY]]));
+      mem.failNext("eval");
+      mem.failNext("zrange", { times: 3 });
+      const { status } = await nodeLines();
+      assert.equal(status, 503, "no view of the reserve: the nodes keep their list");
+      assert.deepEqual(await connect(A), { ok: true, id: A });
+      assert.deepEqual(await connect(R), { ok: false });
+      assert.deepEqual(await connect(C), { ok: false });
+    });
   });
 });
