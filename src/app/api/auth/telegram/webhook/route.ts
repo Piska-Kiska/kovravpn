@@ -50,6 +50,16 @@ import {
   tryHandleAdminText,
 } from "@/lib/admin-bot";
 import { ADMIN_TG_ID, isAdminChat } from "@/lib/bot-owner";
+import { isBotV2 } from "@/lib/bot-v2/gate";
+import { isV2CallbackData } from "@/lib/bot-v2/callbacks";
+import {
+  handleV2Callback,
+  handleV2Command,
+  handleV2Fallback,
+  handleV2Reply,
+  handleV2Start,
+  parseCommand,
+} from "@/lib/bot-v2/controller";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || process.env.TELEGRAM_BOT_TOKEN || "";
@@ -956,6 +966,13 @@ export async function POST(req: NextRequest) {
       const msgId: number = cb.message.message_id;
       const data: string = cb.data;
 
+      // New interface (owner first, then the kovra:botv2:users set). It
+      // answers the callback itself, with a toast where one is needed.
+      if (!data.startsWith("adm:") && (await isBotV2(chatId))) {
+        await handleV2Callback({ chatId, messageId: msgId, callbackId: String(cb.id), data });
+        return NextResponse.json({ ok: true });
+      }
+
       // The copy button answers with its own toast ("Link sent").
       if (!data.startsWith("copy_ref_")) await answerCb(cb.id);
 
@@ -964,7 +981,10 @@ export async function POST(req: NextRequest) {
         if (handled) return NextResponse.json({ ok: true });
       }
 
-      if (data === "menu") await screenMenu(chatId, msgId);
+      // A button of the new interface in a chat that is back on the old one
+      // (the gate was narrowed): the old menu instead of silence.
+      if (isV2CallbackData(data)) await screenMenu(chatId, msgId);
+      else if (data === "menu") await screenMenu(chatId, msgId);
       else if (data === "lang") await screenLanguage(chatId, msgId);
       else if (data.startsWith("setlang_")) await handleSetLang(chatId, msgId, data.slice(8));
       else if (data === "account") await screenAccount(chatId, msgId);
@@ -1091,9 +1111,14 @@ export async function POST(req: NextRequest) {
       if (handled) return NextResponse.json({ ok: true });
     }
 
+    // New interface for this chat? (Owner first; see lib/bot-v2/gate.ts.)
+    const v2 = await isBotV2(chatId);
+
     // /start with code
     if (text.startsWith("/start ")) {
       const param = text.replace("/start ", "").trim();
+      // Referral and payment-return links; a login code goes on below.
+      if (v2 && (await handleV2Start(chatId, param)) === "handled") return NextResponse.json({ ok: true });
       const lang = await resolveLang(await getUserId(chatId));
 
       // Referral link: /start ref_CODE
@@ -1172,6 +1197,17 @@ export async function POST(req: NextRequest) {
         [{ text: "📊 Открыть меню", callback_data: "menu" }],
       ]);
       return NextResponse.json({ ok: true });
+    }
+
+    if (v2) {
+      // Commands (/start, /menu, /devices, /balance, /help, /language) and
+      // the typed replies the new screens ask for (promo code, amount).
+      const command = parseCommand(text);
+      if (command) {
+        await handleV2Command(chatId, command);
+        return NextResponse.json({ ok: true });
+      }
+      if (await handleV2Reply(chatId, text)) return NextResponse.json({ ok: true });
     }
 
     // /start or /menu
@@ -1313,6 +1349,10 @@ export async function POST(req: NextRequest) {
     }
 
     // User fallback
+    if (v2) {
+      await handleV2Fallback(chatId);
+      return NextResponse.json({ ok: true });
+    }
     const lang = await resolveLang(await getUserId(chatId));
     await send(chatId, t("fallback.user", lang), mainMenuKb(lang));
     return NextResponse.json({ ok: true });

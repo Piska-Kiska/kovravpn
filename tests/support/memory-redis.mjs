@@ -2,9 +2,9 @@
 //
 // An in-memory stand-in for the @upstash/redis calls the money and auth paths
 // make: get, mget, set (nx / xx / ex / px), del, incr, incrby, expire, ttl, and
-// the set commands sadd / srem / smembers / sismember. Anything else throws,
-// like the default stub in load-ts.mjs, so a test cannot silently depend on a
-// call this file fakes wrongly.
+// the set commands sadd / srem / smembers / sismember / smismember. Anything
+// else throws, like the default stub in load-ts.mjs, so a test cannot
+// silently depend on a call this file fakes wrongly.
 //
 // Values are kept the way Upstash keeps them: a string as is, anything else as
 // JSON; `get` parses JSON back when it can, as the Upstash client does by
@@ -156,6 +156,11 @@ const impl = {
   async sismember(key, member) {
     maybeFail("sismember", key);
     return sets.get(key)?.has(String(member)) ? 1 : 0;
+  },
+  async smismember(key, members) {
+    maybeFail("smismember", key);
+    const set = sets.get(key);
+    return members.map((m) => (set?.has(String(m)) ? 1 : 0));
   },
 };
 
