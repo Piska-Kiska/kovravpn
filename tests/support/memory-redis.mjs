@@ -2,10 +2,11 @@
 //
 // An in-memory stand-in for the @upstash/redis calls the money and auth paths
 // make: get, mget, set (nx / xx / ex / px), del, incr, incrby, expire, ttl,
-// the set commands sadd / srem / smembers / sismember / smismember, zrem on
-// sorted sets, and scan (MATCH with `*` globs, all keys in one page). Anything
-// else throws, like the default stub in load-ts.mjs, so a test cannot
-// silently depend on a call this file fakes wrongly.
+// the set commands sadd / srem / smembers / sismember / smismember, zadd /
+// zrem / zrange (withScores) on sorted sets, the hash commands hgetall / hset /
+// hdel, and scan (MATCH with `*` globs, keys of every type in one page,
+// cursor 0). Anything else throws, like the default stub in load-ts.mjs, so a
+// test cannot silently depend on a call this file fakes wrongly.
 //
 // Values are kept the way Upstash keeps them: a string as is, anything else as
 // JSON; `get` parses JSON back when it can, as the Upstash client does by
@@ -50,6 +51,8 @@ export const sets = new Map();
 export const lists = new Map();
 /** key -> Map of member -> score (sorted sets). */
 export const zsets = new Map();
+/** key -> Map of field -> raw string (hashes). */
+export const hashes = new Map();
 /** op -> number of calls, for tests that count round trips. */
 export const calls = new Map();
 
@@ -62,6 +65,7 @@ export function reset() {
   sets.clear();
   lists.clear();
   zsets.clear();
+  hashes.clear();
   calls.clear();
   faults.length = 0;
   hooks.length = 0;
@@ -136,6 +140,7 @@ export function elapse(seconds) {
     store.delete(key);
     sets.delete(key);
     zsets.delete(key);
+    hashes.delete(key);
     ttls.delete(key);
     deadlines.delete(key);
   }
@@ -193,6 +198,11 @@ export function zsetOps(zsets) {
     zcard(key) {
       return zsets.get(key)?.size ?? 0;
     },
+    zcount(key, min, max) {
+      const lo = bound(min);
+      const hi = bound(max);
+      return sorted(key).filter(([, s]) => s >= lo && s <= hi).length;
+    },
     zscore(key, member) {
       const set = zsets.get(key);
       return set?.has(String(member)) ? scoreText(set.get(String(member))) : null;
@@ -228,7 +238,7 @@ function globRegExp(pattern) {
 }
 
 /** What the Upstash client does to a reply: JSON-parse what parses back unchanged. */
-function upstashParse(reply) {
+export function upstashParse(reply) {
   if (Array.isArray(reply)) return reply.map(upstashParse);
   if (typeof reply !== "string") return reply;
   try {
@@ -311,6 +321,7 @@ const impl = {
       if (store.delete(key)) removed += 1;
       if (sets.delete(key)) removed += 1;
       if (zsets.delete(key)) removed += 1;
+      if (hashes.delete(key)) removed += 1;
       ttls.delete(key);
       deadlines.delete(key);
     }
@@ -371,9 +382,62 @@ const impl = {
     const set = sets.get(key);
     return members.map((m) => (set?.has(String(m)) ? 1 : 0));
   },
+  /** The Upstash signature: zadd(key, [opts,] { score, member }, ...). */
+  async zadd(key, first, ...rest) {
+    maybeFail("zadd", key);
+    const withOpts = first && typeof first === "object" && !("score" in first);
+    const opts = withOpts ? first : {};
+    const items = withOpts ? rest : [first, ...rest];
+    const ops = zsetOps(zsets);
+    let added = 0;
+    for (const { score, member } of items) added += ops.zadd(key, score, member, { nx: opts.nx === true });
+    return added;
+  },
   async zrem(key, ...members) {
     maybeFail("zrem", key);
     return zsetOps(zsets).zrem(key, ...members);
+  },
+  /** By rank only; `{ withScores: true }` gives [member, score, ...] as the Upstash client parses it. */
+  async zrange(key, start, stop, opts = {}) {
+    maybeFail("zrange", key);
+    if (opts.byScore || opts.byLex || opts.rev || opts.count !== undefined) {
+      throw new Error("memory-redis: zrange options other than withScores are not faked");
+    }
+    const ops = zsetOps(zsets);
+    return upstashParse(opts.withScores ? ops.zrangeWithScores(key, start, stop) : ops.zrange(key, start, stop));
+  },
+  /** Null for a missing hash, else field -> value parsed as the Upstash client does. */
+  async hgetall(key) {
+    maybeFail("hgetall", key);
+    const hash = hashes.get(key);
+    if (!hash || hash.size === 0) return null;
+    const out = {};
+    for (const [field, raw] of hash) {
+      const n = Number(raw);
+      if (!Number.isNaN(n) && !Number.isSafeInteger(n)) out[field] = raw;
+      else out[field] = deserialize(raw);
+    }
+    return out;
+  },
+  async hset(key, fields) {
+    maybeFail("hset", key);
+    const hash = hashes.get(key) ?? new Map();
+    let added = 0;
+    for (const [field, value] of Object.entries(fields)) {
+      if (!hash.has(field)) added += 1;
+      hash.set(field, serialize(value));
+    }
+    hashes.set(key, hash);
+    return added;
+  },
+  async hdel(key, ...fields) {
+    maybeFail("hdel", key);
+    const hash = hashes.get(key);
+    if (!hash) return 0;
+    let removed = 0;
+    for (const f of fields.flat()) if (hash.delete(String(f))) removed += 1;
+    if (hash.size === 0) hashes.delete(key);
+    return removed;
   },
   async lpush(key, ...values) {
     maybeFail("lpush", key);
@@ -400,7 +464,7 @@ const impl = {
     maybeFail("scan", match);
     if (String(cursor) !== "0") throw new Error(`memory-redis: scan answers in one page, cursor ${cursor} is not one it gave`);
     const re = globRegExp(match);
-    const keys = new Set([...store.keys(), ...sets.keys(), ...lists.keys(), ...zsets.keys()]);
+    const keys = new Set([...store.keys(), ...sets.keys(), ...lists.keys(), ...zsets.keys(), ...hashes.keys()]);
     return ["0", [...keys].filter((k) => re.test(k)).sort()];
   },
   multi() {

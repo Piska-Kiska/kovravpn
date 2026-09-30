@@ -4,12 +4,20 @@
 // in-process store, so a test can check the real script and not only its JS
 // twin. Shims stand in for what Redis provides: `redis.call` (GET, SET, DEL,
 // INCRBY, DECRBY, with GET of a missing key giving false, as in Redis; and on
-// sorted sets ZADD [NX], ZREM, ZCARD, ZSCORE, ZRANGE [WITHSCORES],
+// sorted sets ZADD [NX], ZREM, ZCARD, ZCOUNT, ZSCORE, ZRANGE [WITHSCORES],
 // ZRANGEBYSCORE [LIMIT], ZREMRANGEBYSCORE, ordered by score then member, with
 // inclusive bounds and -inf / +inf) and `cjson` (decode / encode, numbers
 // encoded with %.14g like cjson's default).
 // The script runs under whatever Lua is installed (Redis embeds 5.1), so the
 // scripts it checks keep to what 5.1 and later share.
+//
+// The reply: by default every item is turned into a string (the older
+// tests compare that). With `typed: true` it is converted the way Redis
+// turns a Lua value into a reply, so number/string differences show: a
+// string stays a string, a number becomes an integer (truncated, as Redis
+// does), true becomes 1, false / nil end or become null, a table becomes a
+// nested list. The Upstash client then JSON-parses what it gets; a test
+// applies that step itself (memory-redis upstashParse).
 //
 // `luaAvailable()` tells a test to skip when there is no `lua` on PATH.
 
@@ -195,6 +203,13 @@ function redis.call(cmd, ...)
     local n = 0
     for _ in pairs(ZSETS[a[1]] or {}) do n = n + 1 end
     return n
+  elseif cmd == 'ZCOUNT' then
+    local lo, hi = score_bound(a[2]), score_bound(a[3])
+    local n = 0
+    for _, sc in pairs(ZSETS[a[1]] or {}) do
+      if sc >= lo and sc <= hi then n = n + 1 end
+    end
+    return n
   elseif cmd == 'ZSCORE' then
     local sc = (ZSETS[a[1]] or {})[tostring(a[2])]
     if sc == nil then return false end
@@ -251,10 +266,40 @@ function redis.call(cmd, ...)
   error('shim: unsupported command ' .. cmd, 0)
 end
 
-function encode_out(ok, reply)
+-- A Lua value as Redis replies it (RESP), in JSON: string, integer, null, list.
+local function encode_typed(v)
+  local t = type(v)
+  if t == 'string' then return encode_string(v) end
+  if t == 'number' then
+    local n = v >= 0 and math.floor(v) or math.ceil(v)
+    return string.format('%d', n)
+  end
+  if t == 'boolean' then return v and '1' or 'null' end
+  if t == 'table' then
+    if v.err ~= nil then error('script returned an error reply: ' .. tostring(v.err), 0) end
+    if v.ok ~= nil then return encode_string(tostring(v.ok)) end
+    local parts = {}
+    local i = 1
+    while v[i] ~= nil do
+      parts[i] = encode_typed(v[i])
+      i = i + 1
+    end
+    return '[' .. table.concat(parts, ',') .. ']'
+  end
+  return 'null'
+end
+
+function encode_out(ok, reply, typed)
   if not ok then return '{"error":' .. encode_string(tostring(reply)) .. '}' end
   local items = {}
-  for i = 1, #reply do items[i] = encode_string(tostring(reply[i])) end
+  if typed then
+    local ok2, enc = pcall(encode_typed, reply)
+    if not ok2 then return '{"error":' .. encode_string(tostring(enc)) .. '}' end
+    items = nil
+    reply = enc
+  else
+    for i = 1, #reply do items[i] = encode_string(tostring(reply[i])) end
+  end
   local kv = {}
   for k, v in pairs(STORE) do kv[#kv + 1] = encode_string(k) .. ':' .. encode_string(v) end
   local zs = {}
@@ -263,7 +308,8 @@ function encode_out(ok, reply)
     for m, sc in pairs(set) do ms[#ms + 1] = encode_string(m) .. ':' .. score_text(sc) end
     zs[#zs + 1] = encode_string(k) .. ':{' .. table.concat(ms, ',') .. '}'
   end
-  return '{"reply":[' .. table.concat(items, ',') .. '],"store":{' .. table.concat(kv, ',') .. '},"zsets":{' .. table.concat(zs, ',') .. '}}'
+  local body = items and ('[' .. table.concat(items, ',') .. ']') or reply
+  return '{"reply":' .. body .. ',"store":{' .. table.concat(kv, ',') .. '},"zsets":{' .. table.concat(zs, ',') .. '}}'
 end
 `;
 
@@ -279,10 +325,11 @@ function luaString(s) {
 /**
  * Run `source` with KEYS / ARGV against `store` (a Map of key -> raw string)
  * and `zsets` (a Map of key -> Map of member -> score). Returns
- * { reply, store, zsets } where reply is the script's array of strings and
- * store / zsets the Maps after the run. A script error throws.
+ * { reply, store, zsets } where reply is the script's array of strings (with
+ * `typed`, the reply as Redis would send it; see the header) and store /
+ * zsets the Maps after the run. A script error throws.
  */
-export function runLua(source, { store, keys, args, zsets = new Map() }) {
+export function runLua(source, { store, keys, args, zsets = new Map(), typed = false }) {
   const zsetTable = [...zsets]
     .map(([k, set]) => `[${luaString(k)}] = {${[...set].map(([m, sc]) => `[${luaString(m)}] = ${Number(sc)}`).join(", ")}}`)
     .join(", ");
@@ -294,7 +341,7 @@ export function runLua(source, { store, keys, args, zsets = new Map() }) {
     `ARGV = {${args.map(luaString).join(", ")}}`,
     `local script = assert(load(${luaString(source)}, "=script"))`,
     "local ok, reply = pcall(script)",
-    "io.write(encode_out(ok, reply))",
+    `io.write(encode_out(ok, reply, ${typed ? "true" : "false"}))`,
   ].join("\n");
   const r = spawnSync("lua", ["-"], { input: chunk, encoding: "utf8" });
   if (r.status !== 0) throw new Error(`lua failed: ${r.stderr}`);
