@@ -22,6 +22,7 @@ import {
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
 import { INCY_LINKS, V2RAYTUN_LINKS } from "@/lib/dashboard/apps";
+import { pageLang } from "@/i18n/resolve";
 import { deleteOwnProfile } from "@/lib/profile-delete";
 import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
@@ -569,7 +570,7 @@ async function screenGuide(chatId: number, msgId: number) {
       { text: "🪟 Windows", url: V2RAYTUN_LINKS.windows },
       { text: "🤖 Android/TV", url: V2RAYTUN_LINKS.android },
     ],
-    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide?lang=${lang}` }],
+    [{ text: t("guide.full", lang), url: `${SITE_URL}/guide?lang=${pageLang("/guide", lang)}` }],
     backBtn("menu", lang),
   ]);
 }

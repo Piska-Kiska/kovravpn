@@ -7,6 +7,7 @@
 // same origin its API calls go to.
 
 import type { BotLang } from "../bot-i18n";
+import { pageLang } from "../../i18n/resolve";
 import { botChatUrl } from "../bot-link";
 import type { DeviceKind } from "./callbacks";
 
@@ -66,7 +67,8 @@ export function setupGuideUrl(device: DeviceKind | null, lang: BotLang): string 
     case "tv":
       return `${SITE_ORIGIN}/guides/how-to-set-up-vpn-on-android#tv`;
     case null:
-      return `${SITE_ORIGIN}/guide?lang=${lang}`;
+      // /guide exists in Russian and English only.
+      return `${SITE_ORIGIN}/guide?lang=${pageLang("/guide", lang)}`;
   }
 }
 

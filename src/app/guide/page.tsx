@@ -24,7 +24,9 @@ const OG_IMAGE = {
 export const metadata: Metadata = {
   title: TITLE,
   description: DESC,
-  alternates: { canonical: "/guide" },
+  // The server text is Russian; the English translation is applied on the
+  // client (src/i18n/resolve.ts pageLang), so the only indexed language is ru.
+  alternates: { canonical: "/guide", languages: { ru: "/guide" } },
   openGraph: {
     title: `${TITLE} | Kovra`,
     description: DESC,

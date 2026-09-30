@@ -2,10 +2,11 @@
 //
 // Language resolution for the cabinet pages (/login, /register, /dashboard,
 // and /tg, the same dashboard inside the Telegram Mini App), and for the
-// pages that exist in every site language: /terms and /privacy
-// (src/i18n/legal.ts) and /guide (the DOM dictionary). Those used to open in
+// translated pages outside it: /terms and /privacy, which exist in every
+// site language (src/i18n/legal.ts), and /guide, which exists in Russian (the
+// server text) and English (the DOM dictionary) only. Those used to open in
 // Russian for every visitor without a saved choice (KP-08); they now open in
-// the visitor's language, like the cabinet.
+// the visitor's language where the page has it (pageLang), else in English.
 //
 // Pure module with zero runtime imports, so node tests can load it directly
 // under type stripping. The inline boot script (src/i18n/boot-script.ts)
@@ -33,8 +34,15 @@ export function isLang(v: unknown): v is Lang {
   return typeof v === "string" && (CABINET_LANGS_ORDER as readonly string[]).includes(v);
 }
 
-/** Pages outside the cabinet whose text exists in every site language. */
+/** Pages outside the cabinet that open in the visitor's language where they have it (pageLang). */
 const TRANSLATED_PAGE_RE = /^\/(terms|privacy|guide)(\/|$)/;
+/**
+ * Translated pages that do not exist in every site language, with the ones
+ * they do exist in. /guide: its es/de/fr dictionary entries are copies of
+ * the English ones, so a German visitor reads English and the page must say
+ * lang="en", not "de".
+ */
+const PAGE_LANGS: readonly { re: RegExp; langs: readonly Lang[] }[] = [{ re: /^\/guide(\/|$)/, langs: ["ru", "en"] }];
 /** Pages that exist in Russian only (the noindex promo, the paused /p/ import page). */
 const RUSSIAN_ONLY_RE = /^\/(promo|p)(\/|$)/;
 /** The English-only guides. */
@@ -47,6 +55,17 @@ export function isCabinetPath(pathname: string): boolean {
 /** Pages that open in the visitor's language (resolveCabinetLangFrom): the cabinet and the translated pages. */
 export function isVisitorLangPath(pathname: string): boolean {
   return CABINET_PATH_RE.test(pathname) || TRANSLATED_PAGE_RE.test(pathname);
+}
+
+/**
+ * The language a page shows to a visitor who prefers `lang`: that one when
+ * the page exists in it, else English. O(1).
+ */
+export function pageLang(pathname: string, lang: Lang): Lang {
+  for (const page of PAGE_LANGS) {
+    if (page.re.test(pathname)) return page.langs.includes(lang) ? lang : "en";
+  }
+  return lang;
 }
 
 /** Pages whose content is Russian whatever the visitor prefers. */
@@ -104,7 +123,8 @@ export interface BootInput extends ResolveInput {
 
 /**
  * The language the boot script puts on <html lang> before the first paint:
- *   • the cabinet and the translated pages: the visitor's language;
+ *   • the cabinet and the translated pages: the visitor's language, where
+ *     the page exists in it (pageLang: /guide is Russian or English);
  *   • /guides: English (the only language they exist in);
  *   • the landing: its saved kovra_lang, else English;
  *   • the Russian-only pages: Russian;
@@ -112,7 +132,7 @@ export interface BootInput extends ResolveInput {
  *     what those pages render.
  */
 export function bootLangFrom(i: BootInput): Lang {
-  if (isVisitorLangPath(i.pathname)) return resolveCabinetLangFrom(i);
+  if (isVisitorLangPath(i.pathname)) return pageLang(i.pathname, resolveCabinetLangFrom(i));
   if (GUIDES_RE.test(i.pathname)) return "en";
   if (i.pathname === "/") return isLang(i.saved) ? i.saved : "en";
   if (isRussianOnlyPath(i.pathname)) return "ru";
