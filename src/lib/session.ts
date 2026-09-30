@@ -1,10 +1,10 @@
 // src/lib/session.ts
 import { redis } from "./redis";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
 const SESSION_TTL_DEFAULT = 60 * 60;           // 1 hour
-const SESSION_TTL_REMEMBER = 7 * 24 * 60 * 60; // 7 days
+export const SESSION_TTL_REMEMBER = 7 * 24 * 60 * 60; // 7 days
 const INACTIVITY_DEFAULT = 60 * 60 * 1000;     // 1 hour in ms
 const INACTIVITY_REMEMBER = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 export const COOKIE_NAME = "sid";
@@ -77,11 +77,55 @@ export function clearSessionCookie(res: NextResponse): void {
   });
 }
 
-/** Extract session from incoming request cookie */
+/** Our session ids are `randomUUID()` values. */
+const SID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The parts of a request the session lookup reads (NextRequest satisfies it). */
+export interface SessionCarrier {
+  headers: { get(name: string): string | null };
+  cookies: { get(name: string): { value: string } | undefined };
+}
+
+export interface RequestSid {
+  /** Session id to look up, or null when there is none (or it is malformed). */
+  sid: string | null;
+  /** Where it came from. `bearer` is set even for a malformed Bearer value. */
+  source: "bearer" | "cookie" | "none";
+}
+
+/**
+ * Which session a request speaks for.
+ *
+ * `Authorization: Bearer <sid>` is what the Telegram Mini App sends: inside
+ * Telegram's webview a third-party cookie does not survive, so
+ * /api/auth/telegram/miniapp returns the sid in the body and the page sends
+ * it as a header. It is the same `session:<sid>` record, no second mechanism.
+ *
+ * A Bearer header WINS and never falls back to the cookie, even when it is
+ * malformed or its session is gone: one Telegram webview can switch between
+ * two Telegram accounts, and a stale cookie from the other one would open the
+ * wrong cabinet. The Mini App answers a 401 by exchanging initData again.
+ */
+export function sessionIdFromRequest(req: SessionCarrier): RequestSid {
+  const header = req.headers.get("authorization");
+  if (header !== null && /^\s*bearer(\s|$)/i.test(header)) {
+    const value = header.trim().slice("bearer".length).trim();
+    return { sid: SID_RE.test(value) ? value : null, source: "bearer" };
+  }
+  const cookie = req.cookies.get(COOKIE_NAME)?.value;
+  if (cookie) return { sid: cookie, source: "cookie" };
+  return { sid: null, source: "none" };
+}
+
+/**
+ * Session of the incoming request: the Bearer header when present (and only
+ * it), otherwise the `sid` cookie. The site never sends the header, so for it
+ * nothing changes: one cookie, one Redis lookup.
+ */
 export async function getSessionFromRequest(
-  req: NextRequest
+  req: SessionCarrier
 ): Promise<Session | null> {
-  const sid = req.cookies.get(COOKIE_NAME)?.value;
+  const { sid } = sessionIdFromRequest(req);
   if (!sid) return null;
   return getSession(sid);
 }
