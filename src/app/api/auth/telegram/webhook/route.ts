@@ -7,7 +7,6 @@ import {
   createAccount,
   getProfiles,
   addProfile,
-  removeProfile,
   getProfileLimit,
   resolveUserId,
   getUserRecord,
@@ -22,9 +21,8 @@ import {
   getUserLang,
 } from "@/lib/accounts";
 import { t, resolveLang, normalizeLang, BOT_LANGS, LANG_NAMES, type BotLang } from "@/lib/bot-i18n";
-import { removeClientFromStaticPanels } from "@/lib/kovra-servers-sync";
+import { deleteOwnProfile } from "@/lib/profile-delete";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
-import { syncAllExpiry } from "@/lib/balance";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
@@ -468,7 +466,13 @@ async function handleLink(chatId: number, msgId: number, uuid: string) {
 }
 
 async function handleDel(chatId: number, msgId: number, uuid: string) {
-  const lang = await resolveLang(await getUserId(chatId));
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  const profiles = await getProfiles(userId);
+  if (!profiles.some((p) => p.uuid === uuid)) {
+    await edit(chatId, msgId, t("link.notfound", lang), [backBtn("profiles", lang)]);
+    return;
+  }
   await edit(chatId, msgId, t("del.confirm", lang), [
     [{ text: t("del.yes", lang), callback_data: `cdel_${uuid}` }, { text: t("del.no", lang), callback_data: "profiles" }],
   ]);
@@ -477,14 +481,14 @@ async function handleDel(chatId: number, msgId: number, uuid: string) {
 async function handleConfirmDel(chatId: number, msgId: number, uuid: string) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
+  // Ownership first: `cdel_<uuid>` is client data, and a forged one used to
+  // remove another user's device from the panels.
+  if (!(await getProfiles(userId)).some((p) => p.uuid === uuid)) {
+    await edit(chatId, msgId, t("link.notfound", lang), [backBtn("profiles", lang)]);
+    return;
+  }
   await edit(chatId, msgId, t("del.progress", lang), []);
-  try {
-    const profs = await getProfiles(userId);
-    const prof = profs.find((p) => p.uuid === uuid);
-    await removeClientFromStaticPanels(uuid, prof?.clientEmail ?? uuid);
-  } catch { /* ok */ }
-  await removeProfile(userId, uuid);
-  await syncAllExpiry(userId);
+  await deleteOwnProfile(userId, uuid);
   await edit(chatId, msgId, t("del.done", lang), [
     [{ text: t("del.toprof", lang), callback_data: "profiles" }],
     backBtn("menu", lang),
