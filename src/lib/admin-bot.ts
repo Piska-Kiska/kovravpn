@@ -55,6 +55,7 @@ import {
 import type { BroadcastMediaRef, BroadcastBtnRef } from "./admin-fsm";
 
 import { ADMIN_TG_ID } from "./bot-owner";
+import { applyAdminWalletChange, formatUsdCents, parseAdminWalletInput } from "./admin-wallet";
 
 export { ADMIN_TG_ID };
 
@@ -203,9 +204,9 @@ async function screenUserCardEdit(
 function formatUserCard(s: UserSnapshot): string {
   const acc = s.account;
   const u = s.user;
-  const balance = acc
-    ? getBalanceInfo(acc, s.profiles.length).balance.toFixed(2)
-    : "—";
+  // The old rouble field is read by nothing since the unified wallet; shown
+  // only when non-zero, so its leftovers are not mistaken for money.
+  const legacyRub = acc ? getBalanceInfo(acc, s.profiles.length).balance : 0;
   const paidUntil =
     acc && acc.paidUntil > 0
       ? new Date(acc.paidUntil).toLocaleDateString("ru-RU")
@@ -224,7 +225,8 @@ function formatUserCard(s: UserSnapshot): string {
   if (u?.authMethod) lines.push(`🔐 Auth: ${escape(u.authMethod)}`);
 
   lines.push("");
-  lines.push(`💰 Баланс: <b>${balance} ₽</b>`);
+  lines.push(`💰 Баланс: <b>${formatUsdCents(s.walletCents)}</b>`);
+  if (legacyRub > 0) lines.push(`<i>старое поле ${legacyRub.toFixed(2)} ₽ — не используется</i>`);
   lines.push(`📅 Подписка до: ${paidUntil}`);
   lines.push(`📡 Устройств: ${s.profiles.length}`);
 
@@ -548,11 +550,12 @@ async function screenBalancePrompt(
     msgId,
     `💰 <b>Изменить баланс</b>\n\n` +
       `userId: <code>${state.selectedUserId}</code>\n\n` +
+      `Баланс в долларах — тот, что тратят бот, кабинет и Mini App.\n\n` +
       `Отправьте сумму в чат:\n` +
-      `• <code>+100</code> — добавить 100 ₽\n` +
-      `• <code>-50</code> — списать 50 ₽\n` +
-      `• <code>=0</code> — установить баланс в 0\n` +
-      `• <code>=300</code> — установить баланс в 300`,
+      `• <code>+10</code> — добавить $10\n` +
+      `• <code>-5.50</code> — списать $5.50\n` +
+      `• <code>=0</code> — установить баланс в $0\n` +
+      `• <code>=25</code> — установить баланс в $25`,
     [[{ text: "← Отмена", callback_data: "adm:refresh" }]],
   );
 }
@@ -564,77 +567,41 @@ async function performBalanceChange(
   raw: string,
 ): Promise<void> {
   if (!state.selectedUserId) return;
+  const userId = state.selectedUserId;
 
-  const trimmed = raw.trim();
-  const m = /^([+\-=])\s*(\d+(?:\.\d+)?)$/.exec(trimmed);
-  if (!m) {
+  const change = parseAdminWalletInput(raw);
+  if (!change) {
     await send(
       chatId,
-      "❌ Неверный формат. Используйте <code>+N</code>, <code>-N</code> или <code>=N</code>.",
+      "❌ Неверный формат или сумма больше $10 000. Используйте <code>+10</code>, <code>-5.50</code> или <code>=25</code> (доллары).",
       [[{ text: "← Отмена", callback_data: "adm:refresh" }]],
     );
     return;
   }
 
-  const op = m[1];
-  const amount = parseFloat(m[2]);
-  if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000) {
-    await send(chatId, "❌ Сумма вне допустимого диапазона.", [
-      [{ text: "← Отмена", callback_data: "adm:refresh" }],
-    ]);
-    return;
-  }
-
-  // Acquire balance lock to avoid races with addBalance/payment webhooks.
-  const { acquireLock } = await import("./ratelimit");
-  const unlock = await acquireLock(`bal:${state.selectedUserId}`, 15);
-  if (!unlock) {
+  const r = await applyAdminWalletChange(userId, change, String(chatId));
+  if (!r.ok) {
     await send(
       chatId,
-      "⏳ Другая операция с балансом этого пользователя в процессе. Попробуйте через секунду.",
+      r.reason === "busy"
+        ? "⏳ С балансом этого пользователя сейчас идёт другая операция. Попробуйте через секунду."
+        : "❌ Баланс не изменён: ошибка хранилища. Попробуйте ещё раз.",
       [[{ text: "🔁 Повторить", callback_data: "adm:bal" }]],
     );
     return;
   }
 
-  try {
-    // Read-modify-write on account
-    const accRaw = await redis.get(`account:${state.selectedUserId}`);
-    if (!accRaw) {
-      await send(chatId, "❌ Аккаунт не найден.", [
-        [{ text: "← Назад", callback_data: "adm:menu" }],
-      ]);
-      return;
-    }
-    const account =
-      typeof accRaw === "string" ? JSON.parse(accRaw) : (accRaw as Record<string, unknown>);
-
-    const oldBalance = Number(account.balance) || 0;
-    let newBalance: number;
-    if (op === "+") newBalance = oldBalance + amount;
-    else if (op === "-") newBalance = Math.max(0, oldBalance - amount);
-    else newBalance = amount;
-
-    account.balance = Math.round(newBalance * 100) / 100;
-    account.balanceUpdatedAt = Date.now();
-
-    await redis.set(`account:${state.selectedUserId}`, JSON.stringify(account));
-
-    await clearAdminState(chatId);
-
-    await send(
-      chatId,
-      `✅ Баланс <code>${escape(state.selectedUserId)}</code> изменён:\n\n` +
-        `Было: <b>${oldBalance.toFixed(2)} ₽</b>\n` +
-        `Стало: <b>${(account.balance as number).toFixed(2)} ₽</b>`,
-      [
-        [{ text: "🔄 Открыть карточку", callback_data: "adm:refresh" }],
-        [{ text: "← В меню", callback_data: "adm:menu" }],
-      ],
-    );
-  } finally {
-    await unlock();
-  }
+  await clearAdminState(chatId);
+  await send(
+    chatId,
+    `✅ Баланс <code>${escape(userId)}</code> изменён:\n\n` +
+      `Было: <b>${formatUsdCents(r.beforeCents)}</b>\n` +
+      `Стало: <b>${formatUsdCents(r.afterCents)}</b>`,
+    [
+      [{ text: "🔄 Открыть карточку", callback_data: "adm:refresh" }],
+      [{ text: "← В меню", callback_data: "adm:menu" }],
+    ],
+  );
 }
 
 // ─── Promo flow ──────────────────────────────────────────────────────────────
