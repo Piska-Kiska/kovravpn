@@ -49,6 +49,13 @@ import {
 
 /** A node's confirmation is written at most this often per instance. */
 export const SEEN_WRITE_EVERY_MS = 5 * 60_000;
+/**
+ * A reserve call on the node path (the view's script or plain reads, the
+ * confirmation write) that has not answered by then counts as failed: the
+ * Upstash REST client has no timeout of its own, and a hung call would hold
+ * the list build every node poll on the instance shares, and the 304.
+ */
+export const POOL_CALL_TIMEOUT_MS = 2_000;
 
 export interface DeviceUuid {
   readonly uuid: string;
@@ -76,6 +83,22 @@ function logTake(outcome: TakeOutcome, extra: Record<string, number | string> = 
 
 function logFailure(evt: string, err: unknown, extra: Record<string, number> = {}): void {
   console.error(JSON.stringify({ evt, ...extra, error: safeErrorText(err, { max: 200 }) }));
+}
+
+/** POOL_CALL_TIMEOUT_MS, unless a test set another (resetUuidPoolInstance). */
+let callTimeoutMs = POOL_CALL_TIMEOUT_MS;
+
+/**
+ * `work`, or a rejection once callTimeoutMs has passed without an answer.
+ * The call itself goes on; every call it guards is safe to finish late (the
+ * script keeps its cap and NX, a late confirmation holds a true time).
+ */
+function within<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`uuid pool: ${what} gave no answer within ${callTimeoutMs} ms`)), callTimeoutMs);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
 /** The configured reserve size (KOVRA_UUID_POOL_SIZE, default 5, 0 = off). */
@@ -190,7 +213,8 @@ function logView(source: "maintain" | "read", state: PoolState, now: number): vo
  * This instance's view of the reserve for a list build. Younger than
  * POOL_REFRESH_MS (the list cache, so in practice only when a caller builds
  * twice within it): reused. Otherwise refreshed with MAINTAIN_LUA; if the
- * script fails, the sets are read with plain commands; if that fails too,
+ * script fails or hangs past POOL_CALL_TIMEOUT_MS, the sets are read with
+ * plain commands (same timeout); if that fails too,
  * the last view is kept, whatever its age: a UUID only moves forward, so an
  * old view never drops one. It may still say "ready" for a pool device
  * deleted since, so once it is older than POOL_VIEW_STALE_MS its lines stop
@@ -203,14 +227,14 @@ export async function currentUuidPool(now: number): Promise<PoolView> {
   let state: PoolState | null = null;
   let source: "maintain" | "read" = "maintain";
   try {
-    state = await maintainUuidPool(now);
+    state = await within(maintainUuidPool(now), "the maintain script");
   } catch (err) {
     logFailure("uuidpool.maintain_failed", err);
   }
   if (state === null) {
     source = "read";
     try {
-      state = await readUuidPool();
+      state = await within(readUuidPool(), "the plain read");
     } catch (err) {
       logFailure("uuidpool.read_failed", err);
     }
@@ -232,7 +256,8 @@ const seenWrites = new Map<string, number>();
 /**
  * `node` answered 304 to a list built from the view read at `poolAt`: it
  * holds every reserve UUID added by then. Written at most every
- * SEEN_WRITE_EVERY_MS per node and instance; best effort, never throws.
+ * SEEN_WRITE_EVERY_MS per node and instance; best effort, never throws, and
+ * never keeps the 304 waiting longer than POOL_CALL_TIMEOUT_MS.
  */
 export async function noteNodeConfirmed(node: string, poolAt: number, now: number = Date.now()): Promise<void> {
   if (configuredPoolSize() === 0) return;
@@ -240,15 +265,16 @@ export async function noteNodeConfirmed(node: string, poolAt: number, now: numbe
   if (last !== undefined && now - last >= 0 && now - last < SEEN_WRITE_EVERY_MS) return;
   seenWrites.set(node, now);
   try {
-    await redis.hset(POOL_SEEN_KEY, { [node]: Math.floor(poolAt) });
+    await within(redis.hset(POOL_SEEN_KEY, { [node]: Math.floor(poolAt) }), "the confirmation write");
   } catch (err) {
     logFailure("uuidpool.seen_write_failed", err);
   }
 }
 
-/** Tests only: forget this instance's view, write throttle and log state. */
-export function resetUuidPoolInstance(): void {
+/** Tests only: forget this instance's view, write throttle and log state; set the call timeout. */
+export function resetUuidPoolInstance(timeoutMs: number = POOL_CALL_TIMEOUT_MS): void {
   view = null;
   lastLogged = "";
   seenWrites.clear();
+  callTimeoutMs = timeoutMs;
 }

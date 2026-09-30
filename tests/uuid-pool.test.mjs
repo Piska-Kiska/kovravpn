@@ -506,6 +506,58 @@ describe("the node list carries the reserve", () => {
   });
 });
 
+describe("a hung Redis never holds the node list", () => {
+  const hang = () => new Promise(() => {});
+  /** The value of `work`, or "hung" if it has not settled within `ms` (real time). */
+  const settles = (work, ms = 1_000) => {
+    let timer;
+    const deadline = new Promise((resolve) => {
+      timer = setTimeout(() => resolve("hung"), ms);
+    });
+    return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+  };
+
+  test("the script and the plain read hanging: the build answers from the last view within the timeouts", async () => {
+    resetUuidPoolInstance(20);
+    await answer(NOW);
+    const listed = [...zset(READY).keys()];
+    mem.beforeNext("eval", { run: hang });
+    mem.beforeNext("zrange", { run: hang });
+    let got;
+    await captureLogs(async () => {
+      got = await settles(rebuild(NOW + 2 * MIN));
+    });
+    assert.notEqual(got, "hung", "the shared build did not wait for Redis");
+    assert.equal(got.read.poolAt, NOW, "the last view");
+    for (const id of listed) assert.equal(got.lines.get(id), poolLineUntil(NOW + 2 * MIN));
+  });
+
+  test("the script hanging on a cold instance: the plain read answers", async () => {
+    resetUuidPoolInstance(20);
+    seedReady([[u(1), NOW - DAY]]);
+    mem.beforeNext("eval", { run: hang });
+    let got;
+    await captureLogs(async () => {
+      got = await settles(answer(NOW));
+    });
+    assert.notEqual(got, "hung");
+    assert.equal(got.lines.get(u(1)), poolLineUntil(NOW));
+    assert.equal(mem.calls.get("zrange"), 3);
+  });
+
+  test("the confirmation write hanging never keeps the 304 waiting", async () => {
+    resetUuidPoolInstance(20);
+    const first = await nodeUuidsGet(nodeReq("pl"));
+    mem.beforeNext("hset", { run: hang });
+    let res;
+    await captureLogs(async () => {
+      res = await settles(nodeUuidsGet(nodeReq("pl", first.headers.get("ETag"))));
+    });
+    assert.notEqual(res, "hung");
+    assert.equal(res.status, 304);
+  });
+});
+
 describe("a node's 304 is its confirmation", () => {
   test("a 304 notes the time of the view the list was built from; a 200 does not", async () => {
     const first = await nodeUuidsGet(nodeReq("pl"));
