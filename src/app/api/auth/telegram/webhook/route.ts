@@ -40,7 +40,7 @@ import { rememberCharge } from "@/lib/lava-purchase";
 import { buildTopupOrderId as buildLavaTopupOrderId } from "@/lib/bot-wallet";
 import { createCardPayment } from "@/lib/cashera-order";
 import { getBalanceUsd, addBalanceUsd, chargeBalanceUsd, buildTopupOrderId } from "@/lib/bot-wallet";
-import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddon, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
+import { PLAN_PRICES, resolvePlan, applyPlanPurchase, applyDeviceAddonTerm, DEVICE_ADDON_PRICE, summarize, getSubscriptions, type PlanKind, type Term } from "@/lib/subscriptions";
 import { createCryptoBotInvoice } from "@/lib/cryptobot";
 import { createEnotInvoice, type EnotKind } from "@/lib/enot";
 import { checkRateLimit } from "@/lib/ratelimit";
@@ -660,7 +660,7 @@ async function handleAddDevice(chatId: number, msgId: number, term: Term) {
   if (!userId) { await edit(chatId, msgId, t("common.error", lang, { msg: "user not found" }), [backBtn("account", lang)]); return; }
   const price = DEVICE_ADDON_PRICE * term;
   await chargeAndGrant(chatId, msgId, lang, userId, price, async () => {
-    for (let i = 0; i < term; i++) await applyDeviceAddon(userId);
+    await applyDeviceAddonTerm(userId, term);
     return t("shop.sum.device", lang, { days: term * 30 });
   }, "adddev");
 }

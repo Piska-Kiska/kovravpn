@@ -148,6 +148,18 @@ export function nextActiveExpiry(subs: Subscription[], at: number = Date.now()):
   return min;
 }
 
+/**
+ * The main plan tier currently running, or null. plan3 wins when both run.
+ * Re-buying the same tier extends it (addSubscription stacks the expiry), so
+ * while a plan runs, purchases are renewals of THAT tier; extra devices come
+ * from the device add-on.
+ */
+export function activePlanKindOf(subs: Subscription[], at: number = Date.now()): PlanKind | null {
+  if (subs.some((s) => s.kind === "plan3" && s.expiresAt > at)) return "plan3";
+  if (subs.some((s) => s.kind === "plan1" && s.expiresAt > at)) return "plan1";
+  return null;
+}
+
 export interface SubscriptionSummary {
   activeSlots: number;
   hasActive: boolean;
@@ -236,6 +248,17 @@ export async function applyPlanPurchase(
 /** Convenience: apply a device add-on (30d, 1 slot, fixed). */
 export async function applyDeviceAddon(userId: string): Promise<Subscription[]> {
   return addSubscription(userId, "device", DEVICE_ADDON_DAYS, 1);
+}
+
+/**
+ * Device add-on bought for `term` months at once: ONE extra slot for
+ * term × 30 days. (Applying the 30-day add-on `term` times would instead give
+ * `term` slots that all end in 30 days — not what "+1 device · 180 days"
+ * promises.)
+ */
+export async function applyDeviceAddonTerm(userId: string, term: Term): Promise<Subscription[]> {
+  if (term !== 1 && term !== 6 && term !== 12) throw new Error(`invalid device add-on term: ${term}`);
+  return addSubscription(userId, "device", term * DEVICE_ADDON_DAYS, 1);
 }
 
 /** Convenience: grant a free referral reward (14d, 1 slot). */
