@@ -157,7 +157,7 @@ const ru: Dict = {
   "login.noAccount.cta": "Создать",
 
   "register.title": "Создать аккаунт",
-  "register.subtitle": "Крипта или карта. Готово за минуту.",
+  "register.subtitle": "Крипта или карта. Без автопродления.",
   "register.password.placeholder": "Минимум 8 символов",
   "register.submit": "Продолжить",
   "register.verify.title": "Проверьте почту",
@@ -298,7 +298,7 @@ const en: Dict = {
   "login.noAccount.cta": "Create",
 
   "register.title": "Create an account",
-  "register.subtitle": "Crypto or card. Ready in a minute.",
+  "register.subtitle": "Crypto or card. Nothing renews automatically.",
   "register.password.placeholder": "Minimum 8 characters",
   "register.submit": "Continue",
   "register.verify.title": "Check your email",
@@ -438,7 +438,7 @@ const es: Dict = {
   "login.noAccount.cta": "Crear",
 
   "register.title": "Crear una cuenta",
-  "register.subtitle": "Cripto o tarjeta. Listo en un minuto.",
+  "register.subtitle": "Cripto o tarjeta. Sin renovación automática.",
   "register.password.placeholder": "Mínimo 8 caracteres",
   "register.submit": "Continuar",
   "register.verify.title": "Revisa tu correo",
@@ -578,7 +578,7 @@ const de: Dict = {
   "login.noAccount.cta": "Erstellen",
 
   "register.title": "Konto erstellen",
-  "register.subtitle": "Krypto oder Karte. In einer Minute startklar.",
+  "register.subtitle": "Krypto oder Karte. Keine automatische Verlängerung.",
   "register.password.placeholder": "Mindestens 8 Zeichen",
   "register.submit": "Weiter",
   "register.verify.title": "Prüfe deine E-Mail",
@@ -718,7 +718,7 @@ const fr: Dict = {
   "login.noAccount.cta": "Créer",
 
   "register.title": "Créer un compte",
-  "register.subtitle": "Crypto ou carte. Prêt en une minute.",
+  "register.subtitle": "Crypto ou carte. Sans renouvellement automatique.",
   "register.password.placeholder": "Minimum 8 caractères",
   "register.submit": "Continuer",
   "register.verify.title": "Vérifiez votre e-mail",
