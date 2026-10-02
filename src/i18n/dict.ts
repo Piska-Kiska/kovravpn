@@ -151,7 +151,7 @@ const ru: Dict = {
   /* ── guide page ───────────────────────────────── */
   "guide.brand": "Kovra",
   "guide.title": "Инструкция по подключению",
-  "guide.subtitle": "Подключение займёт 2–3 минуты. Выберите вашу платформу.",
+  "guide.subtitle": "Три шага на каждой платформе. Выберите вашу.",
 
   "guide.common.title": "Для всех платформ: скопируйте ссылку подписки",
   "guide.common.desc.html":
@@ -165,7 +165,7 @@ const ru: Dict = {
   "guide.android.s1.html":
     "Скачайте <strong class=\"text-nm-text\">HAPP</strong> из <a href=\"https://play.google.com/store/apps/details?id=com.happproxy\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a> или <a href=\"https://www.happ.su/main\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">сайта HAPP</a>.",
   "guide.android.s1b.html":
-    "Альтернатива: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://play.google.com/store/apps/details?id=com.v2raytun.android\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a>",
+    "Альтернатива: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.android.s2a.html":
     "Откройте HAPP → нажмите <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Импорт из буфера обмена»</strong>.",
   "guide.android.s2b":
@@ -190,7 +190,7 @@ const ru: Dict = {
   "guide.win.s1.html":
     "Скачайте <strong class=\"text-nm-text\">HAPP</strong>: <a href=\"https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe\" class=\"text-nm-accent hover:underline\">setup-Happ.x64.exe</a>",
   "guide.win.s1b.html":
-    "Альтернатива: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://storage.v2raytun.com/v2RayTun_Setup.exe\" class=\"text-nm-accent hover:underline\">v2RayTun_Setup.exe</a>",
+    "Альтернатива: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.win.s1c": "Запустите → установите как обычное приложение.",
   "guide.win.s2a.html":
     "Откройте HAPP → нажмите <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Импорт из буфера»</strong>.",
@@ -212,19 +212,19 @@ const ru: Dict = {
 
   "guide.faq.title": "Частые вопросы",
   "guide.help.title": "Не получается подключиться?",
-  "guide.help.subtitle": "Напишите нам — поможем настроить за пару минут.",
+  "guide.help.subtitle": "Напишите нам — поможем настроить.",
   "guide.help.btn": "Написать в Telegram",
 
   /* faq guide */
   "faq.guide.0.q": "Какое приложение нужно установить?",
   "faq.guide.0.a":
-    "Happ или V2RayTun — оба бесплатные. Happ проще для начинающих, V2RayTun даёт больше тонких настроек. Ссылки на установку для каждой платформы есть в инструкции выше.",
-  "faq.guide.1.q": "Чем Happ отличается от V2RayTun?",
+    "Happ (рекомендуем) или INCY — оба бесплатные и принимают ссылку подписки Kovra. Если Happ нет в App Store вашей страны, ставьте INCY. Ссылки на установку для каждой платформы есть в инструкции выше.",
+  "faq.guide.1.q": "Чем Happ отличается от INCY?",
   "faq.guide.1.a":
-    "Функционально почти одинаковые. Happ активнее обновляется и удобнее на мобильных. V2RayTun лучше работает на старых версиях Windows и Android.",
+    "Оба работают на движке Xray и принимают одну и ту же ссылку подписки. Happ мы советуем по умолчанию. INCY — запасной вариант: он есть в App Store там, где Happ убрали, в том числе в России.",
   "faq.guide.2.q": "Как получить ссылку подписки для моего устройства?",
   "faq.guide.2.a":
-    "В личном кабинете нажмите «Добавить устройство» и выберите тип — система сгенерирует уникальную ссылку. Её нужно скопировать и вставить в приложение Happ или V2RayTun.",
+    "В личном кабинете нажмите «Добавить устройство» и выберите тип — система сгенерирует уникальную ссылку. Её нужно скопировать и вставить в приложение Happ или INCY.",
   "faq.guide.3.q": "Можно ли использовать одну ссылку на нескольких устройствах?",
   "faq.guide.3.a":
     "Нет. Каждая ссылка работает только на одном устройстве — это защита от утечки и злоупотреблений. Для второго устройства создайте новый профиль в личном кабинете.",
@@ -595,7 +595,7 @@ const en: Dict = {
   /* guide */
   "guide.brand": "Kovra",
   "guide.title": "Setup guide",
-  "guide.subtitle": "Setup takes 2–3 minutes. Pick your platform.",
+  "guide.subtitle": "Three steps on every platform. Pick yours.",
 
   "guide.common.title": "For every platform: copy your subscription link",
   "guide.common.desc.html":
@@ -608,7 +608,7 @@ const en: Dict = {
   "guide.android.s1.html":
     "Install <strong class=\"text-nm-text\">HAPP</strong> from <a href=\"https://play.google.com/store/apps/details?id=com.happproxy\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a> or the <a href=\"https://www.happ.su/main\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">HAPP website</a>.",
   "guide.android.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://play.google.com/store/apps/details?id=com.v2raytun.android\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.android.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.android.s2b":
@@ -631,7 +631,7 @@ const en: Dict = {
   "guide.win.s1.html":
     "Download <strong class=\"text-nm-text\">HAPP</strong>: <a href=\"https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe\" class=\"text-nm-accent hover:underline\">setup-Happ.x64.exe</a>",
   "guide.win.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://storage.v2raytun.com/v2RayTun_Setup.exe\" class=\"text-nm-accent hover:underline\">v2RayTun_Setup.exe</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.win.s1c": "Run the installer → install as a regular application.",
   "guide.win.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
@@ -652,18 +652,18 @@ const en: Dict = {
 
   "guide.faq.title": "Frequently asked questions",
   "guide.help.title": "Cannot connect?",
-  "guide.help.subtitle": "Reach out — we will help you set it up in a couple of minutes.",
+  "guide.help.subtitle": "Reach out — we will help you set it up.",
   "guide.help.btn": "Message on Telegram",
 
   "faq.guide.0.q": "Which app do I need to install?",
   "faq.guide.0.a":
-    "Happ or V2RayTun — both are free. Happ is easier for beginners, V2RayTun gives you more fine-grained settings. Install links for each platform are in the guide above.",
-  "faq.guide.1.q": "How is Happ different from V2RayTun?",
+    "Happ (recommended) or INCY — both are free and accept a Kovra subscription link. If Happ is not in your country's App Store, install INCY. Install links for each platform are in the guide above.",
+  "faq.guide.1.q": "How is Happ different from INCY?",
   "faq.guide.1.a":
-    "Functionally they are nearly identical. Happ updates more actively and is more convenient on mobile. V2RayTun works better on older Windows and Android versions.",
+    "Both run on the Xray engine and take the same subscription link. We recommend Happ by default. INCY is the fallback: it is in the App Store where Happ was removed, including Russia.",
   "faq.guide.2.q": "How do I get a subscription link for my device?",
   "faq.guide.2.a":
-    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or V2RayTun.",
+    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or INCY.",
   "faq.guide.3.q": "Can I use one link on multiple devices?",
   "faq.guide.3.a":
     "No. Each link works on a single device — this protects against leaks and abuse. For a second device create a new profile in the dashboard.",
@@ -1037,7 +1037,7 @@ const es: Dict = {
   /* guide */
   "guide.brand": "Kovra",
   "guide.title": "Setup guide",
-  "guide.subtitle": "Setup takes 2–3 minutes. Pick your platform.",
+  "guide.subtitle": "Three steps on every platform. Pick yours.",
 
   "guide.common.title": "For every platform: copy your subscription link",
   "guide.common.desc.html":
@@ -1050,7 +1050,7 @@ const es: Dict = {
   "guide.android.s1.html":
     "Install <strong class=\"text-nm-text\">HAPP</strong> from <a href=\"https://play.google.com/store/apps/details?id=com.happproxy\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a> or the <a href=\"https://www.happ.su/main\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">HAPP website</a>.",
   "guide.android.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://play.google.com/store/apps/details?id=com.v2raytun.android\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.android.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.android.s2b":
@@ -1073,7 +1073,7 @@ const es: Dict = {
   "guide.win.s1.html":
     "Download <strong class=\"text-nm-text\">HAPP</strong>: <a href=\"https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe\" class=\"text-nm-accent hover:underline\">setup-Happ.x64.exe</a>",
   "guide.win.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://storage.v2raytun.com/v2RayTun_Setup.exe\" class=\"text-nm-accent hover:underline\">v2RayTun_Setup.exe</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.win.s1c": "Run the installer → install as a regular application.",
   "guide.win.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
@@ -1094,18 +1094,18 @@ const es: Dict = {
 
   "guide.faq.title": "Frequently asked questions",
   "guide.help.title": "Cannot connect?",
-  "guide.help.subtitle": "Reach out — we will help you set it up in a couple of minutes.",
+  "guide.help.subtitle": "Reach out — we will help you set it up.",
   "guide.help.btn": "Message on Telegram",
 
   "faq.guide.0.q": "Which app do I need to install?",
   "faq.guide.0.a":
-    "Happ or V2RayTun — both are free. Happ is easier for beginners, V2RayTun gives you more fine-grained settings. Install links for each platform are in the guide above.",
-  "faq.guide.1.q": "How is Happ different from V2RayTun?",
+    "Happ (recommended) or INCY — both are free and accept a Kovra subscription link. If Happ is not in your country's App Store, install INCY. Install links for each platform are in the guide above.",
+  "faq.guide.1.q": "How is Happ different from INCY?",
   "faq.guide.1.a":
-    "Functionally they are nearly identical. Happ updates more actively and is more convenient on mobile. V2RayTun works better on older Windows and Android versions.",
+    "Both run on the Xray engine and take the same subscription link. We recommend Happ by default. INCY is the fallback: it is in the App Store where Happ was removed, including Russia.",
   "faq.guide.2.q": "How do I get a subscription link for my device?",
   "faq.guide.2.a":
-    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or V2RayTun.",
+    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or INCY.",
   "faq.guide.3.q": "Can I use one link on multiple devices?",
   "faq.guide.3.a":
     "No. Each link works on a single device — this protects against leaks and abuse. For a second device create a new profile in the dashboard.",
@@ -1478,7 +1478,7 @@ const de: Dict = {
   /* guide */
   "guide.brand": "Kovra",
   "guide.title": "Setup guide",
-  "guide.subtitle": "Setup takes 2–3 minutes. Pick your platform.",
+  "guide.subtitle": "Three steps on every platform. Pick yours.",
 
   "guide.common.title": "For every platform: copy your subscription link",
   "guide.common.desc.html":
@@ -1491,7 +1491,7 @@ const de: Dict = {
   "guide.android.s1.html":
     "Install <strong class=\"text-nm-text\">HAPP</strong> from <a href=\"https://play.google.com/store/apps/details?id=com.happproxy\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a> or the <a href=\"https://www.happ.su/main\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">HAPP website</a>.",
   "guide.android.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://play.google.com/store/apps/details?id=com.v2raytun.android\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.android.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.android.s2b":
@@ -1514,7 +1514,7 @@ const de: Dict = {
   "guide.win.s1.html":
     "Download <strong class=\"text-nm-text\">HAPP</strong>: <a href=\"https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe\" class=\"text-nm-accent hover:underline\">setup-Happ.x64.exe</a>",
   "guide.win.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://storage.v2raytun.com/v2RayTun_Setup.exe\" class=\"text-nm-accent hover:underline\">v2RayTun_Setup.exe</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.win.s1c": "Run the installer → install as a regular application.",
   "guide.win.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
@@ -1535,18 +1535,18 @@ const de: Dict = {
 
   "guide.faq.title": "Frequently asked questions",
   "guide.help.title": "Cannot connect?",
-  "guide.help.subtitle": "Reach out — we will help you set it up in a couple of minutes.",
+  "guide.help.subtitle": "Reach out — we will help you set it up.",
   "guide.help.btn": "Message on Telegram",
 
   "faq.guide.0.q": "Which app do I need to install?",
   "faq.guide.0.a":
-    "Happ or V2RayTun — both are free. Happ is easier for beginners, V2RayTun gives you more fine-grained settings. Install links for each platform are in the guide above.",
-  "faq.guide.1.q": "How is Happ different from V2RayTun?",
+    "Happ (recommended) or INCY — both are free and accept a Kovra subscription link. If Happ is not in your country's App Store, install INCY. Install links for each platform are in the guide above.",
+  "faq.guide.1.q": "How is Happ different from INCY?",
   "faq.guide.1.a":
-    "Functionally they are nearly identical. Happ updates more actively and is more convenient on mobile. V2RayTun works better on older Windows and Android versions.",
+    "Both run on the Xray engine and take the same subscription link. We recommend Happ by default. INCY is the fallback: it is in the App Store where Happ was removed, including Russia.",
   "faq.guide.2.q": "How do I get a subscription link for my device?",
   "faq.guide.2.a":
-    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or V2RayTun.",
+    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or INCY.",
   "faq.guide.3.q": "Can I use one link on multiple devices?",
   "faq.guide.3.a":
     "No. Each link works on a single device — this protects against leaks and abuse. For a second device create a new profile in the dashboard.",
@@ -1919,7 +1919,7 @@ const fr: Dict = {
   /* guide */
   "guide.brand": "Kovra",
   "guide.title": "Setup guide",
-  "guide.subtitle": "Setup takes 2–3 minutes. Pick your platform.",
+  "guide.subtitle": "Three steps on every platform. Pick yours.",
 
   "guide.common.title": "For every platform: copy your subscription link",
   "guide.common.desc.html":
@@ -1932,7 +1932,7 @@ const fr: Dict = {
   "guide.android.s1.html":
     "Install <strong class=\"text-nm-text\">HAPP</strong> from <a href=\"https://play.google.com/store/apps/details?id=com.happproxy\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a> or the <a href=\"https://www.happ.su/main\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">HAPP website</a>.",
   "guide.android.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://play.google.com/store/apps/details?id=com.v2raytun.android\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">Google Play</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.android.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
   "guide.android.s2b":
@@ -1955,7 +1955,7 @@ const fr: Dict = {
   "guide.win.s1.html":
     "Download <strong class=\"text-nm-text\">HAPP</strong>: <a href=\"https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe\" class=\"text-nm-accent hover:underline\">setup-Happ.x64.exe</a>",
   "guide.win.s1b.html":
-    "Alternative: <strong class=\"text-nm-text\">V2RayTun</strong> — <a href=\"https://storage.v2raytun.com/v2RayTun_Setup.exe\" class=\"text-nm-accent hover:underline\">v2RayTun_Setup.exe</a>",
+    "Alternative: <strong class=\"text-nm-text\">INCY</strong> — <a href=\"https://github.com/INCY-DEV/incy-platforms/releases/latest\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-nm-accent hover:underline\">GitHub</a>",
   "guide.win.s1c": "Run the installer → install as a regular application.",
   "guide.win.s2a.html":
     "Open HAPP → tap <strong class=\"text-nm-text\">«+»</strong> → <strong class=\"text-nm-text\">«Import from clipboard»</strong>.",
@@ -1976,18 +1976,18 @@ const fr: Dict = {
 
   "guide.faq.title": "Frequently asked questions",
   "guide.help.title": "Cannot connect?",
-  "guide.help.subtitle": "Reach out — we will help you set it up in a couple of minutes.",
+  "guide.help.subtitle": "Reach out — we will help you set it up.",
   "guide.help.btn": "Message on Telegram",
 
   "faq.guide.0.q": "Which app do I need to install?",
   "faq.guide.0.a":
-    "Happ or V2RayTun — both are free. Happ is easier for beginners, V2RayTun gives you more fine-grained settings. Install links for each platform are in the guide above.",
-  "faq.guide.1.q": "How is Happ different from V2RayTun?",
+    "Happ (recommended) or INCY — both are free and accept a Kovra subscription link. If Happ is not in your country's App Store, install INCY. Install links for each platform are in the guide above.",
+  "faq.guide.1.q": "How is Happ different from INCY?",
   "faq.guide.1.a":
-    "Functionally they are nearly identical. Happ updates more actively and is more convenient on mobile. V2RayTun works better on older Windows and Android versions.",
+    "Both run on the Xray engine and take the same subscription link. We recommend Happ by default. INCY is the fallback: it is in the App Store where Happ was removed, including Russia.",
   "faq.guide.2.q": "How do I get a subscription link for my device?",
   "faq.guide.2.a":
-    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or V2RayTun.",
+    "In the dashboard tap «Add device» and pick the type — the system will generate a unique link. Copy it and paste it into Happ or INCY.",
   "faq.guide.3.q": "Can I use one link on multiple devices?",
   "faq.guide.3.a":
     "No. Each link works on a single device — this protects against leaks and abuse. For a second device create a new profile in the dashboard.",
