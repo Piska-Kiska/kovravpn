@@ -12,171 +12,30 @@
 // the ~250KB type overhead.
 //
 // Reference:
-// - Organization: https://schema.org/Organization
 // - FAQPage: https://schema.org/FAQPage
 // - HowTo: https://schema.org/HowTo
 // - BreadcrumbList: https://schema.org/BreadcrumbList
-// - Product: https://schema.org/Product
+//
+// The Organization, WebSite and Product builders were deleted on 02.10.2026:
+// nothing called them, and they carried "Roskomnadzor" in knowsAbout,
+// inLanguage ru-RU, ML-KEM and "servers across Europe". Rebuild them from
+// what the site says today if they are ever needed.
 
-import { FAQ_HOME, type FaqItem } from "./faq-items";
-
-const SITE_URL = "https://kovravpn.com";
-const ORG_NAME = "Kovra";
-const ORG_NAME_LATIN = "Kovra";
-const ORG_LEGAL_NAME = "Kovra";
-
-/**
- * Organization schema — appears in Google knowledge panel when someone
- * searches for the brand name. Include in root layout so it ships on every
- * page; Google dedupes repeated Organization declarations across the site.
- *
- * Tier-0 brand-recognition tweaks (April 2026):
- * - `alternateName` carries every spelling variant (Latin transliteration
- *   "Kovra", short forms, Cyrillic alternatives). This is the
- *   strongest single signal we can give Google to stop treating
- *   "kovra" as a typo of "proxy vpn".
- * - `knowsAbout` declares topical authority for VPN / VLESS / ML-KEM
- *   queries. Helps Google match the org to topical SERPs.
- * - `foundingDate` and `slogan` add knowledge-panel completeness signals.
- *
- * Note on `alternateName`: per schema.org spec the property accepts a
- * Text value, but in practice Google validates and ingests an array of
- * strings ("multiple values" pattern). Validators may emit a non-blocking
- * warning; the data is still indexed.
- */
-export function buildOrganizationSchema() {
-  return {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "@id": `${SITE_URL}/#organization`,
-    name: ORG_NAME,
-    legalName: ORG_LEGAL_NAME,
-    alternateName: [ORG_NAME_LATIN, "Kovra VPN"],
-    url: SITE_URL,
-    logo: `${SITE_URL}/icon-192.png`,
-    image: `${SITE_URL}/og-image.png`,
-    slogan: "Fast, private VPN on VLESS Reality",
-    foundingDate: "2026-04",
-    description:
-      "Kovra is a fast, private VPN on VLESS Reality. Low ping, unblocking, servers across Europe.",
-    // Topical authority declaration. Each entry corresponds to a subject the
-    // site actually covers in depth under /guides — Google cross-checks
-    // knowsAbout against on-site content, so padding it with unrelated terms
-    // is counter-productive.
-    knowsAbout: [
-      "VPN",
-      "VLESS Reality",
-      "ML-KEM",
-      "post-quantum cryptography",
-      "DPI bypass",
-      "internet censorship circumvention",
-      "proxy servers",
-      "SOCKS5",
-      "Shadowsocks",
-      "WireGuard",
-      "OpenVPN",
-      "cryptocurrency payments",
-      "USDT",
-      "anonymous online payments",
-      "no-logs policy verification",
-      "DNS leak testing",
-      "обход блокировок Roskomnadzor",
-      "VPN для игр",
-    ],
-    sameAs: [
-      "https://t.me/KovraVPN_bot",
-    ],
-    contactPoint: [
-      {
-        "@type": "ContactPoint",
-        contactType: "customer support",
-        email: "noreply@kovravpn.com",
-        availableLanguage: ["Russian", "ru"],
-      },
-    ],
-  };
-}
+import type { FaqItem } from "./faq-items";
 
 /**
- * WebSite schema — separate from Organization, signals that the brand
- * has a canonical website with its own identity. Combined with the
- * Organization schema above, this gives Google two reinforcing
- * brand-recognition entities.
- */
-export function buildWebSiteSchema() {
-  return {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "@id": `${SITE_URL}/#website`,
-    url: SITE_URL,
-    name: ORG_NAME,
-    alternateName: ORG_NAME_LATIN,
-    description:
-      "Kovra — a fast, private VPN on VLESS Reality.",
-    inLanguage: "ru-RU",
-    publisher: { "@id": `${SITE_URL}/#organization` },
-  };
-}
-
-/**
- * Product / Offer schema — gives Google explicit price + availability
- * signals so the homepage may render a product rich result with the
- * a product rich result. Keep all human-readable strings consistent with
- * what's visible in <PlanSelector />; mismatches trigger a deranking
- * penalty.
- */
-export function buildProductSchema() {
-  return {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: `${ORG_NAME} (${ORG_NAME_LATIN})`,
-    description:
-      "Kovra VPN. VLESS Reality, post-quantum ML-KEM encryption, servers across Europe, low ping. Supports Windows, macOS, iOS, Android.",
-    applicationCategory: "SecurityApplication",
-    applicationSubCategory: "VPN",
-    operatingSystem: "Windows, macOS, iOS, Android, Linux",
-    url: SITE_URL,
-    image: `${SITE_URL}/og-image.png`,
-    softwareVersion: "1.0",
-    inLanguage: ["en"],
-    author: { "@id": `${SITE_URL}/#organization` },
-    publisher: { "@id": `${SITE_URL}/#organization` },
-    offers: {
-      "@type": "Offer",
-      url: `${SITE_URL}/register`,
-      priceCurrency: "USD",
-      price: "5.00",
-      priceSpecification: {
-        "@type": "UnitPriceSpecification",
-        price: "5.00",
-        priceCurrency: "USD",
-        unitText: "MONTH",
-        referenceQuantity: {
-          "@type": "QuantitativeValue",
-          value: "1",
-          unitCode: "MON",
-        },
-      },
-      availability: "https://schema.org/InStock",
-      seller: { "@id": `${SITE_URL}/#organization` },
-    },
-  };
-}
-
-/**
- * FAQPage schema — attach to any page that renders a visible FAQ accordion.
- * Google will render the questions as an expandable block in search results,
- * increasing CTR for relevant queries.
+ * FAQPage schema — attach to any page that renders a visible FAQ.
+ * Google stopped showing FAQ rich results on 7 May 2026; Yandex and AI
+ * answer engines still read the markup, so it stays, word for word the same
+ * as the visible questions and answers.
  *
  * All FAQ items must be visible on the same URL as the schema — Google
  * deranks pages where schema content isn't visible to users. The items
  * parameter must reference the same list that powers the visible accordion.
  *
- * @param items FAQ list — pass FAQ_HOME for "/", FAQ_GUIDE for "/guide".
- *              Defaults to FAQ_HOME so legacy callers without arguments
- *              keep producing the homepage schema.
+ * @param items The same list that renders the visible FAQ.
  */
-export function buildFaqPageSchema(items: readonly FaqItem[] = FAQ_HOME) {
+export function buildFaqPageSchema(items: readonly FaqItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",

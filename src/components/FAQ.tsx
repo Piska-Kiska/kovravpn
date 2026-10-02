@@ -3,24 +3,20 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { FAQ_HOME, type FaqItem } from "@/lib/faq-items";
+import type { FaqItem } from "@/lib/faq-items";
 
 interface FAQProps {
-  /** FAQ list to render. Defaults to FAQ_HOME for back-compat. */
-  items?: readonly FaqItem[];
+  /** FAQ list to render. */
+  items: readonly FaqItem[];
   /**
    * i18n key prefix. When set, each item's question and answer get
    * `data-i18n="<prefix>.<index>.q"` and `…<index>.a"` attributes so the
-   * Localizer can swap text in EN. Defaults to `"faq.home"` to match
-   * the homepage usage; pass `"faq.guide"` from the guide page.
+   * Localizer can swap text in EN; the guide page passes `"faq.guide"`.
    */
-  keyPrefix?: string;
+  keyPrefix: string;
 }
 
-export default function FAQ({
-  items = FAQ_HOME,
-  keyPrefix = "faq.home",
-}: FAQProps) {
+export default function FAQ({ items, keyPrefix }: FAQProps) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   return (
