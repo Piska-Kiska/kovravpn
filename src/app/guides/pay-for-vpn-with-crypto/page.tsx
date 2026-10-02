@@ -94,8 +94,8 @@ export default function Page() {
       <h2>Step by step: paying with USDT</h2>
       <ol>
         <li>
-          Create an account. On Kovra that is a one-field form or a Telegram
-          login, then pick a plan on the{" "}
+          Create an account. On Kovra that is a Telegram login (no email) or
+          email and a password, then pick a plan on the{" "}
           <a href="/#pricing">pricing section</a>.
         </li>
         <li>
@@ -109,9 +109,10 @@ export default function Page() {
           check the first and last four characters of the address.
         </li>
         <li>
-          Wait for confirmation. TRC-20 and BEP-20 typically confirm in under
-          two minutes; the subscription activates automatically the moment
-          the processor sees the required confirmations.
+          Wait for confirmation. TRC-20 and BEP-20 confirm quickly on-chain;
+          the subscription activates automatically once the processor sees
+          the required confirmations, which Kovra&apos;s checkout puts at
+          usually 5–30 minutes.
         </li>
         <li>
           Your dashboard updates on its own. Grab the subscription link and
@@ -194,10 +195,10 @@ export default function Page() {
         A modern crypto checkout is fully automated. The processor watches
         the address, and once the transaction reaches the required
         confirmations it fires a webhook to the provider, which activates or
-        extends the subscription. On Kovra the whole loop, from broadcast to
-        an active plan in the dashboard, usually takes under two minutes on
-        TRC-20. You do not need to send transaction IDs to support or wait
-        for a human.
+        extends the subscription. Kovra&apos;s checkout says the whole loop,
+        from broadcast to an active plan in the dashboard, usually takes 5–30
+        minutes, depending on the network confirmations. You do not need to
+        send transaction IDs to support or wait for a human.
       </p>
       <div className="gd-note">
         <strong>Renewal tip:</strong> crypto plans do not auto-renew, which

@@ -79,6 +79,14 @@ export default function GuideArticle({
           </div>
         </header>
 
+        {/* What the reader must know before trusting the rest: the
+            disclosure on comparison guides, or what Kovra does not do. */}
+        {g.notice && (
+          <p className="gd-notice" role="note">
+            {g.notice}
+          </p>
+        )}
+
         {/* Direct answer, rendered before the body. Mirrors `abstract` in
             the Article schema word-for-word: answer engines that quote it
             must find the same sentence on the page. */}

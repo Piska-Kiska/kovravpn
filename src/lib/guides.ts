@@ -42,8 +42,20 @@ export interface GuideMeta {
    * LLM answer engines quote it verbatim. Optional so older entries stay valid.
    */
   tldr?: string;
+  /**
+   * A plain-text notice rendered as the article's first paragraph, above the
+   * short answer: the disclosure on guides where Kovra is one of the
+   * providers compared, or what Kovra does not do on a general guide (no
+   * BitTorrent, never tested in China). Mirrored into the Article schema as
+   * `disambiguatingDescription` so quoting engines see it with the abstract.
+   */
+  notice?: string;
   keywords: string[];
 }
+
+/** First paragraph of every guide that compares Kovra with other providers. */
+export const COMPARISON_DISCLOSURE =
+  "Disclosure: Kovra publishes this guide and is one of the providers compared. Details about other providers change over time; each table names its sources, so check them before you buy.";
 
 export const SITE_URL = "https://kovravpn.com";
 
@@ -57,7 +69,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "USDT, BTC and 300+ coins, which network to pick, what fees to expect and the mistakes that cost people money.",
     tag: "Payments",
     published: "2026-07-07",
-    updated: "2026-07-07",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
       "Pick a provider that invoices natively in crypto, choose the coin and network with the lowest fee for the amount (USDT on TRC-20 for small subscriptions, Bitcoin for longer prepaid terms), send the exact invoiced amount from a wallet you control, and the plan activates after one to three confirmations. No card, no billing address, no KYC.",
@@ -78,7 +90,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "What a no-email signup really removes from the data trail, what you give up in return, and how to do it in practice.",
     tag: "Privacy",
     published: "2026-07-07",
-    updated: "2026-07-07",
+    updated: "2026-10-02",
     minutes: 7,
     tldr:
       "A no-email VPN issues you an account identifier instead of collecting a contact address: you sign in with a generated account number or a Telegram login and pay in crypto. That removes the two links that normally tie a subscription to a real person, at the cost of self-service recovery, so the identifier itself becomes the thing you must not lose.",
@@ -94,12 +106,12 @@ export const GUIDES: readonly GuideMeta[] = [
     slug: "vless-reality-protocol",
     title: "VLESS + Reality Explained: Why It Beats OpenVPN and WireGuard",
     description:
-      "What the VLESS protocol and Reality transport actually do, how TLS camouflage defeats DPI, performance versus OpenVPN and WireGuard, and post-quantum ML-KEM.",
+      "What the VLESS protocol and Reality transport actually do, how TLS camouflage defeats DPI, how it compares with OpenVPN and WireGuard, and where it still fails.",
     teaser:
       "TLS camouflage, no giveaway handshake, real browser fingerprints. How the protocol behind Kovra works and where classic VPNs fail.",
     tag: "Protocols",
     published: "2026-07-07",
-    updated: "2026-07-07",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
       "VLESS is a lightweight transport that adds no crypto layer of its own, and Reality is the handshake trick layered on top: the server borrows the TLS certificate chain of a real public website, so a censor inspecting the connection sees an ordinary HTTPS session to that site. There is no VPN fingerprint to block and no self-signed certificate to flag.",
@@ -120,7 +132,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "Every VPN says it keeps no logs. A checklist of what you can verify from the outside, and the red flags that end the conversation.",
     tag: "Privacy",
     published: "2026-07-07",
-    updated: "2026-07-07",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
       "You cannot read a provider's disks, so verify the things that leave traces outside it: jurisdiction and data-retention law, a published third-party audit with scope you can read, court records where logs were demanded and none existed, RAM-only infrastructure, and whether signup and payment create an identity trail. Anything unverifiable is marketing.",
@@ -134,17 +146,17 @@ export const GUIDES: readonly GuideMeta[] = [
   },
   {
     slug: "vpn-that-accepts-usdt",
-    title: "VPN That Accepts USDT (TRC-20): Full Setup in 5 Minutes",
+    title: "VPN That Accepts USDT (TRC-20): Step-by-Step Setup",
     description:
       "Find and set up a VPN that accepts USDT: TRC-20 vs BEP-20 fees, exact payment walkthrough, connecting your first device, renewals and troubleshooting.",
     teaser:
-      "From an empty wallet field to an active connection in five minutes, with the network fee table you should read first.",
+      "From an empty wallet field to an active connection, step by step, with the network fee table you should read first.",
     tag: "Payments",
     published: "2026-07-07",
-    updated: "2026-07-07",
+    updated: "2026-10-02",
     minutes: 7,
     tldr:
-      "Choose USDT at checkout, pick TRC-20 or BEP-20 rather than ERC-20 (a few cents versus several dollars in fees), send the exact invoiced amount to the generated address, and wait about a minute for confirmation. The subscription activates automatically, and the whole flow from empty wallet field to a connected device takes about five minutes.",
+      "Choose USDT at checkout, pick TRC-20 or BEP-20 rather than ERC-20 (a few cents versus several dollars in fees), send the exact invoiced amount to the generated address, and wait for the network confirmation. The subscription activates automatically once the processor sees it; Kovra's checkout says this usually takes 5–30 minutes.",
     keywords: [
       "vpn accepts usdt",
       "usdt vpn",
@@ -162,7 +174,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "The three data trails every VPN account leaves, how to cut each one, and where anonymity actually ends.",
     tag: "Privacy",
     published: "2026-07-14",
-    updated: "2026-07-14",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
       "Three trails identify a VPN account: the signup data, the payment method, and the server-side logs. Cut all three at once by registering without an email or phone, paying in crypto from a non-KYC wallet, and choosing a provider whose no-logs posture survives outside scrutiny. Anonymity ends at your own behaviour: logging into a personal account through the tunnel undoes it.",
@@ -204,10 +216,12 @@ export const GUIDES: readonly GuideMeta[] = [
       "An honest look at what Mullvad does best, the cases it genuinely does not cover, and what to use instead.",
     tag: "Privacy",
     published: "2026-07-14",
-    updated: "2026-07-14",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
       "Mullvad remains the reference for anonymous accounts, but three gaps push people to look elsewhere: WireGuard is easy for DPI to fingerprint on censored networks, port forwarding was removed in 2023, and streaming is an explicit non-goal. Match the gap to the fix: TLS-camouflaged protocols for censorship, AirVPN for open ports, mainstream providers for streaming.",
+    notice:
+      COMPARISON_DISCLOSURE,
     keywords: [
       "mullvad alternative",
       "mullvad alternatives",
@@ -225,10 +239,12 @@ export const GUIDES: readonly GuideMeta[] = [
       "Paying Nord in BTC does not make the account anonymous. What actually does, and which providers are built that way.",
     tag: "Payments",
     published: "2026-07-14",
-    updated: "2026-07-14",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
-      "NordVPN accepts cryptocurrency, but the account still requires an email, so the payment is anonymous while the subscriber is not. A genuine alternative removes identity at signup as well: Mullvad's account numbers, IVPN's no-details signup, or Kovra's Telegram-or-one-field registration with native stablecoin invoicing.",
+      "NordVPN accepts cryptocurrency, but the account still requires an email, so the payment is anonymous while the subscriber is not. A genuine alternative removes identity at signup as well: Mullvad's account numbers, IVPN's no-details signup, or Kovra's Telegram signup with stablecoin invoices (Kovra publishes this guide).",
+    notice:
+      COMPARISON_DISCLOSURE,
     keywords: [
       "nordvpn alternative",
       "nordvpn alternative crypto",
@@ -246,10 +262,12 @@ export const GUIDES: readonly GuideMeta[] = [
       "Everyone in a torrent swarm sees your IP. What a no-logs VPN really changes, and the features that matter more than marketing.",
     tag: "Privacy",
     published: "2026-07-14",
-    updated: "2026-07-14",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
       "Every peer in a BitTorrent swarm can see your IP address, and monitoring firms join swarms specifically to collect it. A no-logs VPN replaces that address with a shared server IP and keeps no record linking it back to you, which is what turns a copyright notice into a dead end. A kill switch matters as much as the logging policy: a two-second reconnect exposes the real IP.",
+    notice:
+      "Kovra blocks BitTorrent on all its servers. This guide covers P2P privacy in general; it does not describe a Kovra feature.",
     keywords: [
       "no logs vpn torrenting",
       "vpn for torrenting",
@@ -262,15 +280,17 @@ export const GUIDES: readonly GuideMeta[] = [
     slug: "best-crypto-vpn-2026",
     title: "Best Crypto VPN in 2026: 4 Providers Compared Honestly",
     description:
-      "Four VPNs that take crypto seriously in 2026: Kovra, Mullvad, IVPN and AirVPN compared on signup data, coins, protocols, DPI resistance and jurisdiction.",
+      "Four VPNs that take crypto seriously in 2026: Kovra, Mullvad, IVPN and AirVPN compared on signup data, coins, stablecoins, protocol and price.",
     teaser:
       "Not a top-10 built from affiliate payouts: four providers where crypto and privacy are the product, compared on facts.",
     tag: "Payments",
     published: "2026-07-14",
-    updated: "2026-07-14",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
-      "Four providers treat crypto and privacy as the product rather than a checkout option in 2026: Kovra for stablecoin invoicing and DPI-resistant camouflage, Mullvad for the longest audit trail and cash by post, IVPN for Monero and multi-hop, AirVPN for port forwarding. Everything else on typical top-10 lists accepts coins but still requires an email.",
+      "Four providers treat crypto and privacy as the product rather than a checkout option in 2026: Kovra (ours) for stablecoin invoices and a protocol that looks like ordinary HTTPS, Mullvad for the longest audit trail and cash by post, IVPN for Monero and multi-hop, AirVPN for port forwarding. Many mainstream providers accept coins but still require an email.",
+    notice:
+      COMPARISON_DISCLOSURE,
     keywords: [
       "best crypto vpn",
       "crypto vpn 2026",
@@ -372,10 +392,10 @@ export const GUIDES: readonly GuideMeta[] = [
       "Both were built to beat deep packet inspection. Only one still does it on a censored network in 2026.",
     tag: "Protocols",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
-      "Shadowsocks disguises traffic as random bytes, which modern DPI detects statistically and by active probing. VLESS with Reality instead borrows the TLS handshake of a real third-party website, so a censor sees a normal HTTPS session to a normal domain. On aggressively filtered networks Reality survives where Shadowsocks, WireGuard and OpenVPN are dropped.",
+      "Shadowsocks disguises traffic as random bytes, which modern DPI detects statistically and by active probing. VLESS with Reality instead borrows the TLS handshake of a real third-party website, so a censor sees a normal HTTPS session to a normal domain. On aggressively filtered networks Reality usually survives where Shadowsocks, WireGuard and OpenVPN are dropped, though no protocol is guaranteed everywhere.",
     keywords: [
       "shadowsocks vs vless",
       "shadowsocks alternative",
@@ -393,7 +413,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "Four thousand lines versus half a million, and the one metric comparison tables always skip: does it connect at all on a filtered network.",
     tag: "Protocols",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-10-02",
     minutes: 10,
     tldr:
       "WireGuard is the fastest and easiest to audit but trivially fingerprinted by DPI. OpenVPN is the most compatible and the slowest, with an obfuscation story bolted on. VLESS with Reality is the only one of the three designed to be indistinguishable from ordinary HTTPS. Choose on whether your network filters VPNs, not on benchmark charts.",
@@ -414,10 +434,12 @@ export const GUIDES: readonly GuideMeta[] = [
       "Most VPNs fail in China for one technical reason. Understand it and the shortlist of what works becomes obvious.",
     tag: "Censorship",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
-      "The Great Firewall does not block VPNs by IP alone: it fingerprints handshakes and actively probes suspicious servers, which kills stock WireGuard, OpenVPN and IKEv2. Protocols that mimic real TLS traffic, such as VLESS with Reality, still connect. Install and test everything before you arrive, because provider websites and app stores are themselves blocked.",
+      "The Great Firewall does not block VPNs by IP alone: it fingerprints handshakes and actively probes suspicious servers, which kills stock WireGuard, OpenVPN and IKEv2. Protocols that mimic real TLS traffic, such as VLESS with Reality, are reported to still connect. Install and test everything before you arrive, because provider websites and app stores are themselves blocked.",
+    notice:
+      "Kovra has not tested its service from inside China and makes no claim that it works there. This guide explains how the Great Firewall blocks VPNs and what is reported to get through.",
     keywords: [
       "vpn that works in china",
       "best vpn for china",
@@ -519,7 +541,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "Skip the App Store roulette. A subscription link, one client app, and the toggles that decide whether it stays connected.",
     tag: "Setup",
     published: "2026-07-27",
-    updated: "2026-09-25",
+    updated: "2026-10-02",
     minutes: 7,
     tldr:
       "Install a client that supports modern protocols, paste the subscription link your provider gives you, allow the VPN configuration prompt once, and connect. On iOS the two settings that matter afterwards are Connect On Demand, which reconnects automatically, and iCloud Private Relay, which should be off to avoid double-tunnelling Safari.",
@@ -540,10 +562,12 @@ export const GUIDES: readonly GuideMeta[] = [
       "Two-year prepay headlines hide the renewal price. The real per-month cost of a VPN that does not sell your data.",
     tag: "Payments",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-10-02",
     minutes: 8,
     tldr:
       "Around $2.50 to $5 a month is the honest floor for a private VPN once bandwidth, servers and support are paid for. Headline prices below that are almost always two-year prepay deals that renew two to three times higher, or services monetizing data. Compare the renewal price and the signup data required, not the front-page number.",
+    notice:
+      COMPARISON_DISCLOSURE,
     keywords: [
       "cheapest vpn",
       "cheap vpn 2026",
@@ -556,15 +580,17 @@ export const GUIDES: readonly GuideMeta[] = [
     slug: "expressvpn-alternative",
     title: "ExpressVPN Alternatives in 2026: Privacy-First Options Compared",
     description:
-      "ExpressVPN is polished but mainstream: email signup, Kape ownership, WireGuard-class fingerprint. Alternatives that fix each of those, compared honestly.",
+      "ExpressVPN is polished but mainstream: email signup, Kape ownership, promo prices that renew higher. Alternatives that address each of those, compared.",
     teaser:
       "What you actually pay for with ExpressVPN, which parts you may not need, and the providers that cover each gap.",
     tag: "Comparisons",
     published: "2026-07-27",
-    updated: "2026-07-27",
+    updated: "2026-10-02",
     minutes: 9,
     tldr:
-      "ExpressVPN buys you a wide server map, reliable streaming and a polished app, at roughly three times the price of privacy-first providers and with an identity-linked account. If you want anonymity, look at Mullvad, IVPN or Kovra; if you want censorship resistance, look for TLS-camouflaged protocols; if you want streaming, the mainstream field is genuinely competitive.",
+      "ExpressVPN buys you a wide server map, reliable streaming and a polished app, with promotional prices that renew higher and an identity-linked account. If you want anonymity, look at Mullvad, IVPN or Kovra; if you want censorship resistance, look for TLS-camouflaged protocols; if you want streaming, the mainstream field is genuinely competitive.",
+    notice:
+      COMPARISON_DISCLOSURE,
     keywords: [
       "expressvpn alternative",
       "alternatives to expressvpn",
@@ -604,7 +630,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "Why your browser goes through the VPN while your game does not, and how to fix a PC with no internet after the client crashes.",
     tag: "Setup",
     published: "2026-09-25",
-    updated: "2026-09-25",
+    updated: "2026-10-02",
     minutes: 8,
     tldr: "To set up a VPN on Windows 11 or 10, install Happ from its official GitHub releases, paste the subscription link created for this PC, and choose a mode. TUN sends every app through the VPN, including games and command-line tools, while system proxy mainly covers browsers. Then check IP, DNS, IPv6 and WebRTC with a leak test.",
     keywords: [
@@ -670,7 +696,7 @@ export const GUIDES: readonly GuideMeta[] = [
       "An ordered checklist that finds the cause in minutes, starting with the entry name most people never read.",
     tag: "Troubleshooting",
     published: "2026-09-25",
-    updated: "2026-09-25",
+    updated: "2026-10-02",
     minutes: 9,
     tldr: "When a VPN says connected but nothing loads, first read the name of the entry you are on: a notice such as 'No active plan' carries no traffic. Then refresh the subscription, try another location and another network, set the clock to automatic, close other VPN or security apps, reset custom DNS, and check for a Wi-Fi login page.",
     keywords: [
@@ -805,6 +831,7 @@ export function buildGuideArticleSchema(g: GuideMeta, ogImage: string) {
     // Answer engines (Google AI Overviews, Perplexity, ChatGPT search) quote
     // it, so it must match the visible text exactly — same rule as FAQPage.
     ...(g.tldr ? { abstract: g.tldr } : {}),
+    ...(g.notice ? { disambiguatingDescription: g.notice } : {}),
     // schema.org keywords takes a comma-separated string. Unlike the <meta>
     // keywords tag it is a documented property Google parses for topical
     // classification, which is why we repeat the registry terms here.

@@ -207,12 +207,14 @@ export default function Page() {
         with a Telegram login and no email; payment can be cryptocurrency,
         which leaves us holding a transaction hash instead of a billing
         identity. The service model is subscription-based: infrastructure
-        needs to know that a key is valid and until when, not what flows
-        through it, and the{" "}
+        needs to know that a key is valid and until when, plus per-account
+        traffic totals for billing, not what flows through it, and the{" "}
         <Link href="/guides/vless-reality-protocol">
           VLESS + Reality protocol
         </Link>{" "}
-        keeps even the existence of the tunnel invisible on the wire. We
+        makes the tunnel look like ordinary HTTPS on the wire. Everything
+        we keep is listed in our{" "}
+        <Link href="/privacy">privacy policy</Link>. We
         will not claim more than that in a guide about verifying claims:
         apply the checklist above to us the same way you would to anyone
         else.

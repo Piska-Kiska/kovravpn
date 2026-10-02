@@ -79,7 +79,7 @@ export default function Page() {
             <tr>
               <td>Identity at signup</td>
               <td>Email, sometimes name and phone</td>
-              <td>No email, no phone: Telegram login or a random account ID</td>
+              <td>No email, no phone: a Telegram login or a random account number</td>
             </tr>
             <tr>
               <td>Payment</td>
@@ -101,8 +101,9 @@ export default function Page() {
         durable identifier: it links the VPN account to your inbox provider,
         to every other account registered with it, and often to a phone
         number used to create it. The fix is a provider that simply does
-        not ask. Kovra uses a Telegram login or a one-field form, and a few
-        others, notably Mullvad, issue random account numbers. Our{" "}
+        not ask. Kovra (which publishes this guide) offers a Telegram login
+        that needs no email, and a few others, notably Mullvad, issue random
+        account numbers. Our{" "}
         <Link href="/guides/vpn-without-email">no-email signup guide</Link>{" "}
         covers what this removes from the data trail and the small
         trade-offs, like doing your own renewal reminders.

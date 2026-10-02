@@ -21,7 +21,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Is a Telegram signup anonymous?",
-    a: "It is pseudonymous. The VPN sees a numeric Telegram ID, not your name or phone. Telegram itself knows the phone behind the account, so for stricter threat models pair it with a Telegram account registered on a prepaid SIM.",
+    a: "It is pseudonymous. The VPN never sees your phone number, but it does receive your Telegram ID, username and display name: Kovra stores those three, never your phone. Telegram itself knows the phone behind the account, so for stricter threat models pair it with a Telegram account registered on a prepaid SIM.",
   },
   {
     q: "What if I lose access to my Telegram account?",
@@ -223,8 +223,9 @@ export default function Page() {
       <h2>Provider-side design that makes it real</h2>
       <p>
         For a no-email account to mean anything, the backend has to be built
-        for it. Things worth checking in any provider, Kovra included: the
-        account key is a random identifier rather than an email hash; the
+        for it. Things worth checking in any provider: the account key is a
+        random identifier rather than an email (at Kovra, Telegram accounts
+        are keyed by the Telegram ID and website accounts by the email); the
         subscription mechanism is a bearer link that works without a login
         session; and support can help you through a bot conversation without
         demanding identity confirmation it never collected in the first

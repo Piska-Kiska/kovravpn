@@ -94,9 +94,10 @@ export default function Page() {
         <Link href="/guides/truly-anonymous-vpn">
           anonymous VPN guide
         </Link>
-        : no email or phone at signup, crypto at checkout. Kovra is built
-        this way, Telegram or one-field signup and USDT or BTC payment, so
-        the account itself contains nothing that describes a person.
+        : no email or phone at signup, crypto at checkout. Some providers
+        are built this way, with account numbers or a Telegram login and
+        crypto payment, so the account itself contains little that
+        describes a person.
       </p>
 
       <h2>The feature checklist that actually matters</h2>
@@ -187,8 +188,10 @@ export default function Page() {
           protocol explainer
         </Link>{" "}
         covers why that design survives networks where WireGuard and
-        OpenVPN are simply dropped. One honest note: proxy-style
-        architectures, Kovra included, do not offer public inbound port
+        OpenVPN are simply dropped. One honest note: Kovra, which publishes
+        this guide, blocks BitTorrent on all its servers, so it is not an
+        option for torrenting at all. Among providers that allow P2P,
+        proxy-style architectures usually offer no public inbound port
         forwarding, which affects seeding ratios, not download privacy.
       </p>
       <p>
