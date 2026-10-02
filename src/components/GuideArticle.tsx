@@ -104,10 +104,11 @@ export default function GuideArticle({
         )}
 
         <section className="gd-cta">
-          <h2>Private by design, ready in 2 minutes</h2>
+          <h2>To the network, it&apos;s just a website</h2>
           <p>
             Kovra runs on VLESS + Reality, takes USDT, BTC and cards, and never
-            asks for a phone number. Plans from $2.75 per month.
+            asks for a phone number. Plans from $2.75 per month on the annual
+            term, paid once; nothing renews automatically.
           </p>
           <div className="gd-cta-row">
             <a href="/register" className="k-btn k-btn-gold">

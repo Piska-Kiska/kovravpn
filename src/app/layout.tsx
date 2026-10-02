@@ -73,9 +73,9 @@ const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
 const DEFAULT_TITLE =
-  "Kovra VPN: Anonymous, No Logs, No Email · Crypto & Cards";
+  "Kovra VPN: VLESS Reality · Telegram signup · Crypto & Cards";
 const DEFAULT_DESC =
-  "Anonymous VPN with no email signup and a strict no-logs policy. Pay with USDT, BTC or card. VLESS Reality traffic camouflage, EU servers, online in 2 minutes.";
+  "VPN on VLESS Reality. Sign up with Telegram (no email) or email. Pay with USDT, BTC or card. Locations in Europe, the US and Asia.";
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but
@@ -98,16 +98,11 @@ const BRAND_KEYWORDS = [
   "Kovra",
   "Kovra VPN",
   "VPN VLESS Reality",
-  "ML-KEM VPN",
-  "post-quantum VPN",
   "VLESS Reality",
   "Xray VPN",
-  // Category
+  // Category. No "no-logs", "anonymous", "fast" or "low ping": the policy
+  // lists what is stored and speed was never measured.
   "private VPN",
-  "fast VPN",
-  "low ping VPN",
-  "no-logs VPN",
-  "anonymous VPN",
   "VPN without email",
   "VPN without phone number",
   // Payments
@@ -121,8 +116,7 @@ const BRAND_KEYWORDS = [
   "VPN vs proxy",
   "proxy alternative",
   "SOCKS5 proxy alternative",
-  "DPI bypass VPN",
-  "VPN that works in China",
+  // No China claim: Kovra was never tested from inside China.
   "unblock websites VPN",
 ];
 
