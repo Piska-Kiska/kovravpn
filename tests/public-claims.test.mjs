@@ -92,6 +92,8 @@ const FORBIDDEN = [
   { re: /European rather than global|European server footprint|EU servers/i, why: "locations are in Europe, the US and Asia" },
   { re: /nobody else invoices|invoices USDT natively|native crypto invoicing/i, why: "Kovra goes through a processor too (NOWPayments)" },
   { re: /written by people who have not tested/i, why: "Kovra never tested from inside China" },
+  { re: /Privacy\.? ?Perfected|Приватность\. И точка/i, why: "the retired first-screen hook: the hook is the question people ask when their network blocks them", only: KOVRA_OWN },
+  { re: /\b\d+\+?\s+(?:countries|locations|regions)\b/i, why: "a number of countries is never stated: the list comes from the registry and a small number reads as weakness (owner, 01.10.2026)", only: KOVRA_OWN },
 ];
 
 test("public copy carries none of the retired claims", () => {

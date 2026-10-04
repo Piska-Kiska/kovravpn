@@ -18,8 +18,9 @@ import { PrefsCapsule, ThemeSync } from "@/components/chrome";
 import type { Lang } from "@/i18n/dict";
 import { isLang } from "@/i18n/resolve";
 import { setLang as persistLang } from "@/i18n/runtime";
-import { homeCopyFor, homeVars } from "@/lib/home-copy";
+import { homeCopyFor, homeFaq } from "@/lib/home-copy";
 import { planRows, type PlanKind } from "@/lib/plan-prices";
+import { firstScreenCountries, type PublicCountryView } from "@/lib/public-locations";
 
 type TermId = "m1" | "m6" | "m12";
 type Term = { id: TermId; mo: string; total: string; ref: string | null; n: number; disc: number };
@@ -46,6 +47,8 @@ const LEVELS: { terms: Term[]; devKey: "plan_devices" | "plan_devices1"; featKey
 ];
 
 const PLATFORMS = "iOS · Android · Windows · macOS · TV";
+/** Payment rails as the cabinet names them: coins its crypto invoice takes, and cards. */
+const PAYMENTS = "USDT · BTC · ETH · CARD";
 
 /* ── stroke icons (1.5px, monochrome) ─────────────────── */
 const ICheck = () => (
@@ -86,7 +89,16 @@ function FaqItem({ q, a, defaultOpen = false }: { q: string; a: string; defaultO
   );
 }
 
-export default function HomeView() {
+export interface HomeViewProps {
+  /**
+   * The countries Kovra connects to, read from the live registry on the
+   * server (src/lib/public-locations-server.ts), or null when it could not
+   * be read: then the page shows no list at all.
+   */
+  countries: readonly PublicCountryView[] | null;
+}
+
+export default function HomeView({ countries }: HomeViewProps) {
   const [lang, setLang] = useState<Lang>("en");
   const [level, setLevel] = useState<0 | 1>(0);
   const [term3, setTerm3] = useState<TermId>("m12");
@@ -130,16 +142,15 @@ export default function HomeView() {
   }, []);
 
   const t = useMemo(() => homeCopyFor(lang), [lang]);
-  const vars = useMemo(() => homeVars(lang), [lang]);
   const steps = [
     { n: "01", t: t.step1_t, b: t.step1_b },
     { n: "02", t: t.step2_t, b: t.step2_b },
     { n: "03", t: t.step3_t, b: t.step3_b },
   ];
-  const faqs = [
-    { q: t.faq_q1, a: t.faq_a1 }, { q: t.faq_q2, a: t.faq_a2 },
-    { q: t.faq_q3, a: t.faq_a3 }, { q: t.faq_q4, a: t.faq_a4 },
-  ];
+  const faqs = useMemo(() => homeFaq(lang), [lang]);
+  const allCountries = countries ?? [];
+  // Russia stays in the app and in the full list below, off the first screen (owner, 02.10.2026).
+  const heroCountries = firstScreenCountries(allCountries);
 
   const lv = LEVELS[level];
   const TERMS = lv.terms;
@@ -204,6 +215,13 @@ export default function HomeView() {
               <a className="k-btn k-btn-gold" href="/register">{t.hero_cta1}</a>
               <a className="k-btn k-btn-ghost" href="#features">{t.hero_cta2}</a>
             </div>
+            {heroCountries.length > 0 && (
+              <ul className="kv-hero-flags k-rv" style={{ transitionDelay: "680ms" }} aria-hidden="true">
+                {heroCountries.map((c) => (
+                  <li key={c.code}>{c.flag}</li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
 
@@ -233,7 +251,7 @@ export default function HomeView() {
                 <p className="k-mono">{t.b4_k}</p>
                 <h3>{t.b4_t}</h3>
                 <p>{t.b4_b}</p>
-                <div className="kv-cardprice" aria-hidden="true">{vars.p3_12_mo}<em>{t.plan_permo}</em></div>
+                <div className="kv-platforms k-mono" aria-hidden="true">{PAYMENTS}</div>
               </div>
             </Reveal>
           </div>
@@ -255,6 +273,31 @@ export default function HomeView() {
                   <p>{s.b}</p>
                 </div>
               ))}
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ── Where you can connect, and what we do not promise ── */}
+        <section className="kv-where" id="locations">
+          <div className="kv-wrap kv-where-grid">
+            {allCountries.length > 0 && (
+              <Reveal className="kv-where-main">
+                <p className="kv-kicker k-mono">{t.where_kicker}</p>
+                <h2 className="kv-h2">{t.where_h2}</h2>
+                <p className="kv-lead">{t.where_lead}</p>
+                <ul className="kv-countries">
+                  {allCountries.map((c) => (
+                    <li key={c.code}>
+                      <span className="kv-flag" aria-hidden="true">{c.flag}</span>
+                      {c.names[lang]}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+            <Reveal className="kv-limits" delay={100}>
+              <h3>{t.limits_h}</h3>
+              <p>{t.limits_b}</p>
             </Reveal>
           </div>
         </section>

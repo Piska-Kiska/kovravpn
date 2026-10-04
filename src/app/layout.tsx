@@ -16,6 +16,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
 import Localizer from "@/i18n/Localizer";
 import { LANG_BOOT_SCRIPT } from "@/i18n/boot-script";
+import { HOME_META } from "@/lib/site-meta";
 
 const rubik = Rubik({
   subsets: ["cyrillic", "latin"],
@@ -72,10 +73,10 @@ const jetbrainsMono = JetBrains_Mono({
 const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
-const DEFAULT_TITLE =
-  "Kovra VPN: VLESS Reality · Telegram signup · Crypto & Cards";
-const DEFAULT_DESC =
-  "VPN on VLESS Reality. Sign up with Telegram (no email) or email. Pay with USDT, BTC or card. Locations in Europe, the US and Asia.";
+// Title and description are the home page's (src/lib/site-meta.ts), where a
+// test holds them to the search-result limits and the price is computed.
+const DEFAULT_TITLE = HOME_META.title;
+const DEFAULT_DESC = HOME_META.description;
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but
