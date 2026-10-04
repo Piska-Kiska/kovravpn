@@ -30,7 +30,7 @@ const HOW_TO = buildHowToSchema({
     },
     {
       name: "Install a client that supports modern protocols",
-      text: "Install an iOS client such as Happ or Streisand from the App Store. Native iOS VPN settings do not support VLESS or Reality.",
+      text: "Install an iOS client such as Happ or INCY from the App Store. Native iOS VPN settings do not support VLESS or Reality.",
     },
     {
       name: "Add the subscription",
@@ -114,7 +114,7 @@ export default function Page() {
       <h2>Step 2: install a client</h2>
       <p>
         On iOS the well-maintained options are <strong>Happ</strong> and{" "}
-        <strong>Streisand</strong>, and <strong>INCY</strong> also imports
+        <strong>INCY</strong>, and <strong>Streisand</strong> also imports
         standard subscription links. They support VLESS with Reality
         alongside older protocols; providers usually name one because they
         have tested it against their own servers. <strong>V2RayTun</strong>,

@@ -45,11 +45,20 @@ const TRANSLATED_PAGE_RE = /^\/(terms|privacy|guide)(\/|$)/;
 const PAGE_LANGS: readonly { re: RegExp; langs: readonly Lang[] }[] = [{ re: /^\/guide(\/|$)/, langs: ["ru", "en"] }];
 /** Pages that exist in Russian only (the noindex promo, the paused /p/ import page). */
 const RUSSIAN_ONLY_RE = /^\/(promo|p)(\/|$)/;
-/** The English-only guides. */
-const GUIDES_RE = /^\/guides(\/|$)/;
+/**
+ * The English-only pages: the guides and the two landing pages written for
+ * English search intent (/vless, /crypto). Server-rendered English, no
+ * data-i18n markup.
+ */
+const ENGLISH_ONLY_RE = /^\/(guides|vless|crypto)(\/|$)/;
 
 export function isCabinetPath(pathname: string): boolean {
   return CABINET_PATH_RE.test(pathname);
+}
+
+/** Pages that exist in English only: <html lang> says "en" whatever language is saved. */
+export function isEnglishOnlyPath(pathname: string): boolean {
+  return ENGLISH_ONLY_RE.test(pathname);
 }
 
 /** Pages that open in the visitor's language (resolveCabinetLangFrom): the cabinet and the translated pages. */
@@ -125,7 +134,7 @@ export interface BootInput extends ResolveInput {
  * The language the boot script puts on <html lang> before the first paint:
  *   • the cabinet and the translated pages: the visitor's language, where
  *     the page exists in it (pageLang: /guide is Russian or English);
- *   • /guides: English (the only language they exist in);
+ *   • /guides, /vless and /crypto: English (the only language they exist in);
  *   • the landing: its saved kovra_lang, else English;
  *   • the Russian-only pages: Russian;
  *   • anything else (/add/<token>, 404s): ?lang, else English, which is
@@ -133,7 +142,7 @@ export interface BootInput extends ResolveInput {
  */
 export function bootLangFrom(i: BootInput): Lang {
   if (isVisitorLangPath(i.pathname)) return pageLang(i.pathname, resolveCabinetLangFrom(i));
-  if (GUIDES_RE.test(i.pathname)) return "en";
+  if (isEnglishOnlyPath(i.pathname)) return "en";
   if (i.pathname === "/") return isLang(i.saved) ? i.saved : "en";
   if (isRussianOnlyPath(i.pathname)) return "ru";
   return isLang(i.urlLang) ? i.urlLang : "en";

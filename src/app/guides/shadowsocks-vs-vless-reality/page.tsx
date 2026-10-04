@@ -30,7 +30,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Which one should I set up today?",
-    a: "If you control the server and your network is lightly filtered, Shadowsocks is simple and fine. If you are behind serious DPI, or want one configuration that works everywhere, use VLESS with Reality. It is the current answer to the specific attack that beats everything else.",
+    a: "If you control the server and your network is lightly filtered, Shadowsocks is simple and fine. If you are behind serious DPI, use VLESS with Reality: it is hard to tell apart from ordinary HTTPS on most filtered networks, though no protocol is guaranteed everywhere.",
   },
 ];
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/structured-data";
 import type { FaqItem } from "@/lib/faq-items";
 import { ogImageUrl } from "@/lib/og-url";
+import { lowestPerMonth, usd } from "@/lib/plan-prices";
 import GuideKeywords from "@/components/GuideKeywords";
 import {
   SITE_URL,
@@ -79,6 +80,14 @@ export default function GuideArticle({
           </div>
         </header>
 
+        {/* What the reader must know before trusting the rest: the
+            disclosure on comparison guides, or what Kovra does not do. */}
+        {g.notice && (
+          <p className="gd-notice" role="note">
+            {g.notice}
+          </p>
+        )}
+
         {/* Direct answer, rendered before the body. Mirrors `abstract` in
             the Article schema word-for-word: answer engines that quote it
             must find the same sentence on the page. */}
@@ -104,10 +113,11 @@ export default function GuideArticle({
         )}
 
         <section className="gd-cta">
-          <h2>Private by design, ready in 2 minutes</h2>
+          <h2>To the network, it&apos;s just a website</h2>
           <p>
             Kovra runs on VLESS + Reality, takes USDT, BTC and cards, and never
-            asks for a phone number. Plans from $2.75 per month.
+            asks for a phone number. Plans from {usd(lowestPerMonth())} per
+            month on the annual term, paid once; nothing renews automatically.
           </p>
           <div className="gd-cta-row">
             <a href="/register" className="k-btn k-btn-gold">

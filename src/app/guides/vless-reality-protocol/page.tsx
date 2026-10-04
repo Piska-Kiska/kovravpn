@@ -25,11 +25,11 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Which apps support VLESS + Reality?",
-    a: "Any client built on the Xray core: Happ and V2RayTun on iOS and Android, the same apps plus Xray wrappers on Windows and macOS, and sing-box based clients. Kovra's setup guide covers each platform in three steps.",
+    a: "Any client built on the Xray core: Happ and INCY on iOS, Android, Windows and macOS, and sing-box based clients. Kovra supports Happ and INCY, and its setup guide covers each platform in three steps.",
   },
   {
     q: "What does post-quantum ML-KEM add?",
-    a: "A hybrid X25519 + ML-KEM-768 key exchange protects the session against harvest-now-decrypt-later attacks, where an adversary records encrypted traffic today hoping quantum computers decrypt it in the future. The hybrid stays secure as long as either component holds.",
+    a: "A hybrid X25519 + ML-KEM-768 key exchange protects the session against harvest-now-decrypt-later attacks, where an adversary records encrypted traffic today hoping quantum computers decrypt it in the future. The hybrid stays secure as long as either component holds. It is optional in recent Xray releases, and Kovra does not use it today.",
   },
   {
     q: "Can deep packet inspection detect Reality at all?",
@@ -193,24 +193,20 @@ export default function Page() {
         Recent Xray releases support a hybrid handshake that combines
         classical X25519 with ML-KEM-768, the NIST-standardized post-quantum
         KEM. The session key is derived from both, so breaking it requires
-        defeating both the classical and the post-quantum component. Kovra's
-        stack runs on this hybrid: today's traffic stays sealed even against
-        tomorrow's hardware.
+        defeating both the classical and the post-quantum component. It is
+        an option you enable, not a default: Kovra does not use it today.
       </p>
 
-      <h2>What speed to expect in numbers</h2>
+      <h2>What speed to expect</h2>
       <p>
-        Concrete expectations beat adjectives. On a 300 to 500 Mbps consumer
-        line, a nearby VLESS + Reality server typically delivers 250 to 450
-        Mbps with 3 to 8 ms of added latency, comfortably enough for 4K
-        streaming, cloud gaming and large uploads at once. The protocol adds
-        single-digit percent overhead on top of TLS itself, and because the
-        traffic is classified as ordinary HTTPS, it dodges the
-        protocol-specific throttling that ISPs increasingly apply to
-        recognizable VPN flows. Distance to the server and your ISP's
-        peering matter far more than the protocol at this point, which is
-        the correct state of the world: the tunnel has stopped being the
-        bottleneck.
+        Speed depends mostly on the distance to the server and on your
+        ISP&apos;s peering, not on the protocol. VLESS + Reality adds one TLS
+        handshake when the connection starts and little on top of TLS
+        itself afterwards, and because the traffic is classified as ordinary
+        HTTPS, it avoids the protocol-specific throttling some ISPs apply to
+        recognizable VPN flows. We have not published speed measurements,
+        so treat any number you read, including in guides like this one, as
+        something to test on your own line.
       </p>
 
       <h2>Honest limitations</h2>
@@ -237,7 +233,7 @@ export default function Page() {
         <li>
           <strong>Client ecosystem is younger.</strong> Instead of the
           decades-old OpenVPN clients you use Xray-based apps like Happ and
-          V2RayTun. They are mature and cross-platform, but the names are
+          INCY. They are mature and cross-platform, but the names are
           less familiar; our <Link href="/guide">setup guide</Link> gets each
           platform connected in three steps.
         </li>

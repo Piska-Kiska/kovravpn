@@ -78,7 +78,7 @@ export default function Page() {
       />
 
       <p>
-        On Windows, installing and importing take five minutes. The part
+        On Windows, installing and importing are quick. The part
         that decides whether the VPN actually works for you is one setting.
         A VLESS client can carry your traffic in two ways: as a{" "}
         <strong>system proxy</strong> or through a <strong>TUN</strong>{" "}

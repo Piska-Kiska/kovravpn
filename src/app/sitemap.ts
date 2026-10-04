@@ -1,5 +1,6 @@
 import { MetadataRoute } from "next";
 import { GUIDES } from "@/lib/guides";
+import { LANDING_PAGES } from "@/lib/site-meta";
 
 /**
  * Sitemap lists only publicly indexable pages. Auth routes (/login,
@@ -12,6 +13,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://kovravpn.com";
   return [
     { url: base, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
+    ...LANDING_PAGES.map((page) => ({
+      url: `${base}${page.path}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.9,
+    })),
     { url: `${base}/guide`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: `${base}/guides`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.8 },
     ...GUIDES.map((g) => ({

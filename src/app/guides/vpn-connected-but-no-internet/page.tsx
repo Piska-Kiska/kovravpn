@@ -221,9 +221,9 @@ export default function Page() {
       </div>
       <p>
         Switching location is also the quickest workaround while you look
-        for the cause. All nine Kovra locations run VLESS with REALITY over
-        TCP, so a different location means a different server, not a
-        different protocol.
+        for the cause. Kovra locations run VLESS with REALITY over TCP, so a
+        different location means a different server, not a different
+        protocol.
       </p>
 
       <h2 id="check-4" style={ANCHOR}>
