@@ -7,6 +7,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import "./support/load-ts.mjs";
 
 const pp = await import("../src/lib/plan-prices.ts");
@@ -76,4 +78,11 @@ test("planRows follows PLAN_PRICES: totals, per-month figures and the month-by-m
       assert.equal(row.discount, pp.discountPercent(kind, row.term), `${kind}/${row.term} discount`);
     }
   }
+});
+
+test("the guides' call to action quotes the cheapest annual price from the module, not a typed one", () => {
+  const src = readFileSync(fileURLToPath(new URL("../src/components/GuideArticle.tsx", import.meta.url)), "utf8");
+  assert.match(src, /usd\(lowestPerMonth\(\)\)/);
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ""), /\$\s?\d/, "no price typed in the component");
+  assert.equal(pp.usd(pp.lowestPerMonth()), "$2.75");
 });

@@ -11,6 +11,7 @@ import {
 } from "@/lib/structured-data";
 import type { FaqItem } from "@/lib/faq-items";
 import { ogImageUrl } from "@/lib/og-url";
+import { lowestPerMonth, usd } from "@/lib/plan-prices";
 import GuideKeywords from "@/components/GuideKeywords";
 import {
   SITE_URL,
@@ -115,8 +116,8 @@ export default function GuideArticle({
           <h2>To the network, it&apos;s just a website</h2>
           <p>
             Kovra runs on VLESS + Reality, takes USDT, BTC and cards, and never
-            asks for a phone number. Plans from $2.75 per month on the annual
-            term, paid once; nothing renews automatically.
+            asks for a phone number. Plans from {usd(lowestPerMonth())} per
+            month on the annual term, paid once; nothing renews automatically.
           </p>
           <div className="gd-cta-row">
             <a href="/register" className="k-btn k-btn-gold">
