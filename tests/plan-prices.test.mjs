@@ -52,3 +52,28 @@ test("per-month figures match total / term", () => {
   }
   assert.equal(pp.lowestPerMonth(), 2.75);
 });
+
+test("planRows prints each term of a plan the way the pricing table shows it", () => {
+  assert.deepEqual(pp.planRows("plan3"), [
+    { term: 1, perMonth: "$11.99", total: "$11.99", vsMonthly: null, discount: 0 },
+    { term: 6, perMonth: "$8.99", total: "$53.94", vsMonthly: "$71.94", discount: 25 },
+    { term: 12, perMonth: "$6.59", total: "$79.08", vsMonthly: "$143.88", discount: 45 },
+  ]);
+  assert.deepEqual(pp.planRows("plan1"), [
+    { term: 1, perMonth: "$5.00", total: "$5.00", vsMonthly: null, discount: 0 },
+    { term: 6, perMonth: "$3.75", total: "$22.50", vsMonthly: "$30.00", discount: 25 },
+    { term: 12, perMonth: "$2.75", total: "$33.00", vsMonthly: "$60.00", discount: 45 },
+  ]);
+});
+
+test("planRows follows PLAN_PRICES: totals, per-month figures and the month-by-month price", () => {
+  for (const kind of ["plan1", "plan3"]) {
+    for (const row of pp.planRows(kind)) {
+      const p = pp.PLAN_PRICES[kind][row.term];
+      assert.equal(row.total, pp.usd2(p.total), `${kind}/${row.term} total`);
+      assert.equal(row.perMonth, pp.usd2(p.perMonth), `${kind}/${row.term} per month`);
+      assert.equal(row.vsMonthly, row.term === 1 ? null : pp.usd2(p.refMonthly * row.term), `${kind}/${row.term} vs monthly`);
+      assert.equal(row.discount, pp.discountPercent(kind, row.term), `${kind}/${row.term} discount`);
+    }
+  }
+});

@@ -38,6 +38,8 @@ function pagesUnder(rel) {
 /** Files whose text reaches visitors, search engines or answer engines. */
 const PUBLIC_FILES = [
   "src/app/page.tsx",
+  "src/app/HomeView.tsx",
+  "src/lib/home-copy.ts",
   "src/app/layout.tsx",
   "src/app/guide/page.tsx",
   "src/app/register/layout.tsx",
@@ -54,6 +56,8 @@ const PUBLIC_FILES = [
 /** Files that speak only about Kovra itself (no third-party comparisons). */
 const KOVRA_OWN = [
   "src/app/page.tsx",
+  "src/app/HomeView.tsx",
+  "src/lib/home-copy.ts",
   "src/app/layout.tsx",
   "src/app/guide/page.tsx",
   "src/lib/faq-items.ts",
@@ -106,7 +110,7 @@ test("public copy carries none of the retired claims", () => {
 });
 
 test("the landing and llms.txt make no post-quantum or no-logs promise", () => {
-  for (const file of ["src/app/page.tsx", "src/app/layout.tsx", "public/llms.txt"]) {
+  for (const file of ["src/lib/home-copy.ts", "src/app/HomeView.tsx", "src/app/layout.tsx", "public/llms.txt"]) {
     const text = read(file);
     assert.doesNotMatch(text, /ML-KEM|post-quantum/i, file);
     assert.doesNotMatch(text, /no-logs (VPN|policy|privacy)|"No logs/i, file);

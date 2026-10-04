@@ -74,3 +74,30 @@ export function lowestPerMonth(): number {
   }
   return min;
 }
+
+/** One term of a plan as the pricing table prints it. */
+export interface PlanTermRow {
+  term: Term;
+  /** "$6.59": the price per month of the term. */
+  perMonth: string;
+  /** "$79.08": charged once for the whole term. */
+  total: string;
+  /** "$143.88": the same term bought month by month; null for the 1-month term. */
+  vsMonthly: string | null;
+  /** Percent saved against paying month by month. */
+  discount: number;
+}
+
+/** The rows of a plan's pricing table, shortest term first. O(terms). */
+export function planRows(kind: PlanKind): PlanTermRow[] {
+  return TERMS.map((term) => {
+    const p = PLAN_PRICES[kind][term];
+    return {
+      term,
+      perMonth: usd2(p.perMonth),
+      total: usd2(p.total),
+      vsMonthly: term === 1 ? null : usd2(p.refMonthly * term),
+      discount: discountPercent(kind, term),
+    };
+  });
+}
