@@ -49,6 +49,8 @@ export default function EnglishShell({ langNote, children }: EnglishShellProps) 
           </Link>
           <nav className="gd-foot-links" aria-label="Footer">
             <Link href="/guides">Guides</Link>
+            <Link href="/vless">VLESS subscription</Link>
+            <Link href="/crypto">Pay with crypto</Link>
             <Link href="/#pricing">Pricing</Link>
             <Link href="/#faq">FAQ</Link>
             <Link href="/terms">Terms</Link>

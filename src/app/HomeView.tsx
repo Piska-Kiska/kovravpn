@@ -416,6 +416,8 @@ export default function HomeView({ countries }: HomeViewProps) {
             <a href="#pricing">{t.nav_pricing}</a>
             <a href="#faq">{t.nav_faq}</a>
             <a href="/guides">{t.nav_guides}</a>
+            <a href="/vless">{t.foot_vless}</a>
+            <a href="/crypto">{t.foot_crypto}</a>
             <a href="/terms">{t.foot_terms}</a>
             <a href="/privacy">{t.foot_privacy}</a>
             <a href="mailto:support@kovravpn.com">support@kovravpn.com</a>

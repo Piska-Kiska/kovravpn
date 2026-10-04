@@ -7,6 +7,8 @@
 //
 // Plain data with no I/O: the layout and the pages import it.
 
+import type { Metadata } from "next";
+import { ogImageUrl } from "./og-url";
 import { PLAN_PRICES, usd } from "./plan-prices";
 
 /** The cheapest way in: one device for one month, "$5". */
@@ -35,3 +37,25 @@ export const CRYPTO_META: PageMeta = {
 /** What a search result shows before it cuts the line. */
 export const TITLE_MAX = 60;
 export const DESCRIPTION_MAX = 160;
+
+/** The English landing pages: the sitemap and the IndexNow ping list them from here. */
+export const LANDING_PAGES: readonly { path: string; meta: PageMeta }[] = [
+  { path: "/vless", meta: VLESS_META },
+  { path: "/crypto", meta: CRYPTO_META },
+];
+
+/**
+ * Next.js metadata of a landing page. The title is absolute: the layout's
+ * template would append " | Kovra (Kovra)" to a title that already ends in
+ * "| Kovra". `path` is the canonical path, resolved against metadataBase.
+ */
+export function landingMetadata(meta: PageMeta, path: string, ogTitle: string): Metadata {
+  const image = { url: ogImageUrl(ogTitle, "Kovra"), width: 1200, height: 630, alt: meta.title };
+  return {
+    title: { absolute: meta.title },
+    description: meta.description,
+    alternates: { canonical: path },
+    openGraph: { type: "website", title: meta.title, description: meta.description, url: path, images: [image] },
+    twitter: { card: "summary_large_image", title: meta.title, description: meta.description, images: [image.url] },
+  };
+}

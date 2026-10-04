@@ -19,6 +19,8 @@ Kovra is a paid VPN. What it is and is not:
 ## Core pages
 
 - [Homepage](https://kovravpn.com/) — overview, pricing, FAQ, signup
+- [VLESS subscription](https://kovravpn.com/vless) — one link per device for Happ and INCY, plans and refund rule
+- [Pay with USDT or other crypto](https://kovravpn.com/crypto) — Telegram signup, coins, timing, what is stored
 - [Setup guide](https://kovravpn.com/guide) — step-by-step for Android, iOS, Windows, macOS
 - [Guides index](https://kovravpn.com/guides) — English research and comparison articles
 - [Terms of service](https://kovravpn.com/terms) · [Privacy policy](https://kovravpn.com/privacy)

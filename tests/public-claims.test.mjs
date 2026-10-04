@@ -40,6 +40,9 @@ const PUBLIC_FILES = [
   "src/app/page.tsx",
   "src/app/HomeView.tsx",
   "src/lib/home-copy.ts",
+  "src/lib/site-meta.ts",
+  "src/lib/landing-copy.ts",
+  ...pagesUnder("src/app/(landing)"),
   "src/app/layout.tsx",
   "src/app/guide/page.tsx",
   "src/app/register/layout.tsx",
@@ -58,6 +61,9 @@ const KOVRA_OWN = [
   "src/app/page.tsx",
   "src/app/HomeView.tsx",
   "src/lib/home-copy.ts",
+  "src/lib/site-meta.ts",
+  "src/lib/landing-copy.ts",
+  ...pagesUnder("src/app/(landing)"),
   "src/app/layout.tsx",
   "src/app/guide/page.tsx",
   "src/lib/faq-items.ts",
@@ -112,7 +118,7 @@ test("public copy carries none of the retired claims", () => {
 });
 
 test("the landing and llms.txt make no post-quantum or no-logs promise", () => {
-  for (const file of ["src/lib/home-copy.ts", "src/app/HomeView.tsx", "src/app/layout.tsx", "public/llms.txt"]) {
+  for (const file of ["src/lib/home-copy.ts", "src/lib/site-meta.ts", "src/lib/landing-copy.ts", "src/app/HomeView.tsx", "src/app/layout.tsx", "public/llms.txt"]) {
     const text = read(file);
     assert.doesNotMatch(text, /ML-KEM|post-quantum/i, file);
     assert.doesNotMatch(text, /no-logs (VPN|policy|privacy)|"No logs/i, file);

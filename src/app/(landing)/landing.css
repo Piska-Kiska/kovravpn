@@ -1,0 +1,128 @@
+/* src/app/(landing)/landing.css
+   /vless and /crypto. Built on the k-* tokens and the .gd-* shell of
+   guides.css (header, footer, breadcrumbs, notice, FAQ); this file adds what a
+   landing page needs on top: a hero, hairline rows, a price table. Radii stay
+   at 12px, buttons are pills, there is no gradient and no second call to
+   action competing with the first. */
+
+.lp { padding-bottom: 88px; }
+
+/* ── Hero ───────────────────────────────────────────── */
+.lp-hero { padding: 56px 0 8px; }
+.lp-kicker {
+  margin: 0 0 20px;
+  font-family: var(--k-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--k-text-3);
+}
+.lp-hero h1 {
+  max-width: 17ch;
+  font-size: clamp(38px, 6.4vw, 68px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+}
+.lp-lead {
+  margin-top: 22px;
+  max-width: 56ch;
+  color: var(--k-text-2);
+  font-size: clamp(17px, 1.8vw, 20px);
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+.lp-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+
+/* ── Rows: a heading on the left, the answer on the right ── */
+.lp-rows { margin-top: 56px; border-top: 1px solid var(--k-border); }
+.lp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 12px 48px;
+  padding: 30px 0;
+  border-bottom: 1px solid var(--k-border);
+}
+.lp-row h2 {
+  font-size: clamp(21px, 2.4vw, 27px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+}
+.lp-row p { color: var(--k-text-2); font-size: 16.5px; line-height: 1.6; }
+.lp-row a {
+  color: var(--k-text);
+  text-decoration: underline;
+  text-decoration-color: var(--k-border-hover);
+  text-underline-offset: 3px;
+  transition: text-decoration-color .2s;
+}
+.lp-row a:hover { text-decoration-color: var(--k-text-2); }
+.lp-links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 15px; }
+
+/* ── Sections under the rows ────────────────────────── */
+.lp-sec { padding-top: 56px; }
+.lp-sec h2 {
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.lp-sec .gd-notice { margin-top: 0; }
+
+/* the price table */
+.lp-table-wrap {
+  margin-top: 22px;
+  overflow-x: auto;
+  border: 1px solid var(--k-border);
+  border-radius: 12px;
+  background: var(--k-surface);
+}
+.lp-table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 15.5px; }
+.lp-table th,
+.lp-table td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--k-border); }
+.lp-table thead th {
+  font-family: var(--k-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--k-text-2);
+}
+.lp-table tbody th { color: var(--k-text); font-weight: 500; }
+.lp-table td { color: var(--k-text); font-variant-numeric: tabular-nums; }
+.lp-table tbody tr:last-child th,
+.lp-table tbody tr:last-child td { border-bottom: 0; }
+.lp-save { margin-left: 8px; color: var(--k-text-3); font-size: 13px; }
+
+.lp-fine { margin-top: 16px; max-width: 70ch; color: var(--k-text-3); font-size: 14px; line-height: 1.6; }
+
+/* the FAQ and the notice sit on the same column as the rows */
+.lp .gd-notice { margin-top: 40px; }
+.lp .gd-faq { padding-top: 56px; }
+
+/* quiet links at the end, never a card */
+.lp-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--k-border);
+  font-size: 14.5px;
+}
+.lp-more a { color: var(--k-text-2); transition: color .2s; }
+.lp-more a:hover { color: var(--k-text); }
+
+@media (max-width: 760px) {
+  .lp-hero { padding: 36px 0 4px; }
+  .lp-cta .k-btn { width: 100%; }
+  .lp-rows { margin-top: 40px; }
+  .lp-row { grid-template-columns: 1fr; gap: 10px; padding: 24px 0; }
+  .lp-sec { padding-top: 44px; }
+  /* three columns fit a phone without a sideways scroll: tight cells, the discount under the price */
+  .lp-table { min-width: 0; font-size: 14.5px; }
+  .lp-table th,
+  .lp-table td { padding: 12px 10px; }
+  .lp-save { display: block; margin: 2px 0 0; }
+}
