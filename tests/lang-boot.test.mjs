@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import "./support/load-ts.mjs";
 
-const { bootLangFrom, isVisitorLangPath, isRussianOnlyPath, isCabinetPath, pageLang } = await import("../src/i18n/resolve.ts");
+const { bootLangFrom, isVisitorLangPath, isRussianOnlyPath, isCabinetPath, isEnglishOnlyPath, pageLang } = await import("../src/i18n/resolve.ts");
 const { LANG_BOOT_SCRIPT } = await import("../src/i18n/boot-script.ts");
 
 /** Run the boot script for one page and visitor; returns what it set. */
@@ -50,7 +50,7 @@ function boot({ pathname, search = "", saved = null, explicit = null, languages 
   return { lang: attrs.lang, dataLang: attrs["data-lang"], pending: classes.has("kc-lang-pending") };
 }
 
-const PAGES = ["/", "/terms", "/privacy", "/guide", "/guide/", "/guides", "/guides/vpn-in-turkey", "/login", "/register", "/dashboard", "/tg", "/promo", "/p/abcdefgh12", "/add/abcdefgh12", "/nope", "/termsx", "/pp"];
+const PAGES = ["/", "/terms", "/privacy", "/guide", "/guide/", "/guides", "/guides/vpn-in-turkey", "/vless", "/vless/", "/crypto", "/login", "/register", "/dashboard", "/tg", "/promo", "/p/abcdefgh12", "/add/abcdefgh12", "/nope", "/termsx", "/pp"];
 const VISITORS = [
   {},
   { languages: ["de-AT", "en"] },
@@ -160,9 +160,33 @@ test("Russian-only pages say ru, English-only guides say en, the rest say what t
   assert.equal(boot({ pathname: "/add/abcdefgh12", saved: "ru", explicit: "1" }).lang, "en", "/add renders ?lang or English");
 });
 
+test("the English-only landing pages say en for every visitor, like the guides", () => {
+  // Localizer.detectLang() would answer "ru" for a first-time visitor on a
+  // path it does not know, so these pages are English-only on purpose.
+  for (const pathname of ["/vless", "/vless/", "/crypto", "/crypto/"]) {
+    for (const v of [
+      {},
+      { languages: ["ru-RU"] },
+      { languages: ["de-DE", "en"] },
+      { saved: "ru", explicit: "1" },
+      { saved: "fr" },
+      { search: "?lang=es" },
+      { search: "?lang=ru", saved: "de" },
+      { throwOnStorage: true, languages: ["fr"] },
+    ]) {
+      const got = boot({ pathname, ...v });
+      assert.equal(got.lang, "en", `${pathname} ${JSON.stringify(v)}`);
+      assert.equal(got.dataLang, "en");
+      assert.equal(got.pending, false, "an English page is never hidden while it waits for a language");
+    }
+  }
+});
+
 test("the path helpers", () => {
   for (const p of ["/terms", "/privacy", "/guide", "/guide/", "/login", "/tg/"]) assert.equal(isVisitorLangPath(p), true, p);
-  for (const p of ["/", "/guides", "/guides/x", "/termsx", "/promo", "/p/x"]) assert.equal(isVisitorLangPath(p), false, p);
+  for (const p of ["/", "/guides", "/guides/x", "/vless", "/crypto", "/termsx", "/promo", "/p/x"]) assert.equal(isVisitorLangPath(p), false, p);
+  for (const p of ["/guides", "/guides/x", "/vless", "/vless/", "/crypto", "/crypto/x"]) assert.equal(isEnglishOnlyPath(p), true, p);
+  for (const p of ["/", "/guide", "/guide/", "/vlessx", "/cryptography", "/terms", "/login", "/promo"]) assert.equal(isEnglishOnlyPath(p), false, p);
   for (const p of ["/promo", "/p/abc", "/p"]) assert.equal(isRussianOnlyPath(p), true, p);
   for (const p of ["/pp", "/privacy", "/promo2"]) assert.equal(isRussianOnlyPath(p), false, p);
   assert.equal(isCabinetPath("/terms"), false, "the cabinet stays the cabinet: no DOM walks there");
