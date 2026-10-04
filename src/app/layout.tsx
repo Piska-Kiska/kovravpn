@@ -16,6 +16,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
 import Localizer from "@/i18n/Localizer";
 import { LANG_BOOT_SCRIPT } from "@/i18n/boot-script";
+import { HOME_META } from "@/lib/site-meta";
 
 const rubik = Rubik({
   subsets: ["cyrillic", "latin"],
@@ -72,10 +73,10 @@ const jetbrainsMono = JetBrains_Mono({
 const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
 const SITE_NAME_LATIN = "Kovra";
-const DEFAULT_TITLE =
-  "Kovra VPN: Anonymous, No Logs, No Email · Crypto & Cards";
-const DEFAULT_DESC =
-  "Anonymous VPN with no email signup and a strict no-logs policy. Pay with USDT, BTC or card. VLESS Reality traffic camouflage, EU servers, online in 2 minutes.";
+// Title and description are the home page's (src/lib/site-meta.ts), where a
+// test holds them to the search-result limits and the price is computed.
+const DEFAULT_TITLE = HOME_META.title;
+const DEFAULT_DESC = HOME_META.description;
 
 /**
  * Brand-recognition keywords. Google ignores `keywords` for ranking but
@@ -98,16 +99,11 @@ const BRAND_KEYWORDS = [
   "Kovra",
   "Kovra VPN",
   "VPN VLESS Reality",
-  "ML-KEM VPN",
-  "post-quantum VPN",
   "VLESS Reality",
   "Xray VPN",
-  // Category
+  // Category. No "no-logs", "anonymous", "fast" or "low ping": the policy
+  // lists what is stored and speed was never measured.
   "private VPN",
-  "fast VPN",
-  "low ping VPN",
-  "no-logs VPN",
-  "anonymous VPN",
   "VPN without email",
   "VPN without phone number",
   // Payments
@@ -121,8 +117,7 @@ const BRAND_KEYWORDS = [
   "VPN vs proxy",
   "proxy alternative",
   "SOCKS5 proxy alternative",
-  "DPI bypass VPN",
-  "VPN that works in China",
+  // No China claim: Kovra was never tested from inside China.
   "unblock websites VPN",
 ];
 

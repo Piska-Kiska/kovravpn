@@ -1,4 +1,4 @@
-/* src/app/home.css — Kovra landing v3 "Privacy. Perfected."
+/* src/app/home.css — Kovra landing v3.
    Apple-keynote minimal. Uses the k-* token layer from globals.css.
    Scope prefix: .kv (landing only). */
 
@@ -104,7 +104,7 @@ html { scroll-padding-top: 96px; }
 
 .kv-h1 {
   margin: 0;
-  font-size: clamp(54px, 10.2vw, 148px);
+  font-size: clamp(44px, 7.4vw, 116px);
   line-height: 0.98;
   font-weight: 600;
   letter-spacing: -0.045em;
@@ -123,6 +123,19 @@ html { scroll-padding-top: 96px; }
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+/* where it connects: the flags only, no count and no names (the list below has them) */
+.kv-hero-flags {
+  list-style: none;
+  margin: 52px auto 0;
+  padding: 0;
+  max-width: 720px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 20px;
+  font-size: 26px;
+  line-height: 1;
 }
 
 /* ── Bento grid ──────────────────────────────────────── */
@@ -222,22 +235,6 @@ html { scroll-padding-top: 96px; }
   letter-spacing: 0.14em;
 }
 
-/* big price figure */
-.kv-cardprice {
-  margin-top: auto;
-  padding-top: 40px;
-  font-size: clamp(44px, 5vw, 64px);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1;
-}
-.kv-cardprice em {
-  font-style: normal;
-  font-size: 0.38em;
-  color: var(--k-text-2);
-  letter-spacing: -0.01em;
-}
-
 /* ── Section heads ───────────────────────────────────── */
 .kv-kicker { color: var(--k-text-3); margin: 0 0 18px; }
 .kv-h2 {
@@ -274,6 +271,50 @@ html { scroll-padding-top: 96px; }
   letter-spacing: -0.02em;
 }
 .kv-step p { margin: 0; color: var(--k-text-2); font-size: 16.5px; }
+
+/* ── Where you can connect, and the limits ───────────── */
+.kv-where { padding: 40px 0 110px; }
+.kv-where-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 64px;
+  align-items: start;
+}
+.kv-where-grid > :only-child { grid-column: 1 / -1; max-width: 560px; }
+.kv-countries {
+  list-style: none;
+  margin: 36px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.kv-countries li {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 12px;
+  border: 1px solid var(--k-border);
+  border-radius: 999px;
+  color: var(--k-text-2);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+.kv-flag { font-size: 19px; line-height: 1; }
+.kv-limits { border-top: 1px solid var(--k-border); padding-top: 28px; }
+.kv-limits h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.kv-limits p {
+  margin: 14px 0 0;
+  max-width: 46ch;
+  color: var(--k-text-2);
+  font-size: 16px;
+  line-height: 1.6;
+}
 
 /* ── Pricing ─────────────────────────────────────────── */
 .kv-price { padding: 110px 0; }
@@ -521,6 +562,7 @@ html { scroll-padding-top: 96px; }
   .kv-step p { grid-column: 2; }
   .kv-price-grid { grid-template-columns: 1fr; }
   .kv-faq-grid { grid-template-columns: 1fr; gap: 36px; }
+  .kv-where-grid { grid-template-columns: 1fr; gap: 40px; }
 }
 @media (max-width: 760px) {
   .kv-wrap { padding: 0 20px; }
@@ -533,6 +575,8 @@ html { scroll-padding-top: 96px; }
   .kv-card { padding: 30px 26px 28px; min-height: 280px; }
   .kv-orb { left: 26px; bottom: 30px; }
   .kv-how, .kv-price, .kv-faq { padding: 76px 0; }
+  .kv-where { padding: 20px 0 76px; }
+  .kv-hero-flags { margin-top: 36px; font-size: 22px; gap: 8px 16px; }
   .kv-steps { margin-top: 40px; }
   .kv-step { grid-template-columns: 64px 1fr; gap: 16px; padding: 26px 2px; }
   .kv-price-grid { margin-top: 40px; }
@@ -546,7 +590,7 @@ html { scroll-padding-top: 96px; }
 /* ── TV / very large screens ─────────────────────────── */
 @media (min-width: 1800px) {
   .kv-wrap { max-width: 1440px; }
-  .kv-h1 { font-size: 170px; }
+  .kv-h1 { font-size: 128px; }
   .kv-card { min-height: 400px; }
 }
 /* notches / rounded corners (phones, some TVs) */
@@ -573,7 +617,7 @@ html { scroll-padding-top: 96px; }
 }
 /* small phones */
 @media (max-width: 400px) {
-  .kv-h1 { font-size: 15vw; }
+  .kv-h1 { font-size: 12vw; }
   .kv-card h3 { font-size: 27px; }
   .kv-step h4 { font-size: 20px; }
 }

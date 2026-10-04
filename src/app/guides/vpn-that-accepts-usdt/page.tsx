@@ -9,7 +9,7 @@ import { buildGuideMetadata } from "@/lib/guides";
 const SLUG = "vpn-that-accepts-usdt";
 const OG = ogImageUrl(
   "VPN That Accepts USDT",
-  "Full setup in 5 minutes",
+  "Step-by-step setup",
 );
 
 export const metadata: Metadata = buildGuideMetadata(SLUG, OG);
@@ -17,11 +17,11 @@ export const metadata: Metadata = buildGuideMetadata(SLUG, OG);
 const FAQ: FaqItem[] = [
   {
     q: "Which USDT network should I use to pay for a VPN?",
-    a: "TRC-20 is the default: about a minute to confirm and a fee that is usually a dollar or two. BEP-20 is even cheaper if your wallet already holds BNB for gas. Avoid ERC-20 for small invoices unless the funds are already on Ethereum.",
+    a: "TRC-20 is the default: the network confirms quickly and the fee is usually a dollar or two. BEP-20 is even cheaper if your wallet already holds BNB for gas. Avoid ERC-20 for small invoices unless the funds are already on Ethereum.",
   },
   {
     q: "How long until my VPN works after sending USDT?",
-    a: "On TRC-20 or BEP-20, typically one to three minutes end to end: the transaction confirms, the payment processor notifies the provider, and the subscription activates automatically. No manual review is involved.",
+    a: "It depends on the network confirmations and the provider's processor. At Kovra the checkout says usually 5–30 minutes: the transaction confirms, the payment processor notifies us, and the subscription activates automatically. No manual review is involved.",
   },
   {
     q: "Is there a minimum amount for USDT payments?",
@@ -29,7 +29,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Can I renew a VPN subscription with USDT automatically?",
-    a: "No, and by design: crypto has no stored billing credential to charge. Renewal is a fresh one-minute payment. Expiry reminders arrive in the dashboard and Telegram bot, and longer prepaid terms reduce how often you think about it.",
+    a: "No, and by design: crypto has no stored billing credential to charge. Renewal is a fresh payment when you choose to continue. Expiry reminders arrive in the dashboard and Telegram bot, and longer prepaid terms reduce how often you think about it.",
   },
   {
     q: "What if my USDT payment confirmed but the subscription did not activate?",
@@ -45,8 +45,8 @@ export default function Page() {
         simple reason: it moves like crypto but is priced like dollars. No
         volatility between invoice and confirmation, near-instant transfers,
         fees measured in cents on the right network. This walkthrough takes
-        you from choosing a plan to an active VPN connection in about five
-        minutes, with the fee table you should read before sending anything.
+        you from choosing a plan to an active VPN connection step by step,
+        with the fee table you should read before sending anything.
       </p>
 
       <h2>Why USDT specifically</h2>
@@ -73,7 +73,7 @@ export default function Page() {
           Gas for the network: a little TRX on Tron or BNB on BNB Chain.
           Some wallets abstract this away for USDT transfers.
         </li>
-        <li>An account on the VPN side, which takes under a minute.</li>
+        <li>An account on the VPN side.</li>
       </ul>
 
       <h2>Pick the network before you pick anything else</h2>
@@ -121,8 +121,8 @@ export default function Page() {
         .
       </p>
 
-      <h2>The five-minute setup</h2>
-      <h3>Minute 1: account and plan</h3>
+      <h2>The setup, step by step</h2>
+      <h3>Step 1: account and plan</h3>
       <p>
         Create an account at <a href="/register">kovravpn.com/register</a>,
         with an email or with a Telegram login if you prefer{" "}
@@ -130,37 +130,38 @@ export default function Page() {
         plan: 1 device from $5 per month, up to 3 devices from $11.99, with
         6 and 12 month terms discounted up to 45 percent.
       </p>
-      <h3>Minute 2: the invoice</h3>
+      <h3>Step 2: the invoice</h3>
       <p>
         Choose <strong>Pay with crypto</strong>, select USDT and your
         network. You get an address, a QR code, an exact amount and a timer.
         The rate is locked for the invoice window, so there is no slippage
         to think about.
       </p>
-      <h3>Minute 3: send</h3>
+      <h3>Step 3: send</h3>
       <p>
         In your wallet: paste or scan the address, enter the exact invoice
         amount, confirm the network one last time, send. From an exchange:
         use the withdrawal form, set the network to match, and remember the
         exchange's withdrawal fee is separate from the invoice amount.
       </p>
-      <h3>Minute 4: confirmation</h3>
+      <h3>Step 4: confirmation</h3>
       <p>
-        Watch the invoice page. It flips to paid as soon as the processor
-        sees the confirmation, and the subscription activates through a
-        webhook with no human in the loop. On TRC-20 this is usually faster
-        than reading this paragraph.
+        Watch the invoice page. It flips to paid once the processor sees
+        the confirmation, and the subscription activates through a webhook
+        with no human in the loop. Kovra&apos;s checkout says this usually
+        takes 5–30 minutes; the network fee is added on top of the plan
+        price.
       </p>
-      <h3>Minute 5: connect</h3>
+      <h3>Step 5: connect</h3>
       <p>
         Your dashboard now shows an active plan and a subscription link.
-        Install Happ or V2RayTun, import the link, tap connect. The{" "}
+        Install Happ or INCY, import the link, tap connect. The{" "}
         <Link href="/guide">platform-by-platform setup guide</Link> covers
         iOS, Android, Windows, macOS and TV in three steps each. Under the
         hood you are running{" "}
         <Link href="/guides/vless-reality-protocol">VLESS + Reality</Link>,
-        so the connection works even on networks that block conventional
-        VPN protocols.
+        which is built to look like ordinary HTTPS on networks that block
+        conventional VPN protocols.
       </p>
 
       <h2>Exchange withdrawal or wallet payment: which to use</h2>
@@ -229,7 +230,7 @@ export default function Page() {
         Crypto subscriptions do not auto-renew, because nothing about you is
         stored that could be charged. In exchange you get a clean model:
         expiry date in the dashboard, reminder in the Telegram bot, and a
-        one-minute payment when you decide to continue. If reminders are not
+        fresh payment when you decide to continue. If reminders are not
         your style, prepay 6 or 12 months; the per-month price drops
         substantially and the renewal question disappears for a year.
       </p>

@@ -9,10 +9,11 @@ import { buildHowToSchema, buildFaqPageSchema, buildBreadcrumbSchema, jsonLd } f
 import { FAQ_GUIDE } from "@/lib/faq-items";
 import FAQ from "@/components/FAQ";
 import { ogImageUrl } from "@/lib/og-url";
+import { INCY_LINKS } from "@/lib/dashboard/apps";
 
 const TITLE = "Как подключить VPN: пошаговая инструкция";
 const DESC =
-  "Подключение Kovra за 5 минут на Android, iPhone, iPad, Windows и macOS. Установка приложений Happ и V2RayTun, импорт подписки, первый запуск.";
+  "Подключение Kovra на Android, iPhone, iPad, Windows и macOS: установка Happ или INCY, импорт подписки, первый запуск.";
 
 const OG_IMAGE = {
   url: ogImageUrl("Как подключить VPN", "Пошаговая инструкция для всех устройств"),
@@ -102,55 +103,51 @@ function Platform({
 const GUIDE_URL = "https://kovravpn.com/guide";
 
 const STEPS_ANDROID = [
-  { name: "Установите Happ или V2RayTun", text: "Откройте Google Play, найдите Happ или V2RayTun и установите приложение." },
+  { name: "Установите Happ или INCY", text: "Откройте Google Play, найдите Happ и установите приложение. Запасной вариант — INCY со страницы релизов на GitHub." },
   { name: "Импортируйте подписку", text: "Скопируйте ссылку-подписку из личного кабинета, откройте приложение, нажмите «+» и вставьте ссылку через «Импорт из буфера»." },
   { name: "Подключитесь", text: "Выберите сервер из списка и нажмите кнопку подключения. VPN заработает через несколько секунд." },
 ];
 
 const STEPS_IOS = [
-  { name: "Установите приложение", text: "Откройте App Store, найдите Happ (или Happ Proxy Utility Plus для RU-сторов) и установите его." },
+  { name: "Установите приложение", text: "Откройте App Store, найдите Happ и установите его. Если Happ нет в App Store вашей страны (например, в России), установите INCY." },
   { name: "Импортируйте подписку", text: "Скопируйте ссылку-подписку из личного кабинета, откройте Happ, нажмите «+» → «Импорт из буфера»." },
   { name: "Подключитесь", text: "Выберите сервер и нажмите кнопку подключения. При первом запуске разрешите добавление VPN-конфигурации в Настройках." },
 ];
 
 const STEPS_WINDOWS = [
-  { name: "Установите приложение", text: "Скачайте инсталлятор Happ для Windows с GitHub или V2RayTun с официального сайта и запустите установку." },
+  { name: "Установите приложение", text: "Скачайте установщик Happ для Windows с GitHub и запустите установку. Запасной вариант — INCY со страницы релизов на GitHub." },
   { name: "Импортируйте подписку", text: "Скопируйте ссылку-подписку из личного кабинета. В Happ нажмите «+» → «Импорт из буфера»." },
   { name: "Подключитесь", text: "Выберите сервер и нажмите кнопку подключения. При необходимости разрешите работу приложения в брандмауэре Windows." },
 ];
 
 const STEPS_MACOS = [
-  { name: "Установите приложение", text: "Откройте Mac App Store, найдите Happ Proxy Utility и установите. Приложение использует Network Extension, отдельных драйверов не требуется." },
+  { name: "Установите приложение", text: "Откройте Mac App Store, найдите Happ и установите. Если Happ нет в App Store вашей страны, установите INCY. Приложение использует Network Extension, отдельных драйверов не требуется." },
   { name: "Импортируйте подписку", text: "Скопируйте ссылку-подписку из личного кабинета, откройте Happ на Mac и вставьте ссылку через «Импорт из буфера»." },
   { name: "Подключитесь", text: "Выберите сервер и нажмите кнопку подключения. При первом запуске macOS попросит разрешение на установку VPN-конфигурации." },
 ];
 
 const HOW_TO_ANDROID = buildHowToSchema({
   name: "Как подключить VPN на Android",
-  description: "Установка Kovra на Android через Happ или V2RayTun.",
+  description: "Установка Kovra на Android через Happ или INCY.",
   url: `${GUIDE_URL}#android`,
-  totalTime: "PT5M",
   steps: STEPS_ANDROID,
 });
 const HOW_TO_IOS = buildHowToSchema({
   name: "Как подключить VPN на iPhone и iPad",
-  description: "Установка Kovra на iOS через Happ.",
+  description: "Установка Kovra на iOS через Happ или INCY.",
   url: `${GUIDE_URL}#ios`,
-  totalTime: "PT5M",
   steps: STEPS_IOS,
 });
 const HOW_TO_WINDOWS = buildHowToSchema({
   name: "Как подключить VPN на Windows",
-  description: "Установка Kovra на Windows через Happ или V2RayTun.",
+  description: "Установка Kovra на Windows через Happ или INCY.",
   url: `${GUIDE_URL}#windows`,
-  totalTime: "PT5M",
   steps: STEPS_WINDOWS,
 });
 const HOW_TO_MACOS = buildHowToSchema({
   name: "Как подключить VPN на macOS",
-  description: "Установка Kovra на Mac через Happ Proxy Utility.",
+  description: "Установка Kovra на Mac через Happ или INCY.",
   url: `${GUIDE_URL}#macos`,
-  totalTime: "PT5M",
   steps: STEPS_MACOS,
 });
 
@@ -202,7 +199,7 @@ export default function GuidePage() {
           className="text-nm-text-secondary max-w-lg mx-auto"
           data-i18n="guide.subtitle"
         >
-          Подключение займёт 2–3 минуты. Выберите вашу платформу.
+          Три шага на каждой платформе. Выберите вашу.
         </p>
       </section>
 
@@ -265,9 +262,9 @@ export default function GuidePage() {
               </a>.
             </p>
             <p className="mt-1" data-i18n-html="guide.android.s1b.html">
-              Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://play.google.com/store/apps/details?id=com.v2raytun.android" target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">
-                Google Play
+              Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href={INCY_LINKS.other} target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">
+                GitHub
               </a>
             </p>
           </Step>
@@ -292,10 +289,6 @@ export default function GuidePage() {
               <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" target="_blank" rel="noopener noreferrer"
                 className="nm-btn px-4 py-2 text-xs font-medium text-nm-text inline-flex items-center gap-1.5">
                 <Download className="w-3 h-3" /> App Store
-              </a>
-              <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973" target="_blank" rel="noopener noreferrer"
-                className="nm-btn px-4 py-2 text-xs font-medium text-nm-accent inline-flex items-center gap-1.5">
-                <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
             <p className="mt-2" data-i18n-html="guide.ios.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
@@ -325,8 +318,8 @@ export default function GuidePage() {
               </a>
             </p>
             <p className="mt-1" data-i18n-html="guide.win.s1b.html">
-              Альтернатива: <strong className="text-nm-text">V2RayTun</strong> —{" "}
-              <a href="https://storage.v2raytun.com/v2RayTun_Setup.exe" className="text-nm-accent hover:underline">v2RayTun_Setup.exe</a>
+              Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
+              <a href={INCY_LINKS.other} target="_blank" rel="noopener noreferrer" className="text-nm-accent hover:underline">GitHub</a>
             </p>
             <p data-i18n="guide.win.s1c">Запустите → установите как обычное приложение.</p>
           </Step>
@@ -351,10 +344,6 @@ export default function GuidePage() {
               <a href="https://apps.apple.com/us/app/happ-proxy-utility/id6504287215" target="_blank" rel="noopener noreferrer"
                 className="nm-btn px-4 py-2 text-xs font-medium text-nm-text inline-flex items-center gap-1.5">
                 <Download className="w-3 h-3" /> App Store
-              </a>
-              <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973" target="_blank" rel="noopener noreferrer"
-                className="nm-btn px-4 py-2 text-xs font-medium text-nm-accent inline-flex items-center gap-1.5">
-                <Download className="w-3 h-3" /> RU App Store
               </a>
             </div>
             <p className="mt-2" data-i18n-html="guide.mac.s1b.html">Альтернатива: <strong className="text-nm-text">INCY</strong> —{" "}
@@ -393,7 +382,7 @@ export default function GuidePage() {
             className="text-sm text-nm-text-secondary mb-5"
             data-i18n="guide.help.subtitle"
           >
-            Напишите нам — поможем настроить за пару минут.
+            Напишите нам — поможем настроить.
           </p>
           <a
             href="https://t.me/KovraVPN_bot"

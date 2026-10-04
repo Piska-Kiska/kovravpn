@@ -14,7 +14,7 @@ export const metadata: Metadata = buildGuideMetadata(SLUG, OG);
 const FAQ: FaqItem[] = [
   {
     q: "Why do people look for ExpressVPN alternatives?",
-    a: "Three recurring reasons: the price, which is roughly triple the privacy-focused providers; the account model, which requires an email and ties the subscription to an identity; and the ownership question, since the 2021 acquisition by Kape Technologies made jurisdiction and corporate history a live topic for privacy-minded users.",
+    a: "Three recurring reasons: the price, where the promotional rate renews noticeably higher; the account model, which requires an email and ties the subscription to an identity; and the ownership question, since the 2021 acquisition by Kape Technologies made jurisdiction and corporate history a live topic for privacy-minded users.",
   },
   {
     q: "Is ExpressVPN still trustworthy?",
@@ -26,11 +26,11 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "What is the best alternative for privacy?",
-    a: "Providers that never collect an identity: Mullvad's account numbers, IVPN's no-details signup, or Kovra's Telegram-or-one-field registration with native crypto invoicing. All three cost less than ExpressVPN and ask for less.",
+    a: "Providers that collect little or no identity: Mullvad's account numbers, IVPN's signup with no email, or Kovra's Telegram signup with crypto invoices (Kovra publishes this guide). All three ask for less than an email-based account.",
   },
   {
     q: "Which alternative works on censored networks?",
-    a: "One that uses a camouflaged protocol rather than a standard one. ExpressVPN's Lightway and the WireGuard-based competitors are all fingerprintable; VLESS with Reality is designed to be indistinguishable from ordinary HTTPS.",
+    a: "One that uses a camouflaged protocol rather than a standard one. VLESS with Reality is designed to look like ordinary HTTPS, while standard VPN protocols are easier for DPI to classify. No protocol is guaranteed on every network, so test on yours first.",
   },
 ];
 
@@ -39,8 +39,8 @@ export default function Page() {
     <GuideArticle slug={SLUG} faq={FAQ}>
       <p>
         ExpressVPN is a good product with a specific shape: broad server
-        coverage, reliable streaming, polished apps on every platform, and a
-        price near the top of the market. People search for alternatives when
+        coverage, reliable streaming, polished apps on every platform, and
+        promotional prices that renew higher. People search for alternatives when
         one of those attributes stops matching what they need. The useful
         approach is to identify which one, because the right replacement is
         completely different in each case.
@@ -74,13 +74,13 @@ export default function Page() {
           </thead>
           <tbody>
             <tr>
-              <td>Price</td>
-              <td>Kovra, Mullvad, AirVPN</td>
-              <td>Roughly one third the cost, no annual renewal surprise</td>
+              <td>A price that jumps at renewal</td>
+              <td>Mullvad, Kovra (ours)</td>
+              <td>A flat monthly price, or one-time payments with no auto-renewal</td>
             </tr>
             <tr>
               <td>Identity at signup</td>
-              <td>Mullvad, IVPN, Kovra</td>
+              <td>Mullvad, IVPN, Kovra (ours)</td>
               <td>Account numbers or no-email registration</td>
             </tr>
             <tr>
@@ -123,29 +123,30 @@ export default function Page() {
       </p>
       <h3>IVPN</h3>
       <p>
-        Gibraltar-based, no personal details required, Bitcoin and Monero
-        accepted, published audits, multi-hop routing and more built-in
-        obfuscation choices than Mullvad. Pricier than the others in this
-        group, and its censorship story is bridges layered on WireGuard
-        rather than camouflage by design.
+        Gibraltar-based, no email required, Bitcoin, Lightning and Monero
+        accepted, published audits, multi-hop routing, and v2Ray and
+        obfsproxy obfuscation on top of WireGuard. Pricier than the others
+        in this group.
       </p>
-      <h3>Kovra</h3>
+      <h3>Kovra (ours)</h3>
       <p>
-        Signup is a Telegram login or a single field, invoicing is native in
-        USDT and USDC as well as BTC and cards, and the transport is VLESS
-        with Reality, which presents as ordinary TLS to a real website. That
-        last point is the differentiator: it keeps connecting on networks
-        where WireGuard-based services are dropped. Honest limitations: a
-        younger service without a decade of audit history, a European rather
-        than global footprint, and no streaming-unblock ambitions. Plans
-        start at $2.75 per month on the annual term.
+        Signup is a Telegram login with no email, or email and a password on
+        the website. Payment is a crypto invoice (USDT, USDC, BTC and more)
+        or a card, and the transport is VLESS with Reality, which presents
+        as ordinary TLS to a real website. That last point is the
+        differentiator: it is built for networks where WireGuard-based
+        services are dropped, though no protocol gets through every network.
+        Honest limitations: a younger service without published audits,
+        locations in Europe, the US and Asia rather than a global map,
+        BitTorrent blocked, and no streaming-unblock ambitions. Plans start
+        at $2.75 per month on the annual term, paid once.
       </p>
       <h3>AirVPN</h3>
       <p>
         Run by privacy activists with unusual transparency about network
         status, wide coin support, and configurable inbound port forwarding
-        for seeding and self-hosting. Requires an email, assumes technical
-        comfort, and runs classic protocols that DPI recognizes.
+        for seeding and self-hosting. Assumes technical comfort and runs
+        classic protocols that DPI can recognise.
       </p>
 
       <h2>The comparison that decides it</h2>
@@ -157,55 +158,46 @@ export default function Page() {
               <th>ExpressVPN</th>
               <th>Mullvad</th>
               <th>IVPN</th>
-              <th>Kovra</th>
+              <th>Kovra (ours)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Email required</td>
+              <td>Email at signup</td>
               <td>Yes</td>
               <td>No</td>
               <td>No</td>
-              <td>No</td>
+              <td>Optional: Telegram signup needs none</td>
             </tr>
             <tr>
-              <td>Crypto accepted</td>
-              <td>Yes, via processor</td>
+              <td>Crypto</td>
+              <td>BTC, USDT, USDC and more via BitPay</td>
               <td>BTC, BCH, Monero</td>
-              <td>BTC, Monero</td>
-              <td>USDT, USDC, BTC, ETH</td>
+              <td>BTC, Lightning, Monero</td>
+              <td>USDT, USDC, BTC, ETH and more</td>
             </tr>
             <tr>
-              <td>Protocol</td>
-              <td>Lightway, WireGuard, OpenVPN</td>
+              <td>Main protocol</td>
+              <td>Lightway (its own)</td>
               <td>WireGuard</td>
-              <td>WireGuard + bridges</td>
+              <td>WireGuard, with obfuscation options</td>
               <td>VLESS + Reality</td>
             </tr>
             <tr>
-              <td>Survives DPI</td>
-              <td>Weak</td>
-              <td>Weak</td>
-              <td>Moderate</td>
-              <td>Strong by design</td>
-            </tr>
-            <tr>
-              <td>Streaming</td>
-              <td>Strong</td>
-              <td>Non-goal</td>
-              <td>Non-goal</td>
-              <td>Non-goal</td>
-            </tr>
-            <tr>
-              <td>Indicative price</td>
-              <td>~$8/mo annual</td>
-              <td>€5/mo flat</td>
-              <td>Tiered</td>
-              <td>From $2.75/mo annual</td>
+              <td>Price</td>
+              <td>$2.99–$7.49/mo for the first 28 months, then $99.95–$199.95/year</td>
+              <td>€5/mo, flat</td>
+              <td>From $6/mo or $60/year</td>
+              <td>From $2.75/mo, paid once, no auto-renewal</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="gd-source">
+        Sources, checked 2 October 2026: ExpressVPN&apos;s order page and
+        its &quot;buy a VPN with Bitcoin&quot; page, Mullvad&apos;s and
+        IVPN&apos;s pricing pages, Kovra&apos;s price list.
+      </p>
 
       <h2>Switching without losing anything</h2>
       <ol>

@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pingIndexNow } from "@/lib/indexnow";
 import { GUIDES, SITE_URL } from "@/lib/guides";
+import { LANDING_PAGES } from "@/lib/site-meta";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -32,6 +33,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
  */
 const URLS = [
   `${SITE_URL}/`,
+  ...LANDING_PAGES.map((page) => `${SITE_URL}${page.path}`),
   `${SITE_URL}/guide`,
   `${SITE_URL}/guides`,
   ...GUIDES.map((g) => `${SITE_URL}/guides/${g.slug}`),

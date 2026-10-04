@@ -7,7 +7,7 @@
 import type { Metadata } from "next";
 
 const TITLE = "Create account | Kovra";
-const DESC = "Create your Kovra account in a minute with email or Telegram. Card or crypto, up to 3 devices.";
+const DESC = "Create your Kovra account with Telegram or email. Card or crypto, up to 3 devices.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },

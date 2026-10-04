@@ -29,11 +29,11 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Which Mullvad alternative is best for censored networks?",
-    a: "Pick by protocol rather than brand: you want traffic that does not look like a VPN at all. Kovra runs VLESS with the Reality transport, which camouflages the session as regular TLS to a real website, and pairs it with the same no-email, crypto-payment account model Mullvad users expect.",
+    a: "Pick by protocol rather than brand: you want traffic that does not look like a VPN at all. Kovra (which publishes this guide) runs VLESS with the Reality transport, which camouflages the session as regular TLS to a real website, with Telegram signup that needs no email and crypto payment. No protocol is guaranteed on every network, so test on yours.",
   },
   {
     q: "Do these alternatives accept anonymous payment like Mullvad?",
-    a: "The ones worth considering do. Kovra takes USDT, BTC and other coins with no email at signup; IVPN accepts Monero and Bitcoin without personal details; AirVPN accepts a wide set of coins. If an alternative demands a card and an email, it has already given up Mullvad's main advantage.",
+    a: "The ones worth considering do. Kovra (ours) takes USDT, BTC and other coins, with no email if you sign up through Telegram; IVPN accepts Monero and Bitcoin with no email required; AirVPN accepts a wide set of coins. If an alternative demands a card and an email, it has already given up Mullvad's main advantage.",
   },
 ];
 
@@ -101,93 +101,77 @@ export default function Page() {
             <tr>
               <th></th>
               <th>Mullvad</th>
-              <th>Kovra</th>
+              <th>Kovra (ours)</th>
               <th>IVPN</th>
-              <th>AirVPN</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Signup data</td>
-              <td>None (account number)</td>
-              <td>None (Telegram or one field)</td>
-              <td>None required</td>
-              <td>Email</td>
+              <td>Email at signup</td>
+              <td>No (account number)</td>
+              <td>Optional: Telegram signup needs none</td>
+              <td>No</td>
             </tr>
             <tr>
-              <td>Anonymous payment</td>
-              <td>BTC, Monero, cash</td>
-              <td>USDT, BTC, ETH and more</td>
-              <td>BTC, Monero</td>
-              <td>Wide coin support</td>
+              <td>Crypto</td>
+              <td>BTC, BCH, Monero; also cash</td>
+              <td>USDT, USDC, BTC, ETH and more</td>
+              <td>BTC, Lightning, Monero; also cash</td>
             </tr>
             <tr>
-              <td>Core protocol</td>
+              <td>Main protocol</td>
               <td>WireGuard</td>
               <td>VLESS + Reality</td>
-              <td>WireGuard, obfuscation add-ons</td>
-              <td>OpenVPN, WireGuard</td>
+              <td>WireGuard, with v2Ray and obfsproxy obfuscation</td>
             </tr>
             <tr>
-              <td>Survives DPI censorship</td>
-              <td>Weak</td>
-              <td>Strong by design</td>
-              <td>Moderate with bridges</td>
-              <td>Weak to moderate</td>
-            </tr>
-            <tr>
-              <td>Port forwarding</td>
-              <td>No</td>
-              <td>No</td>
-              <td>Check current policy</td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <td>Jurisdiction</td>
-              <td>Sweden</td>
-              <td>Crypto-first, EU servers</td>
-              <td>Gibraltar</td>
-              <td>Italy</td>
+              <td>Price</td>
+              <td>€5/mo, flat</td>
+              <td>From $2.75/mo ($33 once for 12 months)</td>
+              <td>From $6/mo or $60/year</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="gd-source">
+        Sources, checked 2 October 2026: Mullvad&apos;s and IVPN&apos;s own
+        pricing pages; Kovra&apos;s price list.
+      </p>
 
-      <h2>If your problem is censorship: Kovra</h2>
+      <h2>If your problem is censorship: a protocol that looks like HTTPS</h2>
       <p>
-        This is the gap Kovra was built for. VLESS with the Reality
+        This is the gap Kovra (ours) was built for. VLESS with the Reality
         transport does not obfuscate a VPN handshake; it never produces
         one. The session presents as ordinary TLS to a mainstream website,
-        with a genuine certificate and a real browser fingerprint, so a
-        censor must either allow it or break normal HTTPS for everyone.
+        with a genuine certificate and a real browser fingerprint, which
+        makes it much harder to single out. It is not unblockable: a
+        network can still block a server address.
         The{" "}
         <Link href="/guides/vless-reality-protocol">
           protocol explainer
         </Link>{" "}
-        covers the mechanics. The account model will feel familiar to a
-        Mullvad user: no email, no phone, crypto-native payment, and the
-        same expectation that the provider should know nothing worth
-        subpoenaing. Being a younger service, it does not yet have
-        Mullvad's audit history; hold it to the checklist like anyone
-        else.
+        covers the mechanics. The account side differs from Mullvad: a
+        Telegram signup with no email or phone (or email on the website),
+        crypto through an invoice, and a privacy policy that lists what is
+        kept, such as traffic totals, last connection and IP addresses.
+        Being a younger service, it has no published audits; hold it to the
+        checklist like anyone else.
       </p>
 
       <h2>If your problem is port forwarding: AirVPN</h2>
       <p>
-        AirVPN has offered configurable port forwarding for years and is
-        run with unusual transparency about its network. The trade-offs
-        are an email at signup, an interface that assumes technical
-        comfort, and classic protocols that are as visible to DPI as
-        Mullvad's.
+        AirVPN has offered configurable port forwarding for years (up to
+        20 ports, per ProPrivacy&apos;s review) and is run with unusual
+        transparency about its network. The trade-offs are an interface
+        that assumes technical comfort and classic protocols that DPI can
+        recognise, like Mullvad&apos;s.
       </p>
 
       <h2>If you want a second purist with Monero: IVPN</h2>
       <p>
         IVPN is the closest philosophical sibling: Gibraltar-based, no
-        personal details required, Monero accepted, audits published, and
-        more built-in obfuscation options than Mullvad ships. It costs
-        more, and its anti-censorship story is still bridges over
-        WireGuard rather than camouflage from the ground up.
+        email required, Monero accepted, audits published, and v2Ray and
+        obfsproxy obfuscation on top of WireGuard. It costs more.
       </p>
 
       <h2>How to switch without downgrading</h2>

@@ -1,7 +1,9 @@
 // src/i18n/legal.ts
 // Single source of truth for legal documents (Terms + Privacy), all site languages.
-// Generated content — adapted for Kovra (crypto-only, international). Review by counsel recommended.
-// Placeholders to fill: Kovra Ltd., Seychelles.
+// Generated content, adapted for Kovra (cards and crypto, international). Review by counsel recommended.
+// Kovra has no registered company: the documents name the service and its
+// support contacts, and no country or governing law (owner, 02.10.2026).
+// Do not add a company name or a jurisdiction until one exists.
 import type { Lang } from "./dict";
 
 export type LegalSection = { h: string; p: string[] };
@@ -12,13 +14,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
   "en": {
     "terms": {
       "title": "Terms of Service",
-      "updated": "Last updated: 11 June 2026",
+      "updated": "Last updated: 2 October 2026",
       "related": "Related documents",
       "sections": [
         {
           "h": "1. General",
           "p": [
-            "These Terms of Service (the «Terms») govern your use of the Kovra service (the «Service»), available at kovravpn.com and through the Telegram bot @KovraVPN_bot, operated by Kovra Ltd. (the «Operator», «we»).",
+            "These Terms of Service (the «Terms») govern your use of Kovra (the service; the «Service», «we»), available at kovravpn.com and through the Telegram bot @KovraVPN_bot. You can reach us through that bot or at support@kovravpn.com.",
             "By using the Service — registering, paying, or accessing any materials — you confirm that you have read and accept these Terms in full. If you do not agree, you must stop using the Service."
           ]
         },
@@ -41,15 +43,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "4. Plans and Payment",
           "p": [
             "The Service is offered as prepaid subscriptions. Plans, terms, prices, and the number of devices are shown on the website at the time of purchase.",
-            "Payment is accepted in cryptocurrency through third-party payment processors. A subscription is activated once the corresponding payment is confirmed on the relevant blockchain.",
+            "Payment is accepted by card or in cryptocurrency through third-party payment processors. A subscription is activated once the processor confirms the payment; a cryptocurrency payment is confirmed on its blockchain. Prices are set in US dollars: a card processor may charge you in another currency at its exchange rate, and your bank may add a fee.",
             "Cryptocurrency transactions are irreversible. You are responsible for sending the correct amount in the correct asset to the address provided during checkout."
           ]
         },
         {
           "h": "5. Refunds",
           "p": [
-            "Because the Service is an intangible digital service paid for with irreversible cryptocurrency transactions, payments are generally non-refundable once a subscription has been activated.",
-            "A refund may be considered only where the Service was not delivered due to a fault on our side, confirmed by a support request submitted within 14 days of payment. Approved refunds are issued to the same wallet and in the same asset used for payment, less any network fees.",
+            "Because the Service is an intangible digital service, payments are generally non-refundable once a subscription has been activated.",
+            "A refund may be considered only where the Service was not delivered due to a fault on our side, confirmed by a support request submitted within 14 days of payment. Approved refunds go back to the original payment method: a card payment to the same card, a cryptocurrency payment to the same wallet and in the same asset, less any network fees.",
             "We recommend purchasing the shortest available term first to verify compatibility with your devices and network before committing to a longer period."
           ]
         },
@@ -101,9 +103,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "13. Governing Law and Disputes",
+          "h": "13. Disputes",
           "p": [
-            "These Terms are governed by the laws of Seychelles. Any dispute that cannot be resolved amicably shall be settled by binding arbitration or by the competent courts of Seychelles, to the extent permitted by applicable mandatory law."
+            "If you have a complaint, contact support first and we will try to resolve it with you. Nothing in these Terms limits the rights you have under the mandatory consumer-protection law of the country where you live."
           ]
         },
         {
@@ -116,13 +118,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Privacy Policy",
-      "updated": "Last updated: 11 June 2026",
+      "updated": "Last updated: 2 October 2026",
       "related": "Related documents",
       "sections": [
         {
           "h": "1. General",
           "p": [
-            "This Privacy Policy (the «Policy») explains how the Operator of Kovra (Kovra Ltd., «we», the data controller) collects, uses, and protects information you provide when using the Service at kovravpn.com and through the Telegram bot @KovraVPN_bot.",
+            "This Privacy Policy (the «Policy») explains how Kovra (the service; «we», the controller of the data described here) collects, uses and protects information you provide when using the Service at kovravpn.com and through the Telegram bot @KovraVPN_bot. You can reach us through that bot or at support@kovravpn.com.",
             "By using the Service you accept this Policy. If you do not agree, you must stop using the Service."
           ]
         },
@@ -131,7 +133,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "p": [
             "We collect only the data necessary to operate the Service:",
             "• a Telegram identifier (user ID, username, name) if you register through the Telegram bot, or an email address if you register through the website;",
-            "• technical connection data (the IP address of your device at the time of payment and when connecting to a node, and basic VPN client information);",
+            "• technical connection data: the IP address of your device at the time of payment and when connecting to a node, and the hardware identifier (HWID) your VPN app sends, which binds each subscription link to one device and is kept for up to 365 days or until you reset that device;",
             "• subscription and payment metadata (plan, term, transaction identifiers);",
             "• service logs of interactions with the bot and the website interface.",
             "We do not request or store identity documents, photographs, or payment-card details."
@@ -156,15 +158,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "6. Cryptocurrency Payments",
+          "h": "6. Payments",
           "p": [
-            "Payments are processed by third-party cryptocurrency payment processors. We do not store card or wallet credentials. Note that blockchain transactions are public by nature, and on-chain data is outside our control."
+            "Payments are processed by third-party payment processors, for cards and for cryptocurrency. We do not store card details or wallet credentials. A card statement may show the processor's merchant name rather than Kovra. Blockchain transactions are public by nature, and on-chain data is outside our control."
           ]
         },
         {
           "h": "7. Sharing of Data",
           "p": [
-            "We do not sell your data. We share the minimum necessary data with payment processors to complete a transaction, with authorities where required by law through due process, and otherwise only with your explicit consent."
+            "We do not sell your data. We share the minimum necessary data with payment processors to complete a transaction, with our hosting and analytics provider Vercel to run the website, with authorities where required by law through due process, and otherwise only with your explicit consent."
           ]
         },
         {
@@ -187,9 +189,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "11. Cookies",
+          "h": "11. Cookies and Analytics",
           "p": [
-            "The website uses only technical cookies required for the interface and to maintain your authenticated session. We do not use third-party analytics or advertising cookies."
+            "The website uses technical cookies required for the interface and to keep you signed in. It also uses Vercel Web Analytics and Vercel Speed Insights from our hosting provider, Vercel: they count page views and measure page speed in aggregate and do not use cookies. If you arrive through a link with campaign tags (utm_…), the website keeps those tags in your browser's local storage and attaches them to sign-up and payment events in that analytics. We do not use advertising cookies."
           ]
         },
         {
@@ -222,13 +224,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
   "ru": {
     "terms": {
       "title": "Пользовательское соглашение",
-      "updated": "Редакция от 11 июня 2026 г.",
+      "updated": "Редакция от 2 октября 2026 г.",
       "related": "Связанные документы",
       "sections": [
         {
           "h": "1. Общие положения",
           "p": [
-            "Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует использование сервиса Kovra (далее — «Сервис»), доступного на сайте kovravpn.com и через Telegram-бота @KovraVPN_bot, оператором которого является Kovra Ltd. (далее — «Оператор», «мы»).",
+            "Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует использование Kovra (сервис; далее — «Сервис», «мы»), доступного на сайте kovravpn.com и через Telegram-бота @KovraVPN_bot. Связаться с нами можно через этого бота или по адресу support@kovravpn.com.",
             "Используя Сервис — регистрируясь, оплачивая услуги или получая доступ к материалам — вы подтверждаете, что полностью ознакомились с настоящим Соглашением и принимаете его. В случае несогласия вы обязаны прекратить использование Сервиса."
           ]
         },
@@ -251,15 +253,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "4. Тарифы и оплата",
           "p": [
             "Сервис предоставляется по модели предоплаченных подписок. Тарифы, сроки, цены и количество устройств указаны на сайте на момент покупки.",
-            "Оплата принимается в криптовалюте через сторонних платёжных провайдеров. Подписка активируется после подтверждения соответствующего платежа в соответствующей блокчейн-сети.",
+            "Оплата принимается банковской картой или в криптовалюте через сторонних платёжных провайдеров. Подписка активируется после того, как провайдер подтвердит платёж; криптовалютный платёж подтверждается в своей блокчейн-сети. Цены установлены в долларах США: платёжный провайдер может списать оплату с карты в другой валюте по своему курсу, а ваш банк — взять комиссию.",
             "Криптовалютные транзакции необратимы. Вы отвечаете за отправку корректной суммы в корректном активе на адрес, указанный при оформлении."
           ]
         },
         {
           "h": "5. Возврат средств",
           "p": [
-            "Поскольку Сервис является нематериальной цифровой услугой, оплачиваемой необратимыми криптовалютными транзакциями, платежи, как правило, не подлежат возврату после активации подписки.",
-            "Возврат может быть рассмотрен только если услуга не была оказана по вине Оператора, что подтверждено обращением в поддержку в течение 14 дней с даты платежа. Одобренный возврат производится на тот же кошелёк и в том же активе, которым была произведена оплата, за вычетом сетевых комиссий.",
+            "Поскольку Сервис является нематериальной цифровой услугой, платежи, как правило, не подлежат возврату после активации подписки.",
+            "Возврат может быть рассмотрен только если услуга не была оказана по вине Сервиса, что подтверждено обращением в поддержку в течение 14 дней с даты платежа. Одобренный возврат производится тем же способом, которым была произведена оплата: платёж картой — на ту же карту, криптовалютный платёж — на тот же кошелёк и в том же активе, за вычетом сетевых комиссий.",
             "Рекомендуем сначала приобрести минимальный доступный срок, чтобы проверить совместимость с вашими устройствами и сетью, прежде чем оплачивать более длительный период."
           ]
         },
@@ -294,7 +296,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "10. Ограничение ответственности",
           "p": [
             "В максимально допустимой законом степени мы не несём ответственности за косвенные или вытекающие убытки, включая упущенную выгоду, а также за действия или бездействие третьих лиц, таких как интернет-провайдеры и платёжные провайдеры.",
-            "Совокупная ответственность Оператора перед вами ограничена суммой, уплаченной вами за Сервис за три (3) месяца, предшествующих событию, послужившему основанием для требования."
+            "Совокупная ответственность Сервиса перед вами ограничена суммой, уплаченной вами за Сервис за три (3) месяца, предшествующих событию, послужившему основанием для требования."
           ]
         },
         {
@@ -311,9 +313,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "13. Применимое право и разрешение споров",
+          "h": "13. Споры",
           "p": [
-            "Настоящее Соглашение регулируется правом Seychelles. Любой спор, который не удалось разрешить мирным путём, подлежит разрешению в обязательном арбитраже или в компетентных судах Seychelles в той мере, в какой это допускается применимыми императивными нормами."
+            "Если у вас есть претензия, сначала напишите в поддержку — мы постараемся решить вопрос вместе с вами. Ничто в настоящем Соглашении не ограничивает права, которые дают вам императивные нормы о защите прав потребителей страны, где вы живёте."
           ]
         },
         {
@@ -326,13 +328,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Политика конфиденциальности",
-      "updated": "Редакция от 11 июня 2026 г.",
+      "updated": "Редакция от 2 октября 2026 г.",
       "related": "Связанные документы",
       "sections": [
         {
           "h": "1. Общие положения",
           "p": [
-            "Настоящая Политика конфиденциальности (далее — «Политика») описывает, как Оператор сервиса Kovra (Kovra Ltd., далее — «мы», оператор данных) собирает, использует и защищает информацию, которую вы предоставляете при использовании Сервиса на сайте kovravpn.com и через Telegram-бота @KovraVPN_bot.",
+            "Настоящая Политика конфиденциальности (далее — «Политика») описывает, как Kovra (сервис; далее — «мы», оператор описанных здесь данных) собирает, использует и защищает информацию, которую вы предоставляете при использовании Сервиса на сайте kovravpn.com и через Telegram-бота @KovraVPN_bot. Связаться с нами можно через этого бота или по адресу support@kovravpn.com.",
             "Используя Сервис, вы принимаете настоящую Политику. В случае несогласия вы обязаны прекратить использование Сервиса."
           ]
         },
@@ -341,7 +343,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "p": [
             "Мы собираем только данные, необходимые для работы Сервиса:",
             "• идентификатор Telegram (user ID, username, имя), если вы регистрируетесь через Telegram-бота, либо адрес электронной почты, если регистрация выполнена через сайт;",
-            "• технические данные подключения (IP-адрес устройства в момент оплаты и при подключении к узлу, базовые сведения о VPN-клиенте);",
+            "• технические данные подключения: IP-адрес устройства в момент оплаты и при подключении к узлу, а также аппаратный идентификатор (HWID), который передаёт ваше VPN-приложение: он привязывает каждую ссылку подписки к одному устройству и хранится до 365 дней или до сброса этого устройства;",
             "• метаданные подписки и платежа (тариф, срок, идентификаторы транзакций);",
             "• служебные журналы взаимодействия с ботом и интерфейсом сайта.",
             "Мы не запрашиваем и не храним документы, удостоверяющие личность, фотографии и реквизиты банковских карт."
@@ -366,15 +368,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "6. Криптовалютные платежи",
+          "h": "6. Платежи",
           "p": [
-            "Платежи обрабатываются сторонними криптовалютными платёжными провайдерами. Мы не храним реквизиты карт или кошельков. Учтите, что транзакции в блокчейне по своей природе публичны, а данные в сети вне нашего контроля."
+            "Платежи обрабатываются сторонними платёжными провайдерами — по картам и в криптовалюте. Мы не храним реквизиты карт или кошельков. В выписке по карте может стоять название продавца у провайдера, а не Kovra. Учтите, что транзакции в блокчейне по своей природе публичны, а данные в сети вне нашего контроля."
           ]
         },
         {
           "h": "7. Передача данных",
           "p": [
-            "Мы не продаём ваши данные. Мы передаём минимально необходимые данные платёжным провайдерам для проведения транзакции, уполномоченным органам — когда это требуется по закону в установленном порядке, а в остальных случаях — только с вашего явного согласия."
+            "Мы не продаём ваши данные. Мы передаём минимально необходимые данные платёжным провайдерам для проведения транзакции, нашему хостинг-провайдеру и сервису аналитики Vercel для работы сайта, уполномоченным органам — когда это требуется по закону в установленном порядке, а в остальных случаях — только с вашего явного согласия."
           ]
         },
         {
@@ -397,9 +399,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "11. Cookies",
+          "h": "11. Cookies и аналитика",
           "p": [
-            "Сайт использует только технические cookies, необходимые для работы интерфейса и поддержания сессии авторизации. Аналитические и рекламные cookies сторонних сервисов не используются."
+            "Сайт использует технические cookies, необходимые для работы интерфейса и сохранения входа в аккаунт. Также сайт использует Vercel Web Analytics и Vercel Speed Insights нашего хостинг-провайдера Vercel: они считают просмотры страниц и измеряют скорость загрузки в обобщённом виде и не используют cookies. Если вы пришли по ссылке с метками кампании (utm_…), сайт сохраняет эти метки в локальном хранилище браузера и прикрепляет их к событиям регистрации и оплаты в этой аналитике. Рекламные cookies мы не используем."
           ]
         },
         {
@@ -432,13 +434,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
   "es": {
     "terms": {
       "title": "Términos del servicio",
-      "updated": "Última actualización: 11 de junio de 2026",
+      "updated": "Última actualización: 2 de octubre de 2026",
       "related": "Documentos relacionados",
       "sections": [
         {
           "h": "1. Disposiciones generales",
           "p": [
-            "Estos Términos del servicio (los «Términos») regulan el uso del servicio Kovra (el «Servicio»), disponible en kovravpn.com y a través del bot de Telegram @KovraVPN_bot, operado por Kovra Ltd. (el «Operador», «nosotros»).",
+            "Estos Términos del servicio (los «Términos») regulan el uso de Kovra (el servicio; el «Servicio», «nosotros»), disponible en kovravpn.com y a través del bot de Telegram @KovraVPN_bot. Puedes contactarnos a través de ese bot o en support@kovravpn.com.",
             "Al utilizar el Servicio —al registrarte, pagar o acceder a cualquier material— confirmas que has leído y aceptas íntegramente estos Términos. Si no estás de acuerdo, debes dejar de utilizar el Servicio."
           ]
         },
@@ -461,15 +463,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "4. Planes y pago",
           "p": [
             "El Servicio se ofrece mediante suscripciones de prepago. Los planes, plazos, precios y el número de dispositivos se muestran en el sitio web en el momento de la compra.",
-            "El pago se acepta en criptomoneda a través de procesadores de pago externos. La suscripción se activa una vez confirmado el pago correspondiente en la cadena de bloques pertinente.",
+            "El pago se acepta con tarjeta o en criptomoneda a través de procesadores de pago externos. La suscripción se activa cuando el procesador confirma el pago; un pago en criptomoneda se confirma en su cadena de bloques. Los precios se fijan en dólares estadounidenses: un procesador de tarjetas puede cobrarte en otra divisa a su tipo de cambio, y tu banco puede añadir una comisión.",
             "Las transacciones con criptomonedas son irreversibles. Eres responsable de enviar el importe correcto en el activo correcto a la dirección indicada durante el pago."
           ]
         },
         {
           "h": "5. Reembolsos",
           "p": [
-            "Dado que el Servicio es un servicio digital intangible pagado mediante transacciones irreversibles de criptomonedas, los pagos no son reembolsables, por regla general, una vez activada la suscripción.",
-            "Solo se podrá considerar un reembolso cuando el Servicio no se haya prestado por causa imputable a nosotros, confirmada mediante una solicitud al soporte presentada dentro de los 14 días siguientes al pago. Los reembolsos aprobados se efectúan a la misma cartera y en el mismo activo utilizado para el pago, menos las comisiones de red.",
+            "Dado que el Servicio es un servicio digital intangible, los pagos no son reembolsables, por regla general, una vez activada la suscripción.",
+            "Solo se podrá considerar un reembolso cuando el Servicio no se haya prestado por causa imputable a nosotros, confirmada mediante una solicitud al soporte presentada dentro de los 14 días siguientes al pago. Los reembolsos aprobados se devuelven al método de pago original: un pago con tarjeta, a la misma tarjeta; un pago en criptomoneda, a la misma cartera y en el mismo activo, menos las comisiones de red.",
             "Recomendamos adquirir primero el plazo mínimo disponible para comprobar la compatibilidad con tus dispositivos y tu red antes de contratar un período más largo."
           ]
         },
@@ -521,9 +523,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "13. Ley aplicable y resolución de conflictos",
+          "h": "13. Reclamaciones",
           "p": [
-            "Estos Términos se rigen por la legislación de Seychelles. Cualquier conflicto que no pueda resolverse de forma amistosa se someterá a arbitraje vinculante o a los tribunales competentes de Seychelles, en la medida en que lo permita la normativa imperativa aplicable."
+            "Si tienes una reclamación, escribe primero al soporte e intentaremos resolverla contigo. Nada en estos Términos limita los derechos que te otorga la normativa imperativa de protección de los consumidores del país en el que vives."
           ]
         },
         {
@@ -536,13 +538,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Política de privacidad",
-      "updated": "Última actualización: 11 de junio de 2026",
+      "updated": "Última actualización: 2 de octubre de 2026",
       "related": "Documentos relacionados",
       "sections": [
         {
           "h": "1. Disposiciones generales",
           "p": [
-            "Esta Política de privacidad (la «Política») explica cómo el Operador de Kovra (Kovra Ltd., «nosotros», el responsable del tratamiento) recopila, utiliza y protege la información que facilitas al utilizar el Servicio en kovravpn.com y a través del bot de Telegram @KovraVPN_bot.",
+            "Esta Política de privacidad (la «Política») explica cómo Kovra (el servicio; «nosotros», el responsable de los datos aquí descritos) recopila, utiliza y protege la información que facilitas al utilizar el Servicio en kovravpn.com y a través del bot de Telegram @KovraVPN_bot. Puedes contactarnos a través de ese bot o en support@kovravpn.com.",
             "Al utilizar el Servicio aceptas esta Política. Si no estás de acuerdo, debes dejar de utilizar el Servicio."
           ]
         },
@@ -551,7 +553,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "p": [
             "Solo recopilamos los datos necesarios para operar el Servicio:",
             "• un identificador de Telegram (ID de usuario, nombre de usuario, nombre) si te registras a través del bot de Telegram, o una dirección de correo electrónico si te registras a través del sitio web;",
-            "• datos técnicos de conexión (la dirección IP de tu dispositivo en el momento del pago y al conectarte a un nodo, e información básica del cliente VPN);",
+            "• datos técnicos de conexión: la dirección IP de tu dispositivo en el momento del pago y al conectarte a un nodo, y el identificador de hardware (HWID) que envía tu aplicación VPN, que vincula cada enlace de suscripción a un solo dispositivo y se conserva hasta 365 días o hasta que restablezcas ese dispositivo;",
             "• metadatos de suscripción y pago (plan, plazo, identificadores de transacción);",
             "• registros de servicio de las interacciones con el bot y con la interfaz del sitio web.",
             "No solicitamos ni almacenamos documentos de identidad, fotografías ni datos de tarjetas de pago."
@@ -576,15 +578,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "6. Pagos con criptomonedas",
+          "h": "6. Pagos",
           "p": [
-            "Los pagos son procesados por procesadores de pago de criptomonedas externos. No almacenamos credenciales de tarjetas ni de carteras. Ten en cuenta que las transacciones en la cadena de bloques son públicas por naturaleza y que los datos on-chain quedan fuera de nuestro control."
+            "Los pagos son procesados por procesadores de pago externos, de tarjetas y de criptomonedas. No almacenamos datos de tarjetas ni credenciales de carteras. En el extracto de la tarjeta puede figurar el nombre comercial del procesador en lugar de Kovra. Ten en cuenta que las transacciones en la cadena de bloques son públicas por naturaleza y que los datos on-chain quedan fuera de nuestro control."
           ]
         },
         {
           "h": "7. Comunicación de datos",
           "p": [
-            "No vendemos tus datos. Comunicamos los datos mínimos necesarios a los procesadores de pago para completar una transacción, a las autoridades cuando lo exige la ley mediante el procedimiento debido y, en los demás casos, solo con tu consentimiento explícito."
+            "No vendemos tus datos. Comunicamos los datos mínimos necesarios a los procesadores de pago para completar una transacción, a nuestro proveedor de alojamiento y analítica Vercel para el funcionamiento del sitio web, a las autoridades cuando lo exige la ley mediante el procedimiento debido y, en los demás casos, solo con tu consentimiento explícito."
           ]
         },
         {
@@ -607,9 +609,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "11. Cookies",
+          "h": "11. Cookies y analítica",
           "p": [
-            "El sitio web utiliza únicamente cookies técnicas necesarias para la interfaz y para mantener tu sesión autenticada. No utilizamos cookies de analítica ni de publicidad de terceros."
+            "El sitio web utiliza cookies técnicas necesarias para la interfaz y para mantener tu sesión iniciada. También utiliza Vercel Web Analytics y Vercel Speed Insights de nuestro proveedor de alojamiento, Vercel: cuentan las visitas a las páginas y miden su velocidad de forma agregada y no utilizan cookies. Si llegas a través de un enlace con etiquetas de campaña (utm_…), el sitio guarda esas etiquetas en el almacenamiento local de tu navegador y las adjunta a los eventos de registro y pago en esa analítica. No utilizamos cookies publicitarias."
           ]
         },
         {
@@ -642,13 +644,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
   "de": {
     "terms": {
       "title": "Nutzungsbedingungen",
-      "updated": "Zuletzt aktualisiert: 11. Juni 2026",
+      "updated": "Zuletzt aktualisiert: 2. Oktober 2026",
       "related": "Zugehörige Dokumente",
       "sections": [
         {
           "h": "1. Allgemeines",
           "p": [
-            "Diese Nutzungsbedingungen (die „Bedingungen“) regeln die Nutzung des Dienstes Kovra (der „Dienst“), verfügbar unter kovravpn.com und über den Telegram-Bot @KovraVPN_bot, betrieben von Kovra Ltd. (der „Betreiber“, „wir“).",
+            "Diese Nutzungsbedingungen (die „Bedingungen“) regeln die Nutzung von Kovra (der Dienst; der „Dienst“, „wir“), verfügbar unter kovravpn.com und über den Telegram-Bot @KovraVPN_bot. Sie erreichen uns über diesen Bot oder unter support@kovravpn.com.",
             "Mit der Nutzung des Dienstes – durch Registrierung, Zahlung oder Zugriff auf Inhalte – bestätigen Sie, dass Sie diese Bedingungen vollständig gelesen haben und akzeptieren. Wenn Sie nicht einverstanden sind, müssen Sie die Nutzung des Dienstes einstellen."
           ]
         },
@@ -671,15 +673,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "4. Tarife und Zahlung",
           "p": [
             "Der Dienst wird als im Voraus bezahltes Abonnement angeboten. Tarife, Laufzeiten, Preise und die Anzahl der Geräte werden zum Zeitpunkt des Kaufs auf der Website angezeigt.",
-            "Die Zahlung erfolgt in Kryptowährung über externe Zahlungsdienstleister. Ein Abonnement wird aktiviert, sobald die entsprechende Zahlung in der jeweiligen Blockchain bestätigt ist.",
+            "Die Zahlung erfolgt per Karte oder in Kryptowährung über externe Zahlungsdienstleister. Ein Abonnement wird aktiviert, sobald der Zahlungsdienstleister die Zahlung bestätigt; eine Kryptowährungszahlung wird in ihrer Blockchain bestätigt. Die Preise sind in US-Dollar festgelegt: Ein Kartenzahlungsdienstleister kann in einer anderen Währung zu seinem Wechselkurs abbuchen, und Ihre Bank kann eine Gebühr erheben.",
             "Kryptowährungstransaktionen sind unwiderruflich. Sie sind dafür verantwortlich, den korrekten Betrag im korrekten Asset an die beim Bezahlvorgang angegebene Adresse zu senden."
           ]
         },
         {
           "h": "5. Erstattungen",
           "p": [
-            "Da der Dienst ein immaterieller digitaler Dienst ist, der mit unwiderruflichen Kryptowährungstransaktionen bezahlt wird, sind Zahlungen nach Aktivierung eines Abonnements grundsätzlich nicht erstattungsfähig.",
-            "Eine Erstattung kommt nur in Betracht, wenn der Dienst aus einem von uns zu vertretenden Grund nicht erbracht wurde, bestätigt durch eine innerhalb von 14 Tagen nach der Zahlung eingereichte Support-Anfrage. Genehmigte Erstattungen erfolgen an dieselbe Wallet und im selben Asset, mit dem bezahlt wurde, abzüglich etwaiger Netzwerkgebühren.",
+            "Da der Dienst ein immaterieller digitaler Dienst ist, sind Zahlungen nach Aktivierung eines Abonnements grundsätzlich nicht erstattungsfähig.",
+            "Eine Erstattung kommt nur in Betracht, wenn der Dienst aus einem von uns zu vertretenden Grund nicht erbracht wurde, bestätigt durch eine innerhalb von 14 Tagen nach der Zahlung eingereichte Support-Anfrage. Genehmigte Erstattungen gehen an die ursprüngliche Zahlungsart zurück: eine Kartenzahlung auf dieselbe Karte, eine Kryptowährungszahlung an dieselbe Wallet und im selben Asset, abzüglich etwaiger Netzwerkgebühren.",
             "Wir empfehlen, zunächst die kürzeste verfügbare Laufzeit zu erwerben, um die Kompatibilität mit Ihren Geräten und Ihrem Netzwerk zu prüfen, bevor Sie einen längeren Zeitraum buchen."
           ]
         },
@@ -731,9 +733,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "13. Anwendbares Recht und Streitbeilegung",
+          "h": "13. Beschwerden",
           "p": [
-            "Diese Bedingungen unterliegen dem Recht von Seychelles. Streitigkeiten, die nicht einvernehmlich beigelegt werden können, werden durch verbindliches Schiedsverfahren oder vor den zuständigen Gerichten von Seychelles beigelegt, soweit zwingendes anwendbares Recht dies zulässt."
+            "Wenn Sie eine Beschwerde haben, wenden Sie sich zuerst an den Support; wir versuchen, sie gemeinsam mit Ihnen zu lösen. Nichts in diesen Bedingungen schränkt die Rechte ein, die Ihnen das zwingende Verbraucherschutzrecht des Landes gewährt, in dem Sie leben."
           ]
         },
         {
@@ -746,13 +748,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Datenschutzerklärung",
-      "updated": "Zuletzt aktualisiert: 11. Juni 2026",
+      "updated": "Zuletzt aktualisiert: 2. Oktober 2026",
       "related": "Zugehörige Dokumente",
       "sections": [
         {
           "h": "1. Allgemeines",
           "p": [
-            "Diese Datenschutzerklärung (die „Erklärung“) beschreibt, wie der Betreiber von Kovra (Kovra Ltd., „wir“, der Verantwortliche) Informationen erhebt, verwendet und schützt, die Sie bei der Nutzung des Dienstes unter kovravpn.com und über den Telegram-Bot @KovraVPN_bot bereitstellen.",
+            "Diese Datenschutzerklärung (die „Erklärung“) beschreibt, wie Kovra (der Dienst; „wir“, der Verantwortliche für die hier beschriebenen Daten) Informationen erhebt, verwendet und schützt, die Sie bei der Nutzung des Dienstes unter kovravpn.com und über den Telegram-Bot @KovraVPN_bot bereitstellen. Sie erreichen uns über diesen Bot oder unter support@kovravpn.com.",
             "Mit der Nutzung des Dienstes akzeptieren Sie diese Erklärung. Wenn Sie nicht einverstanden sind, müssen Sie die Nutzung des Dienstes einstellen."
           ]
         },
@@ -761,7 +763,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "p": [
             "Wir erheben nur die für den Betrieb des Dienstes erforderlichen Daten:",
             "• eine Telegram-Kennung (Benutzer-ID, Benutzername, Name), wenn Sie sich über den Telegram-Bot registrieren, oder eine E-Mail-Adresse, wenn Sie sich über die Website registrieren;",
-            "• technische Verbindungsdaten (die IP-Adresse Ihres Geräts zum Zeitpunkt der Zahlung und beim Verbinden mit einem Knoten sowie grundlegende Informationen zum VPN-Client);",
+            "• technische Verbindungsdaten: die IP-Adresse Ihres Geräts zum Zeitpunkt der Zahlung und beim Verbinden mit einem Knoten sowie die Hardwarekennung (HWID), die Ihre VPN-App übermittelt; sie bindet jeden Abonnement-Link an ein Gerät und wird bis zu 365 Tage oder bis zum Zurücksetzen dieses Geräts gespeichert;",
             "• Abonnement- und Zahlungsmetadaten (Tarif, Laufzeit, Transaktionskennungen);",
             "• Dienstprotokolle der Interaktionen mit dem Bot und der Website-Oberfläche.",
             "Wir fordern und speichern keine Ausweisdokumente, Fotos oder Zahlungskartendaten."
@@ -786,15 +788,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "6. Zahlungen mit Kryptowährung",
+          "h": "6. Zahlungen",
           "p": [
-            "Zahlungen werden von externen Kryptowährungs-Zahlungsdienstleistern abgewickelt. Wir speichern keine Karten- oder Wallet-Zugangsdaten. Beachten Sie, dass Blockchain-Transaktionen ihrer Natur nach öffentlich sind und On-Chain-Daten außerhalb unserer Kontrolle liegen."
+            "Zahlungen werden von externen Zahlungsdienstleistern abgewickelt, für Karten und für Kryptowährung. Wir speichern keine Kartendaten oder Wallet-Zugangsdaten. Auf der Kartenabrechnung kann der Händlername des Zahlungsdienstleisters statt Kovra stehen. Beachten Sie, dass Blockchain-Transaktionen ihrer Natur nach öffentlich sind und On-Chain-Daten außerhalb unserer Kontrolle liegen."
           ]
         },
         {
           "h": "7. Weitergabe von Daten",
           "p": [
-            "Wir verkaufen Ihre Daten nicht. Wir geben die mindestens erforderlichen Daten an Zahlungsdienstleister weiter, um eine Transaktion abzuschließen, an Behörden, soweit dies gesetzlich im ordnungsgemäßen Verfahren erforderlich ist, und im Übrigen nur mit Ihrer ausdrücklichen Einwilligung."
+            "Wir verkaufen Ihre Daten nicht. Wir geben die mindestens erforderlichen Daten an Zahlungsdienstleister weiter, um eine Transaktion abzuschließen, an unseren Hosting- und Analyseanbieter Vercel für den Betrieb der Website, an Behörden, soweit dies gesetzlich im ordnungsgemäßen Verfahren erforderlich ist, und im Übrigen nur mit Ihrer ausdrücklichen Einwilligung."
           ]
         },
         {
@@ -817,9 +819,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "11. Cookies",
+          "h": "11. Cookies und Analyse",
           "p": [
-            "Die Website verwendet nur technische Cookies, die für die Oberfläche und zur Aufrechterhaltung Ihrer authentifizierten Sitzung erforderlich sind. Wir verwenden keine Analyse- oder Werbe-Cookies Dritter."
+            "Die Website verwendet technische Cookies, die für die Oberfläche und für Ihre Anmeldung erforderlich sind. Außerdem nutzt sie Vercel Web Analytics und Vercel Speed Insights unseres Hosting-Anbieters Vercel: Sie zählen Seitenaufrufe und messen die Ladegeschwindigkeit in aggregierter Form und verwenden keine Cookies. Wenn Sie über einen Link mit Kampagnen-Parametern (utm_…) kommen, speichert die Website diese im lokalen Speicher Ihres Browsers und hängt sie an Registrierungs- und Zahlungsereignisse in dieser Analyse an. Werbe-Cookies verwenden wir nicht."
           ]
         },
         {
@@ -852,13 +854,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
   "fr": {
     "terms": {
       "title": "Conditions d'utilisation",
-      "updated": "Dernière mise à jour : 11 juin 2026",
+      "updated": "Dernière mise à jour : 2 octobre 2026",
       "related": "Documents associés",
       "sections": [
         {
           "h": "1. Dispositions générales",
           "p": [
-            "Les présentes Conditions d'utilisation (les « Conditions ») régissent l'utilisation du service Kovra (le « Service »), accessible sur kovravpn.com et via le bot Telegram @KovraVPN_bot, exploité par Kovra Ltd. (l'« Opérateur », « nous »).",
+            "Les présentes Conditions d'utilisation (les « Conditions ») régissent l'utilisation de Kovra (le service ; le « Service », « nous »), accessible sur kovravpn.com et via le bot Telegram @KovraVPN_bot. Vous pouvez nous joindre via ce bot ou à support@kovravpn.com.",
             "En utilisant le Service — en vous inscrivant, en payant ou en accédant à un contenu — vous confirmez avoir lu et accepté intégralement les présentes Conditions. Si vous n'êtes pas d'accord, vous devez cesser d'utiliser le Service."
           ]
         },
@@ -881,15 +883,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "h": "4. Offres et paiement",
           "p": [
             "Le Service est proposé sous forme d'abonnements prépayés. Les offres, durées, prix et le nombre d'appareils sont indiqués sur le site web au moment de l'achat.",
-            "Le paiement est accepté en cryptomonnaie via des prestataires de paiement tiers. Un abonnement est activé une fois le paiement correspondant confirmé sur la blockchain concernée.",
+            "Le paiement est accepté par carte ou en cryptomonnaie via des prestataires de paiement tiers. Un abonnement est activé dès que le prestataire confirme le paiement ; un paiement en cryptomonnaie est confirmé sur sa blockchain. Les prix sont fixés en dollars américains : un prestataire de paiement par carte peut vous débiter dans une autre devise à son taux de change, et votre banque peut ajouter des frais.",
             "Les transactions en cryptomonnaie sont irréversibles. Vous êtes responsable de l'envoi du montant correct dans l'actif correct à l'adresse indiquée lors du paiement."
           ]
         },
         {
           "h": "5. Remboursements",
           "p": [
-            "Le Service étant un service numérique immatériel payé au moyen de transactions en cryptomonnaie irréversibles, les paiements ne sont, en règle générale, pas remboursables une fois l'abonnement activé.",
-            "Un remboursement ne peut être envisagé que si le Service n'a pas été fourni en raison d'une faute de notre part, confirmée par une demande au support soumise dans les 14 jours suivant le paiement. Les remboursements approuvés sont effectués vers le même portefeuille et dans le même actif que celui utilisé pour le paiement, déduction faite des frais de réseau.",
+            "Le Service étant un service numérique immatériel, les paiements ne sont, en règle générale, pas remboursables une fois l'abonnement activé.",
+            "Un remboursement ne peut être envisagé que si le Service n'a pas été fourni en raison d'une faute de notre part, confirmée par une demande au support soumise dans les 14 jours suivant le paiement. Les remboursements approuvés sont effectués vers le moyen de paiement d'origine : un paiement par carte sur la même carte, un paiement en cryptomonnaie vers le même portefeuille et dans le même actif, déduction faite des frais de réseau.",
             "Nous recommandons d'acheter d'abord la durée minimale disponible afin de vérifier la compatibilité avec vos appareils et votre réseau avant de souscrire une période plus longue."
           ]
         },
@@ -941,9 +943,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "13. Droit applicable et règlement des litiges",
+          "h": "13. Réclamations",
           "p": [
-            "Les présentes Conditions sont régies par le droit de Seychelles. Tout litige ne pouvant être résolu à l'amiable sera tranché par arbitrage contraignant ou par les tribunaux compétents de Seychelles, dans la mesure permise par les dispositions impératives applicables."
+            "Si vous avez une réclamation, écrivez d'abord au support : nous chercherons à la résoudre avec vous. Rien dans les présentes Conditions ne limite les droits que vous confère le droit impératif de la protection des consommateurs du pays où vous vivez."
           ]
         },
         {
@@ -956,13 +958,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Politique de confidentialité",
-      "updated": "Dernière mise à jour : 11 juin 2026",
+      "updated": "Dernière mise à jour : 2 octobre 2026",
       "related": "Documents associés",
       "sections": [
         {
           "h": "1. Dispositions générales",
           "p": [
-            "La présente Politique de confidentialité (la « Politique ») explique comment l'Opérateur de Kovra (Kovra Ltd., « nous », le responsable du traitement) collecte, utilise et protège les informations que vous fournissez lors de l'utilisation du Service sur kovravpn.com et via le bot Telegram @KovraVPN_bot.",
+            "La présente Politique de confidentialité (la « Politique ») explique comment Kovra (le service ; « nous », le responsable des données décrites ici) collecte, utilise et protège les informations que vous fournissez lors de l'utilisation du Service sur kovravpn.com et via le bot Telegram @KovraVPN_bot. Vous pouvez nous joindre via ce bot ou à support@kovravpn.com.",
             "En utilisant le Service, vous acceptez la présente Politique. Si vous n'êtes pas d'accord, vous devez cesser d'utiliser le Service."
           ]
         },
@@ -971,7 +973,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           "p": [
             "Nous ne collectons que les données nécessaires au fonctionnement du Service :",
             "• un identifiant Telegram (ID utilisateur, nom d'utilisateur, nom) si vous vous inscrivez via le bot Telegram, ou une adresse e-mail si vous vous inscrivez via le site web ;",
-            "• des données techniques de connexion (l'adresse IP de votre appareil au moment du paiement et lors de la connexion à un nœud, ainsi que des informations de base sur le client VPN) ;",
+            "• des données techniques de connexion : l'adresse IP de votre appareil au moment du paiement et lors de la connexion à un nœud, ainsi que l'identifiant matériel (HWID) envoyé par votre application VPN, qui lie chaque lien d'abonnement à un seul appareil et est conservé jusqu'à 365 jours ou jusqu'à la réinitialisation de cet appareil ;",
             "• des métadonnées d'abonnement et de paiement (offre, durée, identifiants de transaction) ;",
             "• des journaux de service des interactions avec le bot et l'interface du site web.",
             "Nous ne demandons ni ne conservons de pièces d'identité, de photographies ou de données de carte de paiement."
@@ -996,15 +998,15 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "6. Paiements en cryptomonnaie",
+          "h": "6. Paiements",
           "p": [
-            "Les paiements sont traités par des prestataires de paiement en cryptomonnaie tiers. Nous ne conservons aucune donnée de carte ou de portefeuille. Notez que les transactions sur la blockchain sont par nature publiques et que les données on-chain échappent à notre contrôle."
+            "Les paiements sont traités par des prestataires de paiement tiers, pour les cartes et pour les cryptomonnaies. Nous ne conservons aucune donnée de carte ni identifiant de portefeuille. Le relevé de carte peut indiquer le nom commercial du prestataire plutôt que Kovra. Notez que les transactions sur la blockchain sont par nature publiques et que les données on-chain échappent à notre contrôle."
           ]
         },
         {
           "h": "7. Partage des données",
           "p": [
-            "Nous ne vendons pas vos données. Nous communiquons le minimum de données nécessaire aux prestataires de paiement pour réaliser une transaction, aux autorités lorsque la loi l'exige selon la procédure appropriée et, à défaut, uniquement avec votre consentement explicite."
+            "Nous ne vendons pas vos données. Nous communiquons le minimum de données nécessaire aux prestataires de paiement pour réaliser une transaction, à notre hébergeur et fournisseur d'analyse Vercel pour faire fonctionner le site, aux autorités lorsque la loi l'exige selon la procédure appropriée et, à défaut, uniquement avec votre consentement explicite."
           ]
         },
         {
@@ -1027,9 +1029,9 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
           ]
         },
         {
-          "h": "11. Cookies",
+          "h": "11. Cookies et mesure d'audience",
           "p": [
-            "Le site web utilise uniquement des cookies techniques nécessaires à l'interface et au maintien de votre session authentifiée. Nous n'utilisons pas de cookies d'analyse ou de publicité tiers."
+            "Le site utilise des cookies techniques nécessaires à l'interface et au maintien de votre connexion. Il utilise aussi Vercel Web Analytics et Vercel Speed Insights de notre hébergeur, Vercel : ils comptent les pages vues et mesurent la vitesse des pages de manière agrégée et n'utilisent pas de cookies. Si vous arrivez par un lien avec des paramètres de campagne (utm_…), le site conserve ces paramètres dans le stockage local de votre navigateur et les associe aux événements d'inscription et de paiement dans cette mesure d'audience. Nous n'utilisons pas de cookies publicitaires."
           ]
         },
         {

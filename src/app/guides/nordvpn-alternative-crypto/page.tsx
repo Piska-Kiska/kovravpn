@@ -25,7 +25,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "What should a crypto-first VPN alternative offer?",
-    a: "Three things together: signup without an email or phone, native crypto invoicing in coins like USDT and BTC with automatic activation, and a no-logs posture you can sanity-check from the outside. A provider that has all three treats anonymity as the product rather than a checkout option.",
+    a: "Three things together: signup without an email or phone, crypto as a first-class checkout in coins like USDT and BTC with automatic activation, and a published list of what the provider keeps that you can sanity-check from the outside. A provider that has all three treats anonymity as the product rather than a checkout option.",
   },
   {
     q: "Is a smaller VPN safer than a big brand like NordVPN?",
@@ -85,14 +85,14 @@ export default function Page() {
       <h2>What a real crypto-first alternative offers</h2>
       <ul>
         <li>
-          <strong>No email, no phone at signup.</strong> A Telegram login,
-          a one-field form or a random account number. Nothing durable to
-          subpoena or breach.
+          <strong>No email, no phone at signup.</strong> A Telegram login
+          or a random account number instead of a contact address.
         </li>
         <li>
-          <strong>Native crypto invoicing.</strong> USDT, BTC and other
-          coins as first-class checkout with automatic activation, not a
-          reluctant BitPay button. Fees and networks are covered in the{" "}
+          <strong>Crypto as a first-class checkout.</strong> USDT, BTC and
+          other coins with automatic activation. Every provider here,
+          Kovra included, takes them through a payment processor. Fees and
+          networks are covered in the{" "}
           <Link href="/guides/pay-for-vpn-with-crypto">
             crypto payment guide
           </Link>
@@ -108,9 +108,10 @@ export default function Page() {
         </li>
         <li>
           <strong>Traffic that does not look like a VPN.</strong> On
-          filtered networks, NordLynx and OpenVPN are classified by DPI in
-          milliseconds. Camouflage protocols keep working where the brand
-          names go dark.
+          filtered networks, standard protocols such as WireGuard (which
+          NordLynx builds on) and OpenVPN are easier for DPI to classify.
+          Camouflage protocols are built to look like ordinary HTTPS; none
+          is guaranteed on every network.
         </li>
       </ul>
 
@@ -121,65 +122,57 @@ export default function Page() {
             <tr>
               <th></th>
               <th>NordVPN</th>
-              <th>Kovra</th>
+              <th>Kovra (ours)</th>
               <th>Mullvad</th>
               <th>IVPN</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>Email required</td>
+              <td>Email at signup</td>
               <td>Yes</td>
-              <td>No</td>
-              <td>No</td>
+              <td>Optional: Telegram signup needs none</td>
+              <td>No (account number)</td>
               <td>No</td>
             </tr>
             <tr>
-              <td>Crypto payment</td>
-              <td>Via processor</td>
-              <td>Native: USDT, BTC, ETH</td>
-              <td>BTC, Monero, cash</td>
-              <td>BTC, Monero</td>
+              <td>Crypto</td>
+              <td>BTC, ETH, LTC and stablecoins via CoinPayments</td>
+              <td>USDT, USDC, BTC, ETH and more via NOWPayments</td>
+              <td>BTC, BCH, Monero; also cash</td>
+              <td>BTC, Lightning, Monero; also cash</td>
             </tr>
             <tr>
-              <td>Protocol</td>
-              <td>NordLynx (WireGuard)</td>
+              <td>Main protocol</td>
+              <td>NordLynx (WireGuard-based)</td>
               <td>VLESS + Reality</td>
               <td>WireGuard</td>
-              <td>WireGuard + bridges</td>
-            </tr>
-            <tr>
-              <td>Survives DPI blocking</td>
-              <td>Weak</td>
-              <td>Strong by design</td>
-              <td>Weak</td>
-              <td>Moderate</td>
-            </tr>
-            <tr>
-              <td>Built for</td>
-              <td>Streaming, mainstream</td>
-              <td>Anonymity, censored networks</td>
-              <td>Anonymity, open networks</td>
-              <td>Anonymity, power users</td>
+              <td>WireGuard, with v2Ray and obfsproxy obfuscation</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="gd-source">
+        Sources, checked 2 October 2026: NordVPN&apos;s help page on payment
+        methods, Mullvad&apos;s and IVPN&apos;s pricing pages, Kovra&apos;s
+        own checkout.
+      </p>
 
       <h2>Where Kovra fits</h2>
       <p>
-        Kovra is the crypto-first shape of this list: signup through
-        Telegram or a single field, USDT and BTC as the primary checkout
-        with cards as the fallback rather than the default, and VLESS with
-        the Reality transport underneath, which presents as ordinary TLS to
-        a real website instead of a recognizable VPN handshake. That last
+        Kovra (ours) is the crypto-first shape of this list: signup through
+        Telegram with no email (or with email on the website), crypto
+        invoices or a card at checkout, and VLESS with the Reality
+        transport underneath, which presents as ordinary TLS to a real
+        website instead of a recognizable VPN handshake. That last
         part matters if you ever use networks that filter: the{" "}
         <Link href="/guides/vless-reality-protocol">
           protocol explainer
         </Link>{" "}
         shows why camouflage beats obfuscation add-ons. Honest caveats:
-        the server footprint is European rather than global, and unblocking
-        streaming catalogs is not the goal. If those are your priorities,
+        locations in Europe, the US and Asia rather than a global map,
+        BitTorrent blocked on all servers, and unblocking streaming catalogs
+        is not the goal. If those are your priorities,
         Mullvad and even Nord itself remain valid picks for those specific
         jobs.
       </p>
@@ -191,12 +184,13 @@ export default function Page() {
           overlap to test.
         </li>
         <li>
-          Create the new account with zero identity: no email, crypto at
-          checkout. The{" "}
+          Create the new account with as little identity as possible: no
+          email, crypto at checkout. The{" "}
           <Link href="/guides/vpn-that-accepts-usdt">
             USDT walkthrough
           </Link>{" "}
-          takes about five minutes end to end.
+          shows each step; activation waits for the network confirmation,
+          which Kovra&apos;s checkout puts at usually 5–30 minutes.
         </li>
         <li>
           Move devices one at a time and keep notes for a week: speed,

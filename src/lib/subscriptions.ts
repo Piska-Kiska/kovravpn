@@ -20,16 +20,30 @@
 //   device    — add-on,    1 slot,  fixed 30 days
 //   referral  — reward,    1 slot,  fixed 14 days (granted free by webhook)
 //
-// Pricing is authoritative HERE (server). The landing/dashboard mirror these
-// numbers for display only; the server always recomputes the charge.
+// Pricing is authoritative in plan-prices.ts and re-exported here. The
+// landing pages import the same module; the server always recomputes the
+// charge.
 
 import { redis } from "./redis";
 import { randomBytes } from "crypto";
 import { acquireLock } from "./ratelimit";
+import {
+  PLAN_PRICES,
+  PLAN_SLOTS,
+  DEVICE_ADDON_PRICE,
+  DEVICE_ADDON_DAYS,
+  MAX_SLOTS,
+  type PlanKind,
+  type PlanPrice,
+  type Term,
+} from "./plan-prices";
+
+// Prices live in plan-prices.ts (no I/O) so the landing pages render the
+// numbers the server charges; they are re-exported here for the callers.
+export { PLAN_PRICES, PLAN_SLOTS, DEVICE_ADDON_PRICE, DEVICE_ADDON_DAYS, MAX_SLOTS };
+export type { PlanKind, PlanPrice, Term };
 
 export type SubKind = "plan1" | "plan3" | "device" | "referral";
-export type PlanKind = "plan1" | "plan3";
-export type Term = 1 | 6 | 12;
 
 export interface Subscription {
   id: string;
@@ -42,41 +56,7 @@ export interface Subscription {
 const DAY_MS = 86_400_000;
 const MONTH_DAYS = 30;
 
-// ─── Pricing (USD) ────────────────────────────────────
-// price = total charge for the whole term, in USD.
-// perMonth is derived for display. Keep in sync with landing TERMS.
-
-export interface PlanPrice {
-  term: Term;
-  total: number;   // USD charged once (crypto)
-  perMonth: number; // USD/mo (display)
-  refMonthly: number; // reference monthly (1-mo price) for "save vs" display
-}
-
-export const PLAN_SLOTS: Record<PlanKind, number> = {
-  plan1: 1,
-  plan3: 3,
-};
-
-// plan1 = 1 device. Base $5/mo. 6mo -25%, 12mo -45% (mirrors plan3 discount curve).
-// plan3 = 3 devices. From landing: 1mo 11.99, 6mo 8.99/mo, 12mo 6.59/mo.
-export const PLAN_PRICES: Record<PlanKind, Record<Term, PlanPrice>> = {
-  plan1: {
-    1:  { term: 1,  total: 5.0,   perMonth: 5.0,  refMonthly: 5.0 },
-    6:  { term: 6,  total: 22.5,  perMonth: 3.75, refMonthly: 5.0 },
-    12: { term: 12, total: 33.0,  perMonth: 2.75, refMonthly: 5.0 },
-  },
-  plan3: {
-    1:  { term: 1,  total: 11.99, perMonth: 11.99, refMonthly: 11.99 },
-    6:  { term: 6,  total: 53.94, perMonth: 8.99,  refMonthly: 11.99 },
-    12: { term: 12, total: 79.08, perMonth: 6.59,  refMonthly: 11.99 },
-  },
-};
-
-export const DEVICE_ADDON_PRICE = 5.0; // USD, 30 days, 1 slot
-export const DEVICE_ADDON_DAYS = 30;
 export const REFERRAL_REWARD_DAYS = 14; // free, 1 slot
-export const MAX_SLOTS = 100; // hard ceiling on total active slots
 
 export interface PlanResolved {
   kind: PlanKind;

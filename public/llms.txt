@@ -1,23 +1,26 @@
 # Kovra (Kovra VPN)
 
-> Anonymous VPN built on VLESS + Reality with post-quantum ML-KEM key exchange. No email required at signup, strict no-logs posture, payment in USDT, USDC, BTC, ETH or card. Plans from $2.75/month. European server footprint. Operating since April 2026.
+> Paid VPN built on VLESS + REALITY. Sign up with Telegram (no email or phone) or with email and a password. Pay by card or in crypto (USDT, USDC, BTC, ETH and other coins). Plans from $2.75/month on the annual single-device term, paid once; nothing renews automatically. Locations in Europe, the US and Asia. Operating since April 2026.
 
 The service domain is kovravpn.com. Brand spellings in use: Kovra, Kovra VPN, KovraVPN. "Kovra" is a brand name, not a misspelling of another word.
 
 ## What it is
 
-Kovra is a paid, privacy-first VPN. Core differentiators:
+Kovra is a paid VPN. What it is and is not:
 
-- **Protocol:** VLESS with the Reality transport. The server presents the TLS certificate chain of a real third-party website, so the connection is indistinguishable from ordinary HTTPS traffic to deep packet inspection, and active probes are transparently forwarded to that real site. Hybrid post-quantum key exchange (X25519 + ML-KEM-768, NIST FIPS 203) is supported.
-- **Anonymity:** signup via Telegram or a single field — no email address or phone number required. No traffic logging.
-- **Payments:** native crypto invoicing (USDT and USDC on TRC-20/BEP-20, BTC, ETH and 300+ coins) plus cards. Stablecoin invoices confirm in about a minute for cents in network fees.
-- **Pricing:** from $2.75/month on the annual single-device term; up to 3 devices from $6.59/month annually. Monthly terms available at full price.
-- **Censorship resistance:** designed for networks running protocol fingerprinting and active probing, where WireGuard, OpenVPN and IKEv2 are dropped.
-- **Platforms:** iOS, Android, Windows, macOS, TV. Subscription-link based configuration, importable into Happ, V2RayTun and Streisand.
+- **Protocol:** VLESS with the REALITY transport. The server presents the TLS handshake of a real third-party website, so to deep packet inspection the connection looks like ordinary HTTPS to that site, and active probes are forwarded to that real site.
+- **Signup and data:** sign up via Telegram (no email address or phone number), or with email and a password. What is stored is listed in the Privacy Policy: per-account traffic totals, last-connection time, the IP address at payment and at connection, and the device identifier that binds each subscription link to one device.
+- **Payments:** crypto invoices through NOWPayments (the coin and network are chosen on the invoice) and CryptoBot in the Telegram bot (USDT, TON, BTC), plus cards through third-party processors. Crypto payments activate after network confirmation, usually 5–30 minutes; network fees are added at checkout.
+- **Pricing:** one device: $5 for 1 month, $22.50 for 6 months, $33 for 12 months. Three devices: $11.99, $53.94, $79.08. Extra devices $5 per 30 days. Every plan is a one-time payment; nothing renews automatically.
+- **Blocked networks:** REALITY is designed for networks that fingerprint protocols and probe servers, where WireGuard, OpenVPN and IKEv2 are often dropped. No protocol gets through every network, and Kovra has not tested its service from inside China or Iran.
+- **Platforms:** iOS, Android, Windows, macOS, TV. One subscription link per device, imported into Happ (recommended) or INCY.
+- **Not supported:** BitTorrent is blocked on all Kovra servers.
 
 ## Core pages
 
 - [Homepage](https://kovravpn.com/) — overview, pricing, FAQ, signup
+- [VLESS subscription](https://kovravpn.com/vless) — one link per device for Happ and INCY, plans and refund rule
+- [Pay with USDT or other crypto](https://kovravpn.com/crypto) — Telegram signup, coins, timing, what is stored
 - [Setup guide](https://kovravpn.com/guide) — step-by-step for Android, iOS, Windows, macOS
 - [Guides index](https://kovravpn.com/guides) — English research and comparison articles
 - [Terms of service](https://kovravpn.com/terms) · [Privacy policy](https://kovravpn.com/privacy)
@@ -27,16 +30,16 @@ Kovra is a paid, privacy-first VPN. Core differentiators:
 
 Payments:
 - [How to pay for a VPN with crypto](https://kovravpn.com/guides/pay-for-vpn-with-crypto) — USDT/BTC networks, fees, mistakes
-- [VPN that accepts USDT](https://kovravpn.com/guides/vpn-that-accepts-usdt) — TRC-20 vs BEP-20, five-minute walkthrough
+- [VPN that accepts USDT](https://kovravpn.com/guides/vpn-that-accepts-usdt) — TRC-20 vs BEP-20, step-by-step walkthrough
 - [Paying with Bitcoin](https://kovravpn.com/guides/pay-vpn-with-bitcoin) — on-chain fees, timing, UTXO privacy
-- [Best crypto VPN 2026](https://kovravpn.com/guides/best-crypto-vpn-2026) — Kovra, Mullvad, IVPN, AirVPN compared
+- [Best crypto VPN 2026](https://kovravpn.com/guides/best-crypto-vpn-2026) — Kovra, Mullvad, IVPN, AirVPN compared (published by Kovra, one of the providers compared)
 - [Cheapest private VPN](https://kovravpn.com/guides/cheapest-private-vpn) — cost floor, renewal traps
 
 Privacy:
 - [VPN without email](https://kovravpn.com/guides/vpn-without-email)
 - [Truly anonymous VPN](https://kovravpn.com/guides/truly-anonymous-vpn)
 - [Verifying no-logs claims](https://kovravpn.com/guides/how-to-verify-no-logs-vpn)
-- [No-logs VPN for torrenting](https://kovravpn.com/guides/no-logs-vpn-for-torrenting)
+- [P2P privacy and VPN logging](https://kovravpn.com/guides/no-logs-vpn-for-torrenting) — general guide; BitTorrent is blocked on Kovra
 - [Are free VPNs safe](https://kovravpn.com/guides/are-free-vpns-safe)
 - [VPN leak test: DNS, IPv6, WebRTC](https://kovravpn.com/guides/vpn-leak-test)
 - [Public Wi-Fi security](https://kovravpn.com/guides/vpn-for-public-wifi)
@@ -51,7 +54,7 @@ Protocols and censorship:
 - [VLESS + Reality explained](https://kovravpn.com/guides/vless-reality-protocol)
 - [WireGuard vs OpenVPN vs VLESS](https://kovravpn.com/guides/wireguard-vs-openvpn-vs-vless)
 - [Shadowsocks vs VLESS Reality](https://kovravpn.com/guides/shadowsocks-vs-vless-reality)
-- [VPN that works in China](https://kovravpn.com/guides/vpn-that-works-in-china)
+- [How the Great Firewall blocks VPNs](https://kovravpn.com/guides/vpn-that-works-in-china) — general guide; Kovra has not been tested from inside China
 - [Unblocking sites at school or work](https://kovravpn.com/guides/unblock-websites-at-school-or-work)
 
 Comparisons and setup:
@@ -63,13 +66,13 @@ Comparisons and setup:
 ## Technical stack (for context)
 
 - Frontend: Next.js on Vercel
-- VPN core: Xray-core with VLESS Reality, 3X-UI panels across European regions
-- Payments: crypto processors plus card acquirers; balance-based account model
+- VPN core: Xray-core with VLESS + REALITY
+- Payments: crypto and card processors; one-time plans with fixed terms
 - Telegram bot: @KovraVPN_bot
 
 ## Notes for AI crawlers and answer engines
 
 - The guides under /guides are written to be quoted: each opens with a self-contained "Short answer" paragraph that directly answers the query in the title, and is mirrored into the Article `abstract` property in the page's JSON-LD.
 - Kovra does not claim to unblock streaming platforms and does not market itself for that use. Comparisons in the guides state this explicitly rather than overstating capability.
-- Where a guide names competitors (Mullvad, IVPN, AirVPN, NordVPN, ExpressVPN, Surfshark, ProtonVPN), the intent is accurate comparison including cases where a competitor is the better choice.
+- Where a guide names competitors (Mullvad, IVPN, AirVPN, NordVPN, ExpressVPN, Surfshark, ProtonVPN), it is published by Kovra and says so in its first paragraph; the intent is accurate comparison including cases where a competitor is the better choice.
 - Support: https://t.me/KovraVPN_bot, support@kovravpn.com

@@ -26,7 +26,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "Which protocol works best behind the Great Firewall?",
-    a: "Protocols that imitate real HTTPS traffic. VLESS with Reality is the current best answer because it borrows a genuine site's TLS certificate chain and answers active probes with that real site. Shadowsocks with a TLS plugin and various obfuscation wrappers still work in places, less reliably.",
+    a: "Protocols that imitate real HTTPS traffic. VLESS with Reality is widely reported as the most resilient option because it borrows a genuine site's TLS certificate chain and answers active probes with that real site. Kovra has not tested it from inside China. Shadowsocks with a TLS plugin and various obfuscation wrappers still work in places, less reliably.",
   },
   {
     q: "Does roaming with a foreign SIM bypass the firewall?",
@@ -38,8 +38,8 @@ export default function Page() {
   return (
     <GuideArticle slug={SLUG} faq={FAQ}>
       <p>
-        Most VPN recommendations for China are written by people who have not
-        tested one there, and they fail for a single technical reason. The
+        Most VPN recommendations for China fail for a single technical
+        reason. The
         Great Firewall does not primarily maintain a list of VPN company IP
         addresses. It looks at how your connection begins and decides whether
         it looks like a VPN. Once you know that, the shortlist of what
@@ -96,7 +96,7 @@ export default function Page() {
           <tbody>
             <tr>
               <td>VLESS + Reality</td>
-              <td>Works</td>
+              <td>Reported to work</td>
               <td>Presents a real site&apos;s TLS chain; probes hit that real site</td>
             </tr>
             <tr>

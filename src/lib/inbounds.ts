@@ -162,6 +162,25 @@ export async function getEnabledInbounds(): Promise<InboundEntry[]> {
   return all.filter((e) => e.enabled).sort((a, b) => a.priority - b.priority);
 }
 
+/**
+ * The enabled entries of the registry as Redis holds it right now, lowest
+ * priority first, or null when the key is empty or holds no valid entry. A
+ * Redis error is not caught: it rejects, and the caller decides.
+ *
+ * getEnabledInbounds() answers with DEFAULT_REGISTRY in those cases, which is
+ * right for subscriptions (a user keeps one working entry) and wrong for the
+ * public pages: that placeholder names a location Kovra does not have. This
+ * reads Redis directly, past the in-memory cache, because the cache cannot
+ * tell a live registry from the fallback. The entries carry connection
+ * parameters: only server code may call this, and only a country may leave it
+ * (src/lib/public-locations-server.ts).
+ */
+export async function getLiveEnabledInbounds(): Promise<InboundEntry[] | null> {
+  const entries = parseRegistry(await redis.get(REGISTRY_KEY));
+  if (!entries) return null;
+  return entries.filter((e) => e.enabled).sort((a, b) => a.priority - b.priority);
+}
+
 export async function getInboundByKey(
   key: string
 ): Promise<InboundEntry | null> {

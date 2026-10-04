@@ -86,7 +86,7 @@ export default function Page() {
         why WireGuard is the first thing filtered networks drop.
       </p>
 
-      <h2>VLESS with Reality: the invisible one</h2>
+      <h2>VLESS with Reality: the one that looks like HTTPS</h2>
       <p>
         VLESS is a deliberately thin transport from the Xray project: no
         encryption of its own, because it expects to run inside TLS, and no
@@ -99,9 +99,10 @@ export default function Page() {
       <p>
         Performance sits close to WireGuard: the encryption is the same class
         of modern AEAD, and the extra cost is one TLS handshake at connection
-        setup. It also supports hybrid post-quantum key exchange (X25519
-        combined with ML-KEM-768), which matters for anyone concerned about
-        recorded traffic being decrypted later. The trade is ecosystem
+        setup. Recent Xray releases also offer an optional hybrid
+        post-quantum key exchange (X25519 combined with ML-KEM-768), which
+        matters for anyone concerned about recorded traffic being decrypted
+        later; Kovra does not use it today. The trade is ecosystem
         maturity: fewer clients, no kernel implementation, and configuration
         that assumes a modern app rather than a router checkbox. Details in{" "}
         <Link href="/guides/vless-reality-protocol">
@@ -162,7 +163,7 @@ export default function Page() {
               <td>Post-quantum option</td>
               <td>No</td>
               <td>Via preshared keys only</td>
-              <td>Yes, ML-KEM hybrid</td>
+              <td>Optional ML-KEM hybrid in recent Xray</td>
             </tr>
             <tr>
               <td>Router and legacy support</td>
@@ -210,7 +211,8 @@ export default function Page() {
         </li>
         <li>
           <strong>Long-term confidentiality against recorded traffic:</strong>{" "}
-          a hybrid post-quantum key exchange, which today means Reality.
+          a hybrid post-quantum key exchange, which today means a recent
+          Xray build with ML-KEM enabled.
         </li>
       </ul>
 

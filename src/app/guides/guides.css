@@ -170,6 +170,20 @@
 .gd-related .gd-grid { padding-bottom: 0; }
 
 /* ── Short answer (featured-snippet block) ──────────── */
+.gd-source {
+  font-size: 13px !important;
+  line-height: 1.55;
+  color: var(--k-text-3) !important;
+}
+.gd-notice {
+  margin-top: 22px;
+  padding: 14px 18px;
+  border: 1px solid var(--k-border);
+  border-radius: 12px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--k-text-2);
+}
 .gd-answer {
   margin-top: 26px;
   padding: 20px 22px;

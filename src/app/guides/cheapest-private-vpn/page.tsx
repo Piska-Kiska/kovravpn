@@ -99,10 +99,10 @@ export default function Page() {
               <td>~€180</td>
             </tr>
             <tr>
-              <td>Annual term, honest renewal</td>
+              <td>Annual term paid once, no auto-renewal (Kovra, ours)</td>
               <td>$2.75/mo</td>
-              <td>Same</td>
-              <td>~$99</td>
+              <td>Same price to buy again</td>
+              <td>$99</td>
             </tr>
           </tbody>
         </table>
@@ -184,8 +184,8 @@ export default function Page() {
           how they run the business.
         </li>
         <li>
-          <strong>Pay in stablecoins if the provider invoices them
-          natively.</strong> No card fees, no billing address, no
+          <strong>Pay in stablecoins if the provider accepts
+          them.</strong> No card fees, no billing address, no
           subscription that renews itself silently — see{" "}
           <Link href="/guides/vpn-that-accepts-usdt">
             the USDT walkthrough
@@ -206,8 +206,8 @@ export default function Page() {
       <h2>Where the cheap end genuinely sits</h2>
       <p>
         Privacy-focused providers cluster between roughly $2.75 and $5 a
-        month on annual terms — Kovra&apos;s single-device annual plan at
-        $2.75, Mullvad&apos;s unchanging €5, IVPN&apos;s tiers, AirVPN&apos;s
+        month on annual terms — Kovra&apos;s (ours) single-device annual
+        plan at $2.75, Mullvad&apos;s unchanging €5, IVPN&apos;s tiers, AirVPN&apos;s
         long-term rates. That band is the honest floor, and the differences
         inside it are about protocol, jurisdiction and payment model rather
         than price. Which one fits which situation is laid out in{" "}
