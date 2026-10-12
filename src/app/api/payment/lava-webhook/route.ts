@@ -18,6 +18,14 @@
 //     превратил бы одно чужое событие в двадцать.
 //   • Возвраты и чарджбеки приходят в ДРУГОМ формате и номера контракта не
 //     содержат вовсе — связать их с покупкой автоматически нечем.
+//
+// КОНТРАКТ, КОТОРОГО «НЕТ» (11–12.10.2026). Их чтение по номеру стало отвечать
+// 404 на контракты, об оплате которых они сами только что прислали событие.
+// Здесь это читалось как «чужой контракт» и подтверждалось кодом 200 — а на 200
+// лава не повторяет: оплата терялась молча (так на соседнем сайте за два дня
+// не зачислилась ни одна). Теперь успех ищется вторым путём, в списке
+// исполненных контрактов того же ключа (lib/lava-lookup.ts). Контракт, который
+// выставили мы и которого нет и там, — не «чужой»: просим повторить и тревожим.
 
 import { NextRequest, NextResponse } from "next/server";
 import { markTopup, resolveUserId } from "@/lib/accounts";
@@ -35,13 +43,16 @@ import { grantReferralReward } from "@/lib/referrals";
 import { releaseDedupKey, reserveDedupKey } from "@/lib/dedup";
 import {
   LAVA_UTM_SOURCE,
-  LavaError,
+  findCompletedInvoice,
   getInvoice,
   isContractId,
+  isLavaNotFound,
   lavaConfigured,
   orderIdFor,
+  ownOrderIdFor,
   verifyWebhookAuth,
 } from "@/lib/lava";
+import { lookupContract } from "@/lib/lava-lookup";
 import { chargeIn, getCharge, priceUsdForOrderId } from "@/lib/lava-purchase";
 import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import type { LavaCurrency } from "@/lib/lava-methods";
@@ -57,6 +68,10 @@ const DEDUP_TTL_SEC = 90 * 86400;
 /** После какой по счёту попытки отставание их статуса перестаёт быть рябью. */
 const LAG_ALERT_AFTER = 5;
 const LAG_TTL_SEC = 6 * 60 * 60;
+/** «Их API не показывает оплаченный контракт» — не чаще раза на контракт за это время. */
+const NOT_VISIBLE_ALERT_TTL_SEC = 6 * 60 * 60;
+/** «Чтение по номеру не находит, взято из списка» — раз в сутки на всю линию. */
+const BY_ID_ALERT_TTL_SEC = 24 * 60 * 60;
 
 async function sendTelegram(chatId: string, text: string): Promise<void> {
   if (!chatId || !BOT_TOKEN) return;
@@ -69,6 +84,19 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
     });
   } catch (err) {
     console.error("[lava-webhook] sendTelegram error:", err);
+  }
+}
+
+/**
+ * Сообщение админу не чаще раза за `ttlSeconds` по ключу `key`.
+ *
+ * Никогда не бросает: сбой счётчика не должен менять ответ лаве.
+ */
+async function alertOnce(key: string, ttlSeconds: number, lines: readonly string[]): Promise<void> {
+  try {
+    if (await reserveDedupKey(key, ttlSeconds)) await sendTelegram(ADMIN_TG_ID, lines.join("\n"));
+  } catch (err) {
+    console.error("[lava-webhook] alert failed:", err);
   }
 }
 
@@ -187,17 +215,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: reason }, { status: 503 });
   };
 
-  // Источник правды — их API, а не присланное тело.
-  let invoice;
-  try {
-    invoice = await getInvoice(contractId);
-  } catch (err) {
-    if (err instanceof LavaError && err.status === 404) {
-      console.warn("[lava-webhook] unknown contract", contractId);
-      return NextResponse.json({ ok: true, ignored: "unknown contract" });
-    }
-    console.error("[lava-webhook] invoice fetch failed:", err);
+  // Источник правды — их API, а не присланное тело. По номеру, а успех,
+  // которого по номеру «нет», — ещё и по списку исполненных контрактов.
+  const lookup = await lookupContract(
+    { byId: getInvoice, inList: findCompletedInvoice, isNotFound: isLavaNotFound },
+    contractId,
+    event,
+  );
+  if (lookup.kind === "failed") {
+    console.error("[lava-webhook] invoice fetch failed:", lookup.error);
     return retry("upstream_unavailable");
+  }
+  if (lookup.kind === "unknown") {
+    // Их API контракта не знает. Чужой он или подделан — решают НАШИ записи
+    // (указатель и ожидаемая сумма, обе пишутся при выставлении счёта), а не
+    // их ответ: 404 по номеру они отдавали и на оплаченные контракты.
+    let ownOrderId: string | null = null;
+    if (event === "payment.success") {
+      try {
+        ownOrderId = (await ownOrderIdFor(contractId)) ?? (await getCharge(contractId))?.orderId ?? null;
+      } catch (err) {
+        console.error("[lava-webhook] contract lookup failed:", err);
+        return retry("storage_unavailable");
+      }
+    }
+    if (ownOrderId !== null) {
+      // Счёт выставляли мы, лава говорит «оплачен», а показать его не может.
+      // Подтвердить — значит потерять оплату: просим повторить (у них
+      // девятнадцать попыток за пять часов) и говорим об этом вслух.
+      console.error("[lava-webhook] paid contract their API does not show", contractId);
+      await alertOnce(`lava_not_visible_alert:${contractId}`, NOT_VISIBLE_ALERT_TTL_SEC, [
+        `⚠️ <b>lava.top: оплата пришла, а их API счёт не показывает</b>`,
+        ``,
+        `order <code>${esc(ownOrderId)}</code>`,
+        `contract <code>${esc(contractId)}</code>`,
+        ``,
+        `Событие об оплате пришло, но ни по номеру, ни в списке оплаченных счетов контракта нет. <b>Ничего НЕ выдано.</b>`,
+        `Лава повторит событие в течение пяти часов; если выдача так и не пришла — проверить контракт в кабинете и выдать вручную.`,
+      ]);
+      return retry("contract_not_visible");
+    }
+    // Не наш счёт: событие чужое либо поддельное. Просить повтор бессмысленно.
+    // Ключ освобождаем — мы ничего не сделали, и повторная отправка из
+    // кабинета не должна упереться в «дубликат».
+    console.warn("[lava-webhook] unknown contract", contractId);
+    await releaseDedupKey(dedupKey).catch(() => {});
+    return NextResponse.json({ ok: true, ignored: "unknown contract" });
+  }
+  const invoice = lookup.invoice;
+  if (lookup.via === "list") {
+    console.warn("[lava-webhook] contract not found by id, taken from the list", contractId);
+    await alertOnce("lava_by_id_404_alert", BY_ID_ALERT_TTL_SEC, [
+      `ℹ️ <b>lava.top: счёт не находится по номеру, взят из списка</b>`,
+      ``,
+      `contract <code>${esc(contractId)}</code>`,
+      ``,
+      `Чтение счёта по номеру у лавы отвечает «не найдено», оплата подтверждена по списку оплаченных счетов и обрабатывается как обычно.`,
+      `Делать ничего не нужно. Следующее такое сообщение — не раньше чем через сутки.`,
+    ]);
   }
 
 

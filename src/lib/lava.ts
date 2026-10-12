@@ -56,6 +56,7 @@ import {
   type LavaCurrency,
   type LavaMethodId,
 } from "./lava-methods";
+import { listDate, readCompletedPage } from "./lava-lookup";
 import { redis } from "./redis";
 
 /**
@@ -408,6 +409,93 @@ export function isContractId(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+/** Whether a read threw because their API does not know the contract. */
+export function isLavaNotFound(err: unknown): boolean {
+  return err instanceof LavaError && err.status === 404;
+}
+
+// ── Исполненные контракты нашего ключа ──────────────────────────────────────
+
+/** Contracts asked for per page (scripts/lava-check.mjs --recent asks the same). */
+const LIST_PAGE_SIZE = 100;
+/** Pages read at most in one call. */
+const LIST_MAX_PAGES = 10;
+
+export interface LavaCompletedList {
+  /** Executed contracts with a well-formed id, in the order their API gave them. */
+  readonly items: readonly LavaInvoice[];
+  /** The window holds more than LIST_MAX_PAGES pages: `items` is not all of it. */
+  readonly truncated: boolean;
+}
+
+/**
+ * The contracts of OUR API key that lava.top executed between `beginMs` and
+ * `endMs` — `GET /api/v2/invoices`, which answers with executed contracts
+ * only unless asked otherwise. Each page is read by `readCompletedPage`.
+ *
+ * The end of the list is their `total` when the page names one, otherwise a
+ * page that brings no new contract: a page shorter than the size asked for
+ * proves nothing while the largest size they honour is unknown. Each contract
+ * is returned once.
+ *
+ * Read-only, retried once on the network and 5xx like every read. Throws what
+ * `getInvoice` throws. O(pages), at most LIST_MAX_PAGES requests.
+ */
+export async function listCompletedInvoices(
+  beginMs: number,
+  endMs: number,
+): Promise<LavaCompletedList> {
+  if (!lavaConfigured) throw new Error(`lava is not configured: ${CONFIG_PROBLEM}`);
+  if (!Number.isFinite(beginMs) || !Number.isFinite(endMs) || beginMs >= endMs) {
+    throw new Error(`invalid window: ${beginMs}..${endMs}`);
+  }
+  const range =
+    `beginDate=${encodeURIComponent(listDate(beginMs))}` +
+    `&endDate=${encodeURIComponent(listDate(endMs))}`;
+  const items: LavaInvoice[] = [];
+  const ids = new Set<string>();
+  let rows = 0;
+  for (let page = 1; page <= LIST_MAX_PAGES; page += 1) {
+    const got = readCompletedPage(
+      await read(`/api/v2/invoices?${range}&size=${LIST_PAGE_SIZE}&page=${page}`),
+      ids,
+    );
+    items.push(...got.completed);
+    rows += got.rows;
+    // No new contract on a page: the end, or an answer that ignores `page`.
+    if (got.fresh === 0 || (got.total !== null && rows >= got.total)) {
+      return { items, truncated: false };
+    }
+  }
+  return { items, truncated: true };
+}
+
+/** How far back `findCompletedInvoice` looks: lava.top repeats an event for about five hours. */
+const FIND_WINDOW_MS = 72 * 60 * 60 * 1000;
+/** Their clock and ours differ: a contract executed this second must not fall past the end of the window. */
+const FIND_AHEAD_MS = 5 * 60 * 1000;
+
+/**
+ * An executed contract of OUR key by id, read from the LIST of executed
+ * contracts instead of the lookup by id; null when the list of the last
+ * FIND_WINDOW_MS does not hold it.
+ *
+ * Why: on 11–12.10.2026 `GET /api/v2/invoices/{id}` answered 404 for contracts
+ * whose `payment.success` their own sender had just delivered (lava-lookup.ts).
+ * The list is the same API under the same key, so what it returns is as good a
+ * proof of payment as the lookup by id.
+ *
+ * Throws what `listCompletedInvoices` throws. O(pages).
+ */
+export async function findCompletedInvoice(
+  contractId: string,
+  now: number = Date.now(),
+): Promise<LavaInvoice | null> {
+  if (!UUID_RE.test(contractId)) throw new Error(`invalid contract id: ${contractId}`);
+  const list = await listCompletedInvoices(now - FIND_WINDOW_MS, now + FIND_AHEAD_MS);
+  return list.items.find((invoice) => invoice.id === contractId) ?? null;
+}
+
 // ── Связь «контракт → заказ» ────────────────────────────────────────────────
 
 const contractKey = (contractId: string): string => `store:lava:contract:${contractId}`;
@@ -419,6 +507,17 @@ const contractKey = (contractId: string): string => `store:lava:contract:${contr
  */
 export async function rememberContract(contractId: string, orderId: string): Promise<void> {
   await redis.set(contractKey(contractId), orderId, { ex: CONTRACT_TTL_SECONDS });
+}
+
+/**
+ * The purchase we issued this contract for, by our own pointer alone; null
+ * when we never issued it. Unlike `orderIdFor` it needs no answer of their
+ * API, so it still tells ours from a stranger's when their API does not show
+ * the contract. Throws on a storage failure: "not ours" must not be a guess.
+ */
+export async function ownOrderIdFor(contractId: string): Promise<string | null> {
+  const raw = await redis.get(contractKey(contractId));
+  return typeof raw === "string" && raw !== "" ? raw : null;
 }
 
 /**
