@@ -4,7 +4,7 @@
 
 /**
  * Eight 16-bit groups of an IPv6 address, or null when it is not one.
- * Handles the "::" shorthand and a dotted IPv4 tail ("::ffff:1.2.3.4").
+ * Handles the "::" shorthand and a dotted IPv4 tail ("::ffff:192.0.2.1").
  */
 function ipv6Groups(value: string): number[] | null {
   let head = value;
@@ -13,7 +13,7 @@ function ipv6Groups(value: string): number[] | null {
   if (v4) {
     const octets = v4[2].split(".").map(Number);
     if (octets.some((octet) => octet > 255)) return null;
-    // "::1.2.3.4" keeps its "::"; "64:ff9b::1:1.2.3.4" drops the separator.
+    // "::192.0.2.1" keeps its "::"; "64:ff9b::1:192.0.2.1" drops the separator.
     head = v4[1].endsWith("::") ? v4[1] : v4[1].slice(0, -1);
     tail.push((octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]);
   }
@@ -50,7 +50,7 @@ function ipv6Groups(value: string): number[] | null {
  * person an endless supply of fresh buckets. The /64 is what one subscriber
  * holds, so it is the unit to count.
  *
- * An IPv4-mapped address ("::ffff:1.2.3.4") counts as that IPv4 address. The
+ * An IPv4-mapped address ("::ffff:192.0.2.1") counts as that IPv4 address. The
  * result is written as the network's address ("2001:db8:1:2::"). Anything that
  * does not parse is returned as is, cut to the longest address length, so a
  * key never grows with junk.
