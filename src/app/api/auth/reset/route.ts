@@ -3,22 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { redis } from "@/lib/redis";
 import { getUserRecord, saveUserRecord } from "@/lib/accounts";
-import { rateLimit, getClientIp } from "@/lib/ratelimit";
+import { clearRateLimit, getClientIp, loginAccountLimitKey, rateLimit } from "@/lib/ratelimit";
+import { normalizeEmail } from "@/lib/email";
 import { revokeUserSessions } from "@/lib/session";
-
-/**
- * Сколько неверных попыток переживает код, прежде чем его гасят.
- *
- * Ограничение частоты стоит на АДРЕСЕ, а адрес меняется прокси: код из шести
- * цифр живёт десять минут и без этого счётчика выдерживает сколько угодно
- * попыток с разных адресов. Двести адресов по пять попыток в минуту дают
- * десять тысяч догадок на окно — около процента на код, и это повторяемо.
- * Счётчик привязан к самому коду, поэтому смена адреса его не обходит.
- */
-const MAX_CODE_ATTEMPTS = 5;
-/** Тот же срок, с каким код кладут: счётчик не должен его пережить. */
-const CODE_TTL_SEC = 600;
-const ATTEMPTS_KEY = (key: string) => `${key}:attempts`;
+import { attemptsKeyFor, takeCodeAttempt } from "@/lib/code-attempts";
+import { safeEqual } from "@/lib/safe-compare";
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,12 +46,13 @@ export async function POST(req: NextRequest) {
 
     const data = typeof raw === "string" ? JSON.parse(raw) : raw;
 
-    if (String(data.code) !== String(code)) {
-      const attempts = Number(await redis.incr(ATTEMPTS_KEY(resetKey))) || 0;
-      if (attempts === 1) await redis.expire(ATTEMPTS_KEY(resetKey), CODE_TTL_SEC);
-      if (attempts >= MAX_CODE_ATTEMPTS) {
+    // The try is taken before the compare (lib/code-attempts.ts): a burst of
+    // parallel guesses gets five comparisons per code, not one per request.
+    // Counted per code, so a change of address does not reset it.
+    const attempt = await takeCodeAttempt(attemptsKeyFor(resetKey, data.code));
+    if (!attempt.allowed || !safeEqual(String(code), String(data.code))) {
+      if (!attempt.allowed || attempt.last) {
         await redis.del(resetKey);
-        await redis.del(ATTEMPTS_KEY(resetKey));
         return NextResponse.json(
           { error: "Слишком много неверных попыток — запросите новый код" },
           { status: 429 }
@@ -70,6 +60,15 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json(
         { error: "Неверный код" },
+        { status: 400 }
+      );
+    }
+
+    // A code changes the password once: of two right answers racing, only the
+    // one whose DEL removed the key goes on.
+    if ((await redis.del(resetKey)) === 0) {
+      return NextResponse.json(
+        { error: "Код истёк — запросите новый" },
         { status: 400 }
       );
     }
@@ -86,9 +85,14 @@ export async function POST(req: NextRequest) {
     user.passwordHash = await bcrypt.hash(password, 12);
     await saveUserRecord(data.userId, user);
 
-    // Clean up
-    await redis.del(resetKey);
-    await redis.del(ATTEMPTS_KEY(resetKey));
+    // The owner who just set a new password can sign in with it at once,
+    // whatever guesses ran into the per-account limit before. Logged, not
+    // reported: the password is already changed.
+    try {
+      await clearRateLimit(loginAccountLimitKey(normalizeEmail(email)));
+    } catch (err) {
+      console.error("[auth/reset] sign-in limit not cleared:", err instanceof Error ? err.message : err);
+    }
 
     // A new password ends every session of the account (KS-10): a stolen
     // "remember" session must not outlive it. That includes sessions of the

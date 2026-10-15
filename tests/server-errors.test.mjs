@@ -90,6 +90,22 @@ test("rate-limit strings keep their seconds", () => {
   }
 });
 
+test("hour-long limits keep their minutes (audit 15.10.2026)", () => {
+  assert.deepEqual(
+    classifyServerError("Слишком много попыток входа в этот аккаунт. Подождите 37 мин или восстановите пароль", 429),
+    { key: "err_account_locked", minutes: 37 },
+  );
+  assert.deepEqual(classifyServerError("Слишком много писем на этот адрес. Подождите 60 мин", 429), {
+    key: "err_mail_limit",
+    minutes: 60,
+  });
+  assert.deepEqual(classifyServerError("Слишком много писем на этот адрес. Подождите 0 мин", 429), {
+    key: "err_rate_limit_generic",
+  });
+  // Minutes are never read as seconds.
+  assert.equal(RATE_LIMIT_RE.test("Подождите 5 мин"), false);
+});
+
 test("status fallbacks: 429 -> rate_limit_generic, 5xx -> generic", () => {
   assert.deepEqual(classifyServerError(undefined, 429), { key: "err_rate_limit_generic" });
   assert.deepEqual(classifyServerError("something odd", 429), { key: "err_rate_limit_generic" });

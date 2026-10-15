@@ -1,6 +1,8 @@
 // src/lib/ratelimit.ts
 import { redis } from "./redis";
 import { randomBytes, randomInt } from "crypto";
+import { rateLimitSubject } from "./client-ip";
+import { normalizeEmail } from "./email";
 
 /** Rate limiter using Redis INCR */
 export async function rateLimit(
@@ -19,11 +21,55 @@ export async function rateLimit(
   return { ok: true, remaining: maxRequests - count, retryAfter: 0 };
 }
 
-/** Get client IP */
+/**
+ * The per-account sign-in limiter (audit 15.10.2026, item 2): /api/auth/login
+ * counts every try at one e-mail's password, a success and /api/auth/reset
+ * clear it. Keyed on normalizeEmail, the form registration keys accounts by.
+ */
+export function loginAccountLimitKey(normalizedEmail: string): string {
+  return `login-acct:${normalizedEmail}`;
+}
+
+/**
+ * Code letters to one mailbox per hour, for each purpose (audit 15.10.2026,
+ * item 4). The per-address limits alone let many addresses mail one victim
+ * without end, burning the Resend quota and the domain's reputation that
+ * sign-up and reset depend on. Keyed on normalizeEmail, so the written forms
+ * of one gmail box share the count.
+ */
+export const MAILS_PER_RECIPIENT = 3;
+export const MAIL_RECIPIENT_WINDOW_SEC = 60 * 60;
+export type MailPurpose = "register" | "reset" | "link";
+
+/**
+ * Takes one letter from the recipient's hourly allowance. Returns null when
+ * the letter may go, or the 429 text (lib/server-errors.ts MINUTE_LIMITS
+ * translates it in the cabinet).
+ */
+export async function takeMailToRecipient(purpose: MailPurpose, email: string): Promise<string | null> {
+  const rl = await rateLimit(`mail-to:${purpose}:${normalizeEmail(email)}`, MAILS_PER_RECIPIENT, MAIL_RECIPIENT_WINDOW_SEC);
+  if (rl.ok) return null;
+  const minutes = Math.max(1, Math.ceil(rl.retryAfter / 60));
+  return `Слишком много писем на этот адрес. Подождите ${minutes} мин`;
+}
+
+/** Forgets a limiter's count (`key` as given to rateLimit), e.g. after a success. */
+export async function clearRateLimit(key: string): Promise<void> {
+  await redis.del(`rl:${key}`);
+}
+
+/**
+ * The client's address as rate limits count it.
+ *
+ * Every caller puts the result into a limiter or anti-abuse key, so since
+ * 15.10.2026 an IPv6 address comes back as its /64 network
+ * (lib/client-ip.ts rateLimitSubject): with the full address one line had
+ * 2^64 buckets. IPv4 is unchanged.
+ */
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  const ip = forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") || "unknown";
+  return rateLimitSubject(ip);
 }
 
 /** Cryptographically secure 6-digit code */

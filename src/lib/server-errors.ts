@@ -9,6 +9,8 @@ export type ServerErrorKey =
   | "err_bad_credentials"
   | "err_rate_limit"
   | "err_rate_limit_generic"
+  | "err_account_locked"
+  | "err_mail_limit"
   | "err_fill_all"
   | "err_email_invalid"
   | "err_password_len"
@@ -38,7 +40,7 @@ export type ServerErrorKey =
   | "err_generic";
 
 export type Classified =
-  | { key: ServerErrorKey; seconds?: number }
+  | { key: ServerErrorKey; seconds?: number; minutes?: number }
   | { raw: string; script: "cyrillic" | "latin" }
   | null;
 
@@ -127,6 +129,17 @@ export const SERVER_ERROR_TABLE: Readonly<Record<string, ServerErrorKey>> = {
  */
 export const RATE_LIMIT_RE = /(?:Подождите|Wait|Please wait)\s*~?(\d+)\s*(?:сек|s)/i;
 
+/**
+ * Limits counted in minutes (audit 15.10.2026): one account's sign-in tries
+ * (/api/auth/login) and code letters to one address (/api/auth/email,
+ * /forgot, /link/email). Their windows are an hour, too long to show in
+ * seconds.
+ */
+export const MINUTE_LIMITS: ReadonlyArray<readonly [RegExp, ServerErrorKey]> = [
+  [/^Слишком много попыток входа в этот аккаунт\. Подождите (\d+) мин/, "err_account_locked"],
+  [/^Слишком много писем на этот адрес\. Подождите (\d+) мин/, "err_mail_limit"],
+];
+
 const CYRILLIC_RE = /[А-Яа-яЁё]/;
 
 export function classifyServerError(raw: unknown, status?: number): Classified {
@@ -136,6 +149,14 @@ export function classifyServerError(raw: unknown, status?: number): Classified {
     // Own-property check: "constructor", "toString" etc. must not match.
     if (Object.prototype.hasOwnProperty.call(SERVER_ERROR_TABLE, text)) {
       return { key: SERVER_ERROR_TABLE[text] };
+    }
+
+    for (const [re, key] of MINUTE_LIMITS) {
+      const mm = re.exec(text);
+      if (mm) {
+        const minutes = Number.parseInt(mm[1], 10);
+        return Number.isFinite(minutes) && minutes > 0 ? { key, minutes } : { key: "err_rate_limit_generic" };
+      }
     }
 
     const m = RATE_LIMIT_RE.exec(text);
