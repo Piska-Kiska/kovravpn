@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { redis } from "@/lib/redis";
 import { resolveUserId, getUserRecord } from "@/lib/accounts";
-import { rateLimit, getClientIp } from "@/lib/ratelimit";
+import { rateLimit, getClientIp, secureCode6, takeMailToRecipient } from "@/lib/ratelimit";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -17,13 +17,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Подождите ${rl.retryAfter} сек` }, { status: 429 });
     }
 
-    const { email } = await req.json();
+    const body: unknown = await req.json().catch(() => null);
+    const email = typeof body === "object" && body !== null ? (body as { email?: unknown }).email : undefined;
 
-    if (!email || !email.includes("@")) {
+    if (typeof email !== "string" || !email.includes("@") || email.length > 254) {
       return NextResponse.json(
         { error: "Некорректный email" },
         { status: 400 }
       );
+    }
+
+    // Before the lookup: a missing account uses up its letters the same way,
+    // so the limit says nothing about whether the address is registered.
+    const limited = await takeMailToRecipient("reset", email);
+    if (limited) {
+      return NextResponse.json({ error: limited }, { status: 429 });
     }
 
     const normalized = email.toLowerCase().trim();
@@ -36,7 +44,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const { secureCode6 } = await import("@/lib/ratelimit");
     const code = secureCode6();
     await redis.set(
       `reset:${normalized}`,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import bcrypt from "bcryptjs";
 import { redis } from "@/lib/redis";
-import { rateLimit, getClientIp, secureCode6 } from "@/lib/ratelimit";
+import { rateLimit, getClientIp, secureCode6, takeMailToRecipient } from "@/lib/ratelimit";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -21,26 +21,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Подождите ${rl.retryAfter} сек` }, { status: 429 });
     }
 
-    const { email, password } = await req.json();
+    const body: unknown = await req.json().catch(() => null);
+    const { email, password } = (typeof body === "object" && body !== null ? body : {}) as {
+      email?: unknown;
+      password?: unknown;
+    };
 
-    if (!email || !email.includes("@")) {
+    if (typeof email !== "string" || !email.includes("@") || email.length > 254) {
       return NextResponse.json(
         { error: "Некорректный email" },
         { status: 400 }
       );
     }
+    // No password: the code-only flow. A password must be a string of 8-128.
+    const pw = typeof password === "string" ? password : "";
+    const badType = password !== undefined && password !== null && typeof password !== "string";
+    if (badType || (pw && (pw.length < 8 || pw.length > MAX_PASSWORD_LENGTH))) {
+      return NextResponse.json(
+        { error: "Пароль от 8 до 128 символов" },
+        { status: 400 }
+      );
+    }
+
+    // Before the account check, bcrypt and the letter.
+    const limited = await takeMailToRecipient("register", email);
+    if (limited) {
+      return NextResponse.json({ error: limited }, { status: 429 });
+    }
 
     const normalized = email.toLowerCase().trim();
     const code = secureCode6();
 
-    if (password) {
-      if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
-        return NextResponse.json(
-          { error: "Пароль от 8 до 128 символов" },
-          { status: 400 }
-        );
-      }
-
+    if (pw) {
       // Check if user already exists
       const existing = await redis.get(`user:em_${normalized}`);
       if (existing) {
@@ -50,7 +62,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const passwordHash = await bcrypt.hash(pw, BCRYPT_ROUNDS);
       await redis.set(
         `email_reg:${normalized}`,
         JSON.stringify({ code, passwordHash }),

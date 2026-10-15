@@ -2,6 +2,7 @@
 import { redis } from "./redis";
 import { randomBytes, randomInt } from "crypto";
 import { rateLimitSubject } from "./client-ip";
+import { normalizeEmail } from "./email";
 
 /** Rate limiter using Redis INCR */
 export async function rateLimit(
@@ -27,6 +28,29 @@ export async function rateLimit(
  */
 export function loginAccountLimitKey(normalizedEmail: string): string {
   return `login-acct:${normalizedEmail}`;
+}
+
+/**
+ * Code letters to one mailbox per hour, for each purpose (audit 15.10.2026,
+ * item 4). The per-address limits alone let many addresses mail one victim
+ * without end, burning the Resend quota and the domain's reputation that
+ * sign-up and reset depend on. Keyed on normalizeEmail, so the written forms
+ * of one gmail box share the count.
+ */
+export const MAILS_PER_RECIPIENT = 3;
+export const MAIL_RECIPIENT_WINDOW_SEC = 60 * 60;
+export type MailPurpose = "register" | "reset" | "link";
+
+/**
+ * Takes one letter from the recipient's hourly allowance. Returns null when
+ * the letter may go, or the 429 text (lib/server-errors.ts MINUTE_LIMITS
+ * translates it in the cabinet).
+ */
+export async function takeMailToRecipient(purpose: MailPurpose, email: string): Promise<string | null> {
+  const rl = await rateLimit(`mail-to:${purpose}:${normalizeEmail(email)}`, MAILS_PER_RECIPIENT, MAIL_RECIPIENT_WINDOW_SEC);
+  if (rl.ok) return null;
+  const minutes = Math.max(1, Math.ceil(rl.retryAfter / 60));
+  return `Слишком много писем на этот адрес. Подождите ${minutes} мин`;
 }
 
 /** Forgets a limiter's count (`key` as given to rateLimit), e.g. after a success. */

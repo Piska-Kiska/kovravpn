@@ -2,8 +2,8 @@
 //
 // Send a code to attach an e-mail (and password) to the signed-in account.
 //
-// Rate limited per account (3 codes / 10 min) and per IP (10 / 10 min)
-// before any hashing or mail: without it, any session (a free Telegram
+// Rate limited per account (3 codes / 10 min), per IP (10 / 10 min) and per
+// recipient (3 / hour) before any hashing or mail: without it, any session (a free Telegram
 // login is enough) could send unlimited mail from our domain to any
 // address, burning the Resend quota and the domain's reputation that
 // registration and password reset depend on (KS-6). An address already used
@@ -14,7 +14,7 @@ import bcrypt from "bcryptjs";
 import { redis } from "@/lib/redis";
 import { getSessionFromRequest } from "@/lib/session";
 import { getUserRecord } from "@/lib/accounts";
-import { getClientIp, rateLimit, secureCode6 } from "@/lib/ratelimit";
+import { getClientIp, rateLimit, secureCode6, takeMailToRecipient } from "@/lib/ratelimit";
 import { normalizeEmail } from "@/lib/email";
 
 const CODES_PER_ACCOUNT = 3;
@@ -64,6 +64,11 @@ export async function POST(req: NextRequest) {
       if (!rl.ok) {
         return NextResponse.json({ error: `Подождите ${rl.retryAfter} сек` }, { status: 429 });
       }
+    }
+    // And per recipient: many sessions must not mail one address without end.
+    const limited = await takeMailToRecipient("link", email);
+    if (limited) {
+      return NextResponse.json({ error: limited }, { status: 429 });
     }
 
     // Check if user already has email linked

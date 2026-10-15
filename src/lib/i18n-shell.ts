@@ -38,6 +38,8 @@ export interface ShellDict {
   err_network: string;
   err_rate_limit: string;
   err_rate_limit_generic: string;
+  err_account_locked: string;
+  err_mail_limit: string;
   err_bad_credentials: string;
   err_fill_all: string;
   err_email_invalid: string;
@@ -90,6 +92,8 @@ const en: ShellDict = {
   err_network: "Connection problem. Check your internet and try again.",
   err_rate_limit: "Too many attempts. Try again in {s} seconds.",
   err_rate_limit_generic: "Too many attempts. Please wait a minute.",
+  err_account_locked: "Too many sign-in attempts for this account. Try again in {m} min or reset your password.",
+  err_mail_limit: "Too many emails to this address. Try again in {m} min.",
   err_bad_credentials: "Wrong email or password.",
   err_fill_all: "Please fill in all fields.",
   err_email_invalid: "Enter a valid email address.",
@@ -142,6 +146,8 @@ const ru: ShellDict = {
   err_network: "Проблема с соединением. Проверьте интернет и попробуйте снова.",
   err_rate_limit: "Слишком много попыток. Повторите через {s} с.",
   err_rate_limit_generic: "Слишком много попыток. Подождите минуту.",
+  err_account_locked: "Слишком много попыток входа в этот аккаунт. Повторите через {m} мин или восстановите пароль.",
+  err_mail_limit: "Слишком много писем на этот адрес. Повторите через {m} мин.",
   err_bad_credentials: "Неверный email или пароль.",
   err_fill_all: "Заполните все поля.",
   err_email_invalid: "Введите корректный email.",
@@ -194,6 +200,8 @@ const es: ShellDict = {
   err_network: "Problema de conexión. Revisa tu internet e inténtalo de nuevo.",
   err_rate_limit: "Demasiados intentos. Inténtalo de nuevo en {s} s.",
   err_rate_limit_generic: "Demasiados intentos. Espera un minuto.",
+  err_account_locked: "Demasiados intentos de inicio de sesión en esta cuenta. Inténtalo de nuevo en {m} min o restablece tu contraseña.",
+  err_mail_limit: "Demasiados correos a esta dirección. Inténtalo de nuevo en {m} min.",
   err_bad_credentials: "Correo o contraseña incorrectos.",
   err_fill_all: "Completa todos los campos.",
   err_email_invalid: "Introduce un correo electrónico válido.",
@@ -246,6 +254,8 @@ const de: ShellDict = {
   err_network: "Verbindungsproblem. Prüfe deine Internetverbindung und versuch es noch einmal.",
   err_rate_limit: "Zu viele Versuche. Versuch es in {s} Sekunden erneut.",
   err_rate_limit_generic: "Zu viele Versuche. Bitte warte eine Minute.",
+  err_account_locked: "Zu viele Anmeldeversuche für dieses Konto. Versuch es in {m} Minuten erneut oder setze dein Passwort zurück.",
+  err_mail_limit: "Zu viele E-Mails an diese Adresse. Versuch es in {m} Minuten erneut.",
   err_bad_credentials: "E-Mail oder Passwort ist falsch.",
   err_fill_all: "Bitte fülle alle Felder aus.",
   err_email_invalid: "Gib eine gültige E-Mail-Adresse ein.",
@@ -298,6 +308,8 @@ const fr: ShellDict = {
   err_network: "Problème de connexion. Vérifiez votre connexion Internet et réessayez.",
   err_rate_limit: "Trop de tentatives. Réessayez dans {s} secondes.",
   err_rate_limit_generic: "Trop de tentatives. Veuillez patienter une minute.",
+  err_account_locked: "Trop de tentatives de connexion à ce compte. Réessayez dans {m} minutes ou réinitialisez votre mot de passe.",
+  err_mail_limit: "Trop d’e-mails envoyés à cette adresse. Réessayez dans {m} minutes.",
   err_bad_credentials: "E-mail ou mot de passe incorrect.",
   err_fill_all: "Veuillez remplir tous les champs.",
   err_email_invalid: "Saisissez une adresse e-mail valide.",
@@ -347,6 +359,9 @@ export function localizeError(raw: unknown, status: number | undefined, lang: La
   if ("key" in c) {
     if (c.key === "err_rate_limit") {
       return typeof c.seconds === "number" ? fmt(d.err_rate_limit, { s: c.seconds }) : d.err_rate_limit_generic;
+    }
+    if (c.key === "err_account_locked" || c.key === "err_mail_limit") {
+      return typeof c.minutes === "number" ? fmt(d[c.key], { m: c.minutes }) : d.err_rate_limit_generic;
     }
     return d[c.key];
   }
