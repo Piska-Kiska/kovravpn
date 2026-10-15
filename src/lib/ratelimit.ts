@@ -21,6 +21,20 @@ export async function rateLimit(
 }
 
 /**
+ * The per-account sign-in limiter (audit 15.10.2026, item 2): /api/auth/login
+ * counts every try at one e-mail's password, a success and /api/auth/reset
+ * clear it. Keyed on normalizeEmail, the form registration keys accounts by.
+ */
+export function loginAccountLimitKey(normalizedEmail: string): string {
+  return `login-acct:${normalizedEmail}`;
+}
+
+/** Forgets a limiter's count (`key` as given to rateLimit), e.g. after a success. */
+export async function clearRateLimit(key: string): Promise<void> {
+  await redis.del(`rl:${key}`);
+}
+
+/**
  * The client's address as rate limits count it.
  *
  * Every caller puts the result into a limiter or anti-abuse key, so since

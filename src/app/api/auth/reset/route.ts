@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { redis } from "@/lib/redis";
 import { getUserRecord, saveUserRecord } from "@/lib/accounts";
-import { rateLimit, getClientIp } from "@/lib/ratelimit";
+import { clearRateLimit, getClientIp, loginAccountLimitKey, rateLimit } from "@/lib/ratelimit";
+import { normalizeEmail } from "@/lib/email";
 import { revokeUserSessions } from "@/lib/session";
 import { attemptsKeyFor, takeCodeAttempt } from "@/lib/code-attempts";
 import { safeEqual } from "@/lib/safe-compare";
@@ -83,6 +84,15 @@ export async function POST(req: NextRequest) {
 
     user.passwordHash = await bcrypt.hash(password, 12);
     await saveUserRecord(data.userId, user);
+
+    // The owner who just set a new password can sign in with it at once,
+    // whatever guesses ran into the per-account limit before. Logged, not
+    // reported: the password is already changed.
+    try {
+      await clearRateLimit(loginAccountLimitKey(normalizeEmail(email)));
+    } catch (err) {
+      console.error("[auth/reset] sign-in limit not cleared:", err instanceof Error ? err.message : err);
+    }
 
     // A new password ends every session of the account (KS-10): a stolen
     // "remember" session must not outlive it. That includes sessions of the
