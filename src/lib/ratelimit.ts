@@ -1,6 +1,7 @@
 // src/lib/ratelimit.ts
 import { redis } from "./redis";
 import { randomBytes, randomInt } from "crypto";
+import { rateLimitSubject } from "./client-ip";
 
 /** Rate limiter using Redis INCR */
 export async function rateLimit(
@@ -19,11 +20,18 @@ export async function rateLimit(
   return { ok: true, remaining: maxRequests - count, retryAfter: 0 };
 }
 
-/** Get client IP */
+/**
+ * The client's address as rate limits count it.
+ *
+ * Every caller puts the result into a limiter or anti-abuse key, so since
+ * 15.10.2026 an IPv6 address comes back as its /64 network
+ * (lib/client-ip.ts rateLimitSubject): with the full address one line had
+ * 2^64 buckets. IPv4 is unchanged.
+ */
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  const ip = forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") || "unknown";
+  return rateLimitSubject(ip);
 }
 
 /** Cryptographically secure 6-digit code */

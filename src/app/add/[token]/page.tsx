@@ -20,6 +20,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import KovraWordmark from "@/components/KovraWordmark";
+import { rateLimitSubject } from "@/lib/client-ip";
 import { HAPP_LINKS } from "@/lib/dashboard/apps";
 import { rateLimit } from "@/lib/ratelimit";
 import { isSubTokenShape, plainSubUrl, subTokenExists } from "@/lib/sub-token-lookup";
@@ -43,11 +44,11 @@ interface PageProps {
 const RL_MAX = 60;
 const RL_WINDOW_SEC = 60;
 
+/** The limiter's subject: an IPv6 client counts by its /64 (lib/client-ip.ts). */
 async function clientIp(): Promise<string> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim().slice(0, 64);
-  return (h.get("x-real-ip") ?? "unknown").slice(0, 64);
+  return rateLimitSubject(forwarded ? forwarded.split(",")[0] : h.get("x-real-ip") ?? "unknown");
 }
 
 export default async function AddToHappPage({ params, searchParams }: PageProps) {
