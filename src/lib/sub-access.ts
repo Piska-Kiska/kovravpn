@@ -22,8 +22,12 @@
 //   7. the device holds no slot (more devices than slots, KM-03): the
 //      "paused" notice. The legacy link serves only the devices that do.
 //
-// Redis reads: sub_deleted, sub_prof (+ sub_token for legacy links), the
-// binding, account, profiles, subs: a fixed handful per request, no N+1.
+// Redis reads: sub_deleted, sub_prof and sub_token in one MGET; then the
+// binding, account, profiles and subs at once. Two round trips instead of six
+// or seven in a row (optimization review 15.10.2026); the verdicts still come
+// in the order above, each awaiting only its own read, so a failed read
+// throws only where it threw before. A refused fetch may have read subs it
+// did not need: one command, never a different answer.
 
 import { redis } from "./redis";
 import { getAccount, getProfiles, type VpnProfile } from "./accounts";
@@ -55,16 +59,28 @@ export function isSubGrant(a: SubAccess): a is SubGrant {
 
 type TokenOwner = { kind: "device"; userId: string; uuid: string } | { kind: "account"; userId: string };
 
-async function tokenOwner(token: string): Promise<TokenOwner | null> {
-  const prof = await redis.get(`sub_prof:${token}`);
+/** The deleted-link marker and the token's owner, from one MGET. */
+async function tokenKeys(token: string): Promise<{ deleted: boolean; owner: TokenOwner | null }> {
+  const [deleted, prof, legacyUserId] = await redis.mget<[unknown, unknown, unknown]>(
+    `sub_deleted:${token}`,
+    `sub_prof:${token}`,
+    `sub_token:${token}`,
+  );
+  if (deleted) return { deleted: true, owner: null };
   if (prof) {
     const { userId, uuid } =
       typeof prof === "string" ? (JSON.parse(prof) as { userId: string; uuid: string }) : (prof as { userId: string; uuid: string });
-    return { kind: "device", userId, uuid };
+    return { deleted: false, owner: { kind: "device", userId, uuid } };
   }
-  const userId = await redis.get(`sub_token:${token}`);
-  if (!userId || typeof userId !== "string") return null;
-  return { kind: "account", userId };
+  if (!legacyUserId || typeof legacyUserId !== "string") return { deleted: false, owner: null };
+  return { deleted: false, owner: { kind: "account", userId: legacyUserId } };
+}
+
+/** Starts a read now; its failure waits for the place that awaits it. */
+function early<T>(read: () => Promise<T>): Promise<T> {
+  const pending = Promise.resolve().then(read);
+  pending.catch(() => {});
+  return pending;
 }
 
 /**
@@ -75,32 +91,32 @@ async function tokenOwner(token: string): Promise<TokenOwner | null> {
 export async function resolveSubAccess(token: string, hwid: string | null, now: number = Date.now()): Promise<SubAccess> {
   if (!token || token.length < 8) return { kind: "invalid" };
 
-  // Deleted-subscription notice (set by removeProfile).
-  try {
-    if (await redis.get(`sub_deleted:${token}`)) return { kind: "deleted" };
-  } catch {
-    /* the notice is optional; the lookups below still decide */
-  }
-
-  const owner = await tokenOwner(token);
+  // Deleted-subscription notice (set by removeProfile), then the owner.
+  const { deleted, owner } = await tokenKeys(token);
+  if (deleted) return { kind: "deleted" };
   if (!owner) return { kind: "not-found", message: "Token not found" };
 
   const device = (hwid ?? "").trim();
-  if (device) {
-    const hwidKey = `sub:${token}:hwid`;
-    const bound = await redis.get(hwidKey);
+  const hwidKey = `sub:${token}:hwid`;
+  const boundRead = device ? early(() => redis.get(hwidKey)) : null;
+  const accountRead = early(() => getAccount(owner.userId));
+  const profilesRead = early(() => getProfiles(owner.userId));
+  const subsRead = early(() => getSubscriptions(owner.userId));
+
+  if (boundRead) {
+    const bound = await boundRead;
     if (bound && bound !== device) return { kind: "second-device" };
     if (!bound) await redis.set(hwidKey, device, { ex: HWID_BINDING_TTL_SEC });
   }
 
-  const account = await getAccount(owner.userId);
+  const account = await accountRead;
   if (!account) return { kind: "not-found", message: "Account not found" };
 
-  const profiles = await getProfiles(owner.userId);
+  const profiles = await profilesRead;
   if (owner.kind === "device") {
     const index = profiles.findIndex((p) => p.uuid === owner.uuid);
     if (index < 0) return { kind: "not-found", message: "Profile not found" };
-    const subs = await getSubscriptions(owner.userId);
+    const subs = await subsRead;
     if (activeSlots(subs, now) <= 0) return { kind: "no-plan" };
     const access = deviceAccess(profiles, subs, now)[index];
     if (access.state !== "active") return { kind: "paused" };
@@ -108,7 +124,7 @@ export async function resolveSubAccess(token: string, hwid: string | null, now: 
   }
 
   if (profiles.length === 0) return { kind: "not-found", message: "No profiles" };
-  const subs = await getSubscriptions(owner.userId);
+  const subs = await subsRead;
   if (activeSlots(subs, now) <= 0) return { kind: "no-plan" };
   // The legacy link serves every device of the account: only those that hold
   // a slot (KM-03).
