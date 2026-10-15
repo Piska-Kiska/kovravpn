@@ -99,8 +99,8 @@ export async function POST(req: NextRequest) {
       JSON.stringify({ userId: session.userId, code, passwordHash }),
       { ex: 600 }
     );
-    // A new code starts with a clean attempt count (link/email/verify).
-    await redis.del(`link_em:${normalized}:attempts`);
+    // A new code starts with a clean attempt count by itself: the counter is
+    // keyed on the code (lib/code-attempts.ts attemptsKeyFor).
 
     await getResend().emails.send({
       from: "Kovra <noreply@kovravpn.com>",

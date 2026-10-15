@@ -119,7 +119,10 @@ describe("checking the code", () => {
     assert.equal((await res.json()).linked, true);
     assert.equal(mem.store.get(`alias:em_${ADDRESS}`), TG);
     assert.equal(mem.store.has(`link_em:${ADDRESS}`), false);
-    assert.equal(mem.store.has(`link_em:${ADDRESS}:attempts`), false);
+    // The per-code counter is not deleted, only left to expire with the code.
+    const counters = [...mem.store.keys()].filter((k) => k.startsWith(`link_em:${ADDRESS}:attempts:`));
+    assert.equal(counters.length, 1);
+    assert.equal(mem.ttls.get(counters[0])?.ex, 600);
   });
 
   test("the fifth wrong code burns it: the right one no longer works", async () => {

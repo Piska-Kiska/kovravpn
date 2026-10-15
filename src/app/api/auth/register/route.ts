@@ -5,20 +5,8 @@ import { createAccount, WELCOME_BONUS, WELCOME_BONUS_REFERRED } from "@/lib/acco
 import { createSession, setSessionCookie } from "@/lib/session";
 import { resolveReferralCode, recordReferral } from "@/lib/referrals";
 import { rateLimit, getClientIp } from "@/lib/ratelimit";
-
-/**
- * Сколько неверных попыток переживает код, прежде чем его гасят.
- *
- * Ограничение частоты стоит на АДРЕСЕ, а адрес меняется прокси: код из шести
- * цифр живёт десять минут и без этого счётчика выдерживает сколько угодно
- * попыток с разных адресов. Двести адресов по пять попыток в минуту дают
- * десять тысяч догадок на окно — около процента на код, и это повторяемо.
- * Счётчик привязан к самому коду, поэтому смена адреса его не обходит.
- */
-const MAX_CODE_ATTEMPTS = 5;
-/** Тот же срок, с каким код кладут: счётчик не должен его пережить. */
-const CODE_TTL_SEC = 600;
-const ATTEMPTS_KEY = (key: string) => `${key}:attempts`;
+import { attemptsKeyFor, takeCodeAttempt } from "@/lib/code-attempts";
+import { safeEqual } from "@/lib/safe-compare";
 import { normalizeEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
@@ -75,12 +63,12 @@ export async function POST(req: NextRequest) {
         ? JSON.parse(raw)
         : (raw as { code: string; passwordHash: string });
 
-    if (String(regData.code) !== String(code)) {
-      const attempts = Number(await redis.incr(ATTEMPTS_KEY(usedKey))) || 0;
-      if (attempts === 1) await redis.expire(ATTEMPTS_KEY(usedKey), CODE_TTL_SEC);
-      if (attempts >= MAX_CODE_ATTEMPTS) {
+    // The try is taken before the compare (lib/code-attempts.ts): a burst of
+    // parallel guesses gets five comparisons per code, not one per request.
+    const attempt = await takeCodeAttempt(attemptsKeyFor(usedKey, regData.code));
+    if (!attempt.allowed || !safeEqual(String(code), String(regData.code))) {
+      if (!attempt.allowed || attempt.last) {
         await redis.del(usedKey);
-        await redis.del(ATTEMPTS_KEY(usedKey));
         return NextResponse.json(
           { error: "Слишком много неверных попыток — запросите новый код" },
           { status: 429 }
@@ -92,9 +80,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Clean up registration data
-    await redis.del(usedKey);
-    await redis.del(ATTEMPTS_KEY(usedKey));
+    // A code creates the account once: of two right answers racing, only the
+    // one whose DEL removed the key goes on (one account, one bonus count).
+    if ((await redis.del(usedKey)) === 0) {
+      return NextResponse.json(
+        { error: "Код истёк или не найден — запросите новый" },
+        { status: 400 }
+      );
+    }
 
     // Anti-fraud: limit registrations per IP (max 3 per 24h with bonus)
     const ipRegKey = `reg_ip:${ip}`;

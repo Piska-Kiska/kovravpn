@@ -4,19 +4,15 @@
 //
 // The six-digit code lives ten minutes; without a limit a session could try
 // all of them and attach an address it does not own (KS-6). Now: a per-IP
-// rate limit, and an attempt counter tied to the code itself (five wrong
-// tries burn it), as in register and reset.
+// rate limit, and an attempt counter tied to the code itself (five tries,
+// taken before the compare, then it burns), as in register and reset.
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getSessionFromRequest } from "@/lib/session";
 import { getUserRecord, saveUserRecord, createAlias } from "@/lib/accounts";
 import { getClientIp, rateLimit } from "@/lib/ratelimit";
 import { safeEqual } from "@/lib/safe-compare";
-
-const MAX_CODE_ATTEMPTS = 5;
-/** The code's own lifetime: the counter must not outlive it. */
-const CODE_TTL_SEC = 600;
-const ATTEMPTS_KEY = (key: string) => `${key}:attempts`;
+import { attemptsKeyFor, takeCodeAttempt } from "@/lib/code-attempts";
 
 export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req);
@@ -56,18 +52,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Недопустимо" }, { status: 403 });
     }
 
-    if (!safeEqual(String(code), String(data.code))) {
-      const attempts = Number(await redis.incr(ATTEMPTS_KEY(key))) || 0;
-      if (attempts === 1) await redis.expire(ATTEMPTS_KEY(key), CODE_TTL_SEC);
-      if (attempts >= MAX_CODE_ATTEMPTS) {
+    const attempt = await takeCodeAttempt(attemptsKeyFor(key, data.code));
+    if (!attempt.allowed || !safeEqual(String(code), String(data.code))) {
+      if (!attempt.allowed || attempt.last) {
         await redis.del(key);
-        await redis.del(ATTEMPTS_KEY(key));
         return NextResponse.json(
           { error: "Слишком много неверных попыток — запросите новый код" },
           { status: 429 }
         );
       }
       return NextResponse.json({ error: "Неверный код" }, { status: 400 });
+    }
+
+    // A code links once: of two right answers racing, only the one whose DEL
+    // removed the key goes on.
+    if ((await redis.del(key)) === 0) {
+      return NextResponse.json({ error: "Код истёк — запросите новый" }, { status: 400 });
     }
 
     // Create alias: em_{email} → primary userId
@@ -81,10 +81,6 @@ export async function POST(req: NextRequest) {
       if (user.authMethod === "telegram") user.authMethod = "linked";
       await saveUserRecord(session.userId, user);
     }
-
-    // Clean up
-    await redis.del(key);
-    await redis.del(ATTEMPTS_KEY(key));
 
     return NextResponse.json({ linked: true, email: normalized });
   } catch (error) {
