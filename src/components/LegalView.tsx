@@ -5,20 +5,25 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useLang } from "@/i18n/useLang";
 import { LEGAL, type LegalDocId } from "@/i18n/legal";
+import { legalHref } from "@/lib/legal-routes";
 
-const LINKS: { token: string; href: string; external: boolean }[] = [
-  { token: "@KovraVPN_bot", href: "https://t.me/KovraVPN_bot", external: true },
-  { token: "support@kovravpn.com", href: "mailto:support@kovravpn.com", external: false },
-];
+type ContactLink = { token: string; href: string; external: boolean };
+
+const BOT_LINK: ContactLink = { token: "@KovraVPN_bot", href: "https://t.me/KovraVPN_bot", external: true };
+const EMAIL_LINK: ContactLink = { token: "support@kovravpn.com", href: "mailto:support@kovravpn.com", external: false };
+
+/** The app view shows the bot as plain text: it sells, and the app may not lead there (lib/legal-routes.ts). */
+const WEB_LINKS: readonly ContactLink[] = [BOT_LINK, EMAIL_LINK];
+const APP_LINKS: readonly ContactLink[] = [EMAIL_LINK];
 
 /** Turn known contact tokens inside a paragraph into anchors. */
-function linkify(text: string): ReactNode[] {
+function linkify(text: string, links: readonly ContactLink[]): ReactNode[] {
   const out: ReactNode[] = [];
   let rest = text;
   let key = 0;
   while (rest.length > 0) {
-    let hit: { idx: number; link: (typeof LINKS)[number] } | null = null;
-    for (const link of LINKS) {
+    let hit: { idx: number; link: ContactLink } | null = null;
+    for (const link of links) {
       const idx = rest.indexOf(link.token);
       if (idx !== -1 && (hit === null || idx < hit.idx)) hit = { idx, link };
     }
@@ -42,9 +47,13 @@ function linkify(text: string): ReactNode[] {
   return out;
 }
 
-/** Renders a single legal document body (Terms or Privacy) in the active language. */
-export default function LegalView({ doc }: { doc: LegalDocId }) {
+/**
+ * Renders a single legal document body (Terms or Privacy) in the active
+ * language. `appView`: the page was opened by our app (lib/legal-routes.ts).
+ */
+export default function LegalView({ doc, appView = false }: { doc: LegalDocId; appView?: boolean }) {
   const lang = useLang();
+  const links = appView ? APP_LINKS : WEB_LINKS;
   const d = LEGAL[lang][doc];
   const other: LegalDocId = doc === "terms" ? "privacy" : "terms";
 
@@ -62,7 +71,7 @@ export default function LegalView({ doc }: { doc: LegalDocId }) {
           <section key={i} className="space-y-2">
             <h2 className="text-lg font-semibold text-nm-text">{s.h}</h2>
             {s.p.map((para, j) => (
-              <p key={j}>{linkify(para)}</p>
+              <p key={j}>{linkify(para, links)}</p>
             ))}
           </section>
         ))}
@@ -70,7 +79,7 @@ export default function LegalView({ doc }: { doc: LegalDocId }) {
         <section className="space-y-2 pt-2 border-t border-nm-text/10">
           <h2 className="text-lg font-semibold text-nm-text">{d.related}</h2>
           <p>
-            <Link href={`/${other}`} className="text-nm-accent hover:underline">
+            <Link href={legalHref(`/${other}`, appView)} className="text-nm-accent hover:underline">
               {LEGAL[lang][other].title}
             </Link>
           </p>

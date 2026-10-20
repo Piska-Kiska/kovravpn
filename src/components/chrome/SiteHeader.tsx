@@ -13,15 +13,27 @@ import KovraWordmark from "@/components/KovraWordmark";
 export interface SiteHeaderProps {
   /** The right-hand group: <NavToggles/> and a .kh-link. */
   children: ReactNode;
+  /**
+   * Whether the wordmark leads home. False in the app view of a page our app
+   * opens (lib/legal-routes.ts): the home page sells, and the app may not
+   * lead there.
+   */
+  home?: boolean;
 }
 
-export function SiteHeader({ children }: SiteHeaderProps) {
+export function SiteHeader({ children, home = true }: SiteHeaderProps) {
   return (
     <header className="kh-head">
       <div className="kh-head-in">
-        <Link href="/" aria-label="Kovra" className="kh-head-brand">
-          <KovraWordmark height={24} />
-        </Link>
+        {home ? (
+          <Link href="/" aria-label="Kovra" className="kh-head-brand">
+            <KovraWordmark height={24} />
+          </Link>
+        ) : (
+          <span aria-label="Kovra" role="img" className="kh-head-brand">
+            <KovraWordmark height={24} />
+          </span>
+        )}
         <div className="kh-bar">{children}</div>
       </div>
     </header>

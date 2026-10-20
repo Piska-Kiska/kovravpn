@@ -4,6 +4,7 @@ import { BackGlyph } from "@/components/chrome/glyphs";
 import { SiteHeader } from "@/components/chrome/SiteHeader";
 import NavToggles from "@/components/NavToggles";
 import LegalView from "@/components/LegalView";
+import { isAppView, type PageSearchParams } from "@/lib/legal-routes";
 
 // English on the server; the page switches to the visitor's language on
 // the client (src/i18n/resolve.ts isVisitorLangPath, KP-08). The legal text
@@ -19,19 +20,23 @@ export const metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage({ searchParams }: { searchParams: Promise<PageSearchParams> }) {
+  // `?src=app`: opened by our app, which may not lead home (lib/legal-routes.ts).
+  const appView = isAppView(await searchParams);
   return (
     <div className="min-h-screen">
-      <SiteHeader>
+      <SiteHeader home={!appView}>
         <NavToggles />
-        <Link href="/" className="kh-link">
-          <BackGlyph className="kh-link-glyph" />
-          <span className="kh-link-text" data-i18n="common.back.home.short">Home</span>
-        </Link>
+        {appView ? null : (
+          <Link href="/" className="kh-link">
+            <BackGlyph className="kh-link-glyph" />
+            <span className="kh-link-text" data-i18n="common.back.home.short">Home</span>
+          </Link>
+        )}
       </SiteHeader>
 
       <main className="container mx-auto px-4 md:px-6 max-w-3xl pt-12 pb-20">
-        <LegalView doc="privacy" />
+        <LegalView doc="privacy" appView={appView} />
       </main>
     </div>
   );

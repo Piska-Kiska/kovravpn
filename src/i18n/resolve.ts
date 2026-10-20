@@ -2,9 +2,10 @@
 //
 // Language resolution for the cabinet pages (/login, /register, /dashboard,
 // and /tg, the same dashboard inside the Telegram Mini App), and for the
-// translated pages outside it: /terms and /privacy, which exist in every
-// site language (src/i18n/legal.ts), and /guide, which exists in Russian (the
-// server text) and English (the DOM dictionary) only. Those used to open in
+// translated pages outside it: /terms, /privacy and /support, which exist in
+// every site language (src/i18n/legal.ts, src/i18n/support.ts), and /guide,
+// which exists in Russian (the server text) and English (the DOM dictionary)
+// only. Those used to open in
 // Russian for every visitor without a saved choice (KP-08); they now open in
 // the visitor's language where the page has it (pageLang), else in English.
 //
@@ -35,7 +36,7 @@ export function isLang(v: unknown): v is Lang {
 }
 
 /** Pages outside the cabinet that open in the visitor's language where they have it (pageLang). */
-const TRANSLATED_PAGE_RE = /^\/(terms|privacy|guide)(\/|$)/;
+const TRANSLATED_PAGE_RE = /^\/(terms|privacy|support|guide)(\/|$)/;
 /**
  * Translated pages that do not exist in every site language, with the ones
  * they do exist in. /guide: its es/de/fr dictionary entries are copies of
