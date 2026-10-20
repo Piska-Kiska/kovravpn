@@ -1,6 +1,7 @@
 // src/app/api/sub/[token]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSubAccess, isSubGrant } from "@/lib/sub-access";
+import { isOwnAppUa } from "@/lib/own-app";
 import { HAPP_UI, balanceInfoHeaders, subRefusalResponse } from "@/lib/sub-notices";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
@@ -144,7 +145,7 @@ export async function GET(
     const { token } = await params;
     // Deleted link, HWID binding, plan and slot: lib/sub-access.ts, shared
     // with /api/sub/<token>/vless so both feeds give the same answer.
-    const access = await resolveSubAccess(token, req.headers.get("x-hwid"));
+    const access = await resolveSubAccess(token, req.headers.get("x-hwid"), Date.now(), isOwnAppUa(req.headers.get("user-agent")));
     if (!isSubGrant(access)) return subRefusalResponse(access);
 
     const format = resolveFormat(req);

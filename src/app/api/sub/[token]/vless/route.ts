@@ -19,6 +19,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSubAccess, isSubGrant } from "@/lib/sub-access";
+import { isOwnAppUa } from "@/lib/own-app";
 import { subRefusalResponse } from "@/lib/sub-notices";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
@@ -33,7 +34,7 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const access = await resolveSubAccess(token, req.headers.get("x-hwid"));
+    const access = await resolveSubAccess(token, req.headers.get("x-hwid"), Date.now(), isOwnAppUa(req.headers.get("user-agent")));
     if (!isSubGrant(access)) return subRefusalResponse(access);
 
     const devices = access.kind === "device" ? [access.profile] : access.profiles;
