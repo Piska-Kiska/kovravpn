@@ -1,5 +1,6 @@
 // src/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
+import { loginUrlFor } from "@/lib/login-return";
 
 const COOKIE_NAME = "sid";
 const INACTIVITY_DEFAULT = 60 * 60 * 1000;            // 1h
@@ -14,8 +15,13 @@ const USER_SESSIONS_TTL_SEC = SESSION_TTL_REMEMBER + 24 * 60 * 60;
 
 type Session = { userId?: unknown; remember?: boolean; createdAt?: number; lastActivity?: number };
 
+/**
+ * To /login, with `?next=` when the page is one /login returns to
+ * (lib/login-return.ts): the app opens /dashboard/account/delete, and a
+ * person without a session should come back to it after signing in.
+ */
 function redirectLogin(req: NextRequest, clearCookie = false) {
-  const res = NextResponse.redirect(new URL("/login", req.url));
+  const res = NextResponse.redirect(new URL(loginUrlFor(req.nextUrl.pathname, req.nextUrl.search), req.url));
   if (clearCookie) res.cookies.delete(COOKIE_NAME);
   return res;
 }

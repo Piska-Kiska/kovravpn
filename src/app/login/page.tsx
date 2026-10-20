@@ -1,13 +1,16 @@
 // src/app/login/page.tsx
 "use client";
 // Kovra sign-in: email + password (with forgot / reset by emailed code) or
-// Telegram. Requests, payloads, analytics events and redirects are unchanged
-// from the previous page; only presentation, validation and error wording
-// moved to the cabinet kit (src/components/cabinet) and typed dictionaries.
+// Telegram. Requests, payloads and analytics events are unchanged from the
+// previous page; only presentation, validation and error wording moved to the
+// cabinet kit (src/components/cabinet) and typed dictionaries. A sign-in
+// lands on /dashboard, or back on the page that sent the person here
+// (`?next=`, lib/login-return.ts).
 
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, Check, Mail, Send } from "lucide-react";
 import { trackEvent } from "@/lib/attribution";
+import { afterLoginPath } from "@/lib/login-return";
 import { fmt, fmtNodes, useCabinetLang } from "@/lib/cabinet-lang";
 import { useAuthT } from "@/lib/i18n-auth";
 import { localizeError, useShellT } from "@/lib/i18n-shell";
@@ -114,7 +117,7 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, remember }) });
       const data = await readJson(res);
-      if (data.success) { trackEvent("login", { method: "email" }); window.location.href = "/dashboard"; }
+      if (data.success) { trackEvent("login", { method: "email" }); window.location.href = afterLoginPath(window.location.search); }
       else setFormError({ kind: "server", raw: data.error, status: res.status });
     } catch { setFormError({ kind: "network" }); }
     finally { setLoading(false); }
@@ -174,7 +177,7 @@ export default function LoginPage() {
 
   const onTelegramVerified = useCallback(() => {
     trackEvent("login", { method: "telegram" });
-    window.location.href = "/dashboard";
+    window.location.href = afterLoginPath(window.location.search);
   }, []);
 
   const errorText = serverError(formError);
