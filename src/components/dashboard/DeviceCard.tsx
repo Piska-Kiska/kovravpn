@@ -1,13 +1,13 @@
 // src/components/dashboard/DeviceCard.tsx
-// One device: platform icon, name, added date, a "more" menu (TV scanner,
-// reset binding, delete), its subscription link, Open in Happ and QR code in
+// One device: platform icon, name, added date, a "more" menu (code for the
+// Kovra app, TV scanner, reset binding, delete), its subscription link, Open in Happ and QR code in
 // one row, and the per-device result notices. While no plan runs the card
 // says the device works again after a renewal, and offers no "Open in Happ";
 // a device paused for want of a slot says how to turn it back on.
 "use client";
 
 import { useRef } from "react";
-import { ArrowUpRight, Ellipsis, MonitorSmartphone, RotateCcw, ScanLine, Trash2 } from "lucide-react";
+import { ArrowUpRight, Ellipsis, KeyRound, MonitorSmartphone, RotateCcw, ScanLine, Trash2 } from "lucide-react";
 import { QrToggle, type QrToggleHandle } from "@/components/QrToggle";
 import { ButtonLink, CopyField, Icon, Menu, Notice, type MenuItem } from "@/components/cabinet";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
@@ -32,17 +32,20 @@ export interface DeviceCardProps {
   slotPaused: boolean;
   resetDone: boolean;
   error: string | null;
+  /** "Code for the app": AppCodeDialog for this device. */
+  onRequestAppCode(): void;
   onRequestReset(): void;
   onRequestDelete(): void;
   onDismissError(): void;
 }
 
-export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, slotPaused, resetDone, error, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
+export function DeviceCard({ t, lang, profile, name, subUrl, happUrl, paused, slotPaused, resetDone, error, onRequestAppCode, onRequestReset, onRequestDelete, onDismissError }: DeviceCardProps) {
   const shell = useShellT();
   const def = isDeviceId(profile.deviceType) ? DEVICE_DEFS[profile.deviceType] : null;
   const qrRef = useRef<QrToggleHandle>(null);
 
   const items: MenuItem[] = [
+    { id: "app-code", kind: "action", label: t.app_code, icon: KeyRound, onSelect: onRequestAppCode },
     // The TV scanner lives in QrToggle, which renders only with a link.
     ...(subUrl ? [{ id: "scan", kind: "action", label: t.scan_tv, icon: ScanLine, onSelect: () => qrRef.current?.openScanner() } satisfies MenuItem] : []),
     { id: "reset", kind: "action", label: t.reset_hwid, icon: RotateCcw, onSelect: onRequestReset },

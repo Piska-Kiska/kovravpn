@@ -11,9 +11,8 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import "./chrome.css";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import AttributionCapture from "@/components/AttributionCapture";
+import SiteAnalytics from "@/components/SiteAnalytics";
 import Localizer from "@/i18n/Localizer";
 import { LANG_BOOT_SCRIPT } from "@/i18n/boot-script";
 import { HOME_META } from "@/lib/site-meta";
@@ -259,8 +258,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <AttributionCapture />
         <Localizer />
-        <Analytics />
-        <SpeedInsights />
+        <SiteAnalytics />
       </body>
     </html>
   );

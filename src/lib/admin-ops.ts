@@ -598,7 +598,8 @@ async function wipeUserKeys(userId: string, tgUsername?: string): Promise<void> 
 
 const AUDIT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
-async function audit(op: string, payload: Record<string, unknown>): Promise<void> {
+/** One audit record, `audit:<ms>:<op>`, kept 30 days. Never throws. */
+export async function audit(op: string, payload: Record<string, unknown>): Promise<void> {
   try {
     const entry = JSON.stringify({ op, ts: Date.now(), ...payload });
     const key = `audit:${Date.now()}:${op}`;

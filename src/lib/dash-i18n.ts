@@ -146,6 +146,16 @@ export interface DashDict {
   reset_hwid_note: Str;
   reset_hwid_done: Str;
   reset_hwid_confirm: Str;
+  // ── code for the app (AppCodeDialog) ──
+  app_code: Str;
+  app_code_title: Str;
+  app_code_body: Str;
+  app_code_label: Str;
+  app_code_left: Str;
+  app_code_loading: Str;
+  app_code_expired: Str;
+  app_code_new: Str;
+  app_code_moves: Str;
   reset_title: Str;
   reset_confirm: Str;
   add_to_app: Str;
@@ -477,6 +487,15 @@ const en: DashDict = {
   reset_hwid_note: "One link works on one device. Reset it if you switched devices or see \"one device per link\".",
   reset_hwid_done: "Binding reset. Refresh the subscription on the device you want to use.",
   reset_hwid_confirm: "Reset device binding for this link?",
+  app_code: "Code for the app",
+  app_code_title: "Code for the Kovra app",
+  app_code_body: "In the Kovra app on your iPhone or iPad, tap “Sign in with a code from your account” and type this code.",
+  app_code_label: "Code",
+  app_code_left: "Works once. Expires in {time}",
+  app_code_loading: "Getting a code…",
+  app_code_expired: "This code has expired. Get a new one.",
+  app_code_new: "New code",
+  app_code_moves: "Signing in moves this device’s link into the Kovra app: another app that uses it now stops connecting. If the link is already in Kovra on another device, reset the binding first.",
   reset_title: "Reset device binding?",
   reset_confirm: "Reset binding",
   add_to_app: "Add to app",
@@ -805,6 +824,15 @@ const ru: DashDict = {
   reset_hwid_note: "Одна ссылка работает на одном устройстве. Сбросьте привязку, если сменили устройство или видите «одно устройство на ссылку».",
   reset_hwid_done: "Привязка сброшена. Обновите подписку на нужном устройстве.",
   reset_hwid_confirm: "Сбросить привязку устройства для этой ссылки?",
+  app_code: "Код для приложения",
+  app_code_title: "Код для приложения Kovra",
+  app_code_body: "В приложении Kovra на iPhone или iPad нажмите «Войти по коду из аккаунта» и введите этот код.",
+  app_code_label: "Код",
+  app_code_left: "Срабатывает один раз. Действует ещё {time}",
+  app_code_loading: "Получаем код…",
+  app_code_expired: "Срок кода истёк. Возьмите новый.",
+  app_code_new: "Новый код",
+  app_code_moves: "Вход переносит ссылку этого устройства в приложение Kovra: другое приложение, где она сейчас, перестанет подключаться. Если ссылка уже в Kovra на другом устройстве, сначала сбросьте привязку.",
   reset_title: "Сбросить привязку устройства?",
   reset_confirm: "Сбросить привязку",
   add_to_app: "Добавить в приложение",
@@ -1128,6 +1156,15 @@ const es: DashDict = {
   reset_hwid_note: "Un enlace funciona en un dispositivo. Restablécelo si cambiaste de dispositivo o ves «un dispositivo por enlace».",
   reset_hwid_done: "Vínculo restablecido. Actualiza la suscripción en el dispositivo que quieras usar.",
   reset_hwid_confirm: "¿Restablecer el vínculo del dispositivo para este enlace?",
+  app_code: "Código para la app",
+  app_code_title: "Código para la app Kovra",
+  app_code_body: "En la app Kovra de tu iPhone o iPad, toca «Sign in with a code from your account» e introduce este código.",
+  app_code_label: "Código",
+  app_code_left: "Funciona una vez. Caduca en {time}",
+  app_code_loading: "Obteniendo un código…",
+  app_code_expired: "Este código ha caducado. Pide uno nuevo.",
+  app_code_new: "Nuevo código",
+  app_code_moves: "Al iniciar sesión, el enlace de este dispositivo pasa a la app Kovra: otra app que lo use ahora dejará de conectarse. Si el enlace ya está en Kovra en otro dispositivo, restablece primero el vínculo.",
   reset_title: "¿Restablecer el vínculo del dispositivo?",
   reset_confirm: "Restablecer vínculo",
   add_to_app: "Añadir a la app",
@@ -1451,6 +1488,15 @@ const de: DashDict = {
   reset_hwid_note: "Ein Link funktioniert auf einem Gerät. Setze ihn zurück, wenn du das Gerät gewechselt hast oder „ein Gerät pro Link“ siehst.",
   reset_hwid_done: "Bindung zurückgesetzt. Aktualisiere das Abo auf dem Gerät, das du nutzen willst.",
   reset_hwid_confirm: "Gerätebindung für diesen Link zurücksetzen?",
+  app_code: "Code für die App",
+  app_code_title: "Code für die Kovra-App",
+  app_code_body: "Tippe in der Kovra-App auf deinem iPhone oder iPad auf „Sign in with a code from your account“ und gib diesen Code ein.",
+  app_code_label: "Code",
+  app_code_left: "Gilt einmal. Läuft ab in {time}",
+  app_code_loading: "Code wird geholt …",
+  app_code_expired: "Dieser Code ist abgelaufen. Hol dir einen neuen.",
+  app_code_new: "Neuer Code",
+  app_code_moves: "Die Anmeldung verschiebt den Link dieses Geräts in die Kovra-App: Eine andere App, die ihn jetzt nutzt, verbindet sich nicht mehr. Ist der Link schon in Kovra auf einem anderen Gerät, setze zuerst die Bindung zurück.",
   reset_title: "Gerätebindung zurücksetzen?",
   reset_confirm: "Bindung zurücksetzen",
   add_to_app: "Zur App hinzufügen",
@@ -1774,6 +1820,15 @@ const fr: DashDict = {
   reset_hwid_note: "Un lien fonctionne sur un seul appareil. Réinitialisez-le si vous avez changé d’appareil ou voyez « un appareil par lien ».",
   reset_hwid_done: "Liaison réinitialisée. Actualisez l’abonnement sur l’appareil souhaité.",
   reset_hwid_confirm: "Réinitialiser la liaison de l’appareil pour ce lien ?",
+  app_code: "Code pour l’app",
+  app_code_title: "Code pour l’app Kovra",
+  app_code_body: "Dans l’app Kovra sur votre iPhone ou iPad, touchez « Sign in with a code from your account » et saisissez ce code.",
+  app_code_label: "Code",
+  app_code_left: "Valable une fois. Expire dans {time}",
+  app_code_loading: "Obtention d’un code…",
+  app_code_expired: "Ce code a expiré. Demandez-en un nouveau.",
+  app_code_new: "Nouveau code",
+  app_code_moves: "La connexion transfère le lien de cet appareil vers l’app Kovra : une autre app qui l’utilise maintenant ne se connectera plus. Si le lien est déjà dans Kovra sur un autre appareil, réinitialisez d’abord la liaison.",
   reset_title: "Réinitialiser la liaison de l’appareil ?",
   reset_confirm: "Réinitialiser",
   add_to_app: "Ajouter à l’app",

@@ -19,6 +19,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSubAccess, isSubGrant } from "@/lib/sub-access";
+import { isStoreClient, storeLangOf } from "@/lib/client-dist";
+import { isOwnAppUa } from "@/lib/own-app";
 import { subRefusalResponse } from "@/lib/sub-notices";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
@@ -33,8 +35,10 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const access = await resolveSubAccess(token, req.headers.get("x-hwid"));
-    if (!isSubGrant(access)) return subRefusalResponse(access);
+    const access = await resolveSubAccess(token, req.headers.get("x-hwid"), Date.now(), isOwnAppUa(req.headers.get("user-agent")));
+    // This feed's 200 carries no text and no link; only its refusals have a store form.
+    const store = isStoreClient(req.headers) ? storeLangOf(new URL(req.url).searchParams.get("lang")) : null;
+    if (!isSubGrant(access)) return subRefusalResponse(access, store);
 
     const devices = access.kind === "device" ? [access.profile] : access.profiles;
     const all: string[] = [];

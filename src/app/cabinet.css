@@ -641,3 +641,37 @@ input:checked + .kc-radio-dot::after, .kc-radio-row:has(input:checked) .kc-radio
   html:has(.kc-root) { scroll-behavior: auto; }
   .kc-root { transition: none; }
 }
+
+/* ── Code for the app (AppCodeDialog) ──────────────────────────────────── */
+.kc-appcode { display: flex; flex-direction: column; gap: 16px; }
+.kc-appcode > p { margin: 0; }
+.kc-appcode-left { margin: -4px 0 0; text-align: center; font-size: 13px; color: var(--kc-text-2); font-variant-numeric: tabular-nums; }
+.kc-appcode-wait { min-height: 132px; display: grid; place-items: center; color: var(--kc-text-2); }
+
+/* ── Account deletion (dashboard/account/delete) ───────────────────────── */
+/* One column at every width: the auth layout without its brand panel. The
+   wordmark is not a link here (the app opens this page; no way home). */
+.kc-del .kc-auth-side { min-height: 100dvh; }
+.kc-del .kc-brand { cursor: default; }
+@media (min-width: 1024px) {
+  .kc-del .kc-auth-header { position: static; justify-content: space-between; height: 72px; padding: 0 40px; }
+  .kc-del .kc-auth-header .kc-brand { display: inline-flex; }
+  .kc-del .kc-auth-body { padding-top: clamp(48px, 8vh, 96px); }
+}
+.kc-del-content { display: flex; flex-direction: column; gap: 24px; margin-top: 28px; }
+.kc-del-content > section { display: flex; flex-direction: column; gap: 12px; }
+.kc-del-money { border-color: var(--kc-danger-line); background: var(--kc-danger-wash); }
+.kc-del-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.kc-del-item {
+  position: relative; padding-left: 18px; font-size: 15px; line-height: 1.5; color: var(--kc-text-2); text-wrap: pretty;
+}
+.kc-del-item::before {
+  content: ""; position: absolute; left: 2px; top: .62em; width: 5px; height: 5px; border-radius: 50%; background: var(--kc-text-3);
+}
+.kc-del-item.is-loss { color: var(--kc-text); font-weight: 500; }
+.kc-del-item.is-loss::before { background: var(--kc-danger); }
+.kc-del-content .kc-legal { margin: 0; }
+.kc-del-step { display: flex; flex-direction: column; gap: 16px; }
+.kc-del-resend { align-self: center; }
+.kc-del-support { flex-wrap: wrap; height: auto; min-height: var(--kc-control); padding-block: 8px; }
+.kc-del-addr { font-family: var(--k-mono); font-size: 13px; letter-spacing: .02em; color: var(--kc-text-2); }

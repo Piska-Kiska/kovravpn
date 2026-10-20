@@ -7,8 +7,15 @@
 // A notice is a 200 with a dummy vless:// line pointing at 127.0.0.1:1 and
 // Happ headers (sub-info-*, announce, profile-title) that say what happened:
 // an error status would make apps keep the old, working servers.
+//
+// A store build of our app (lib/client-dist.ts) gets the same notices in a
+// neutral form, in its own language: no "Buy a plan", no button, no link to a
+// page that sells and no bot. Its titles are the ones the app names the
+// refusal by (`refusal_error` in the app's subscription.rs). Every other
+// client gets exactly what it got before the store form existed.
 
 import { NextResponse } from "next/server";
+import type { StoreLang } from "./client-dist";
 import type { SubRefusal } from "./sub-access";
 
 export const HAPP_UI: Record<string, string> = {
@@ -146,8 +153,130 @@ function emptyHeaders(): HeadersInit {
   };
 }
 
-/** The answer for a token that may not get servers (see lib/sub-access.ts). */
-export function subRefusalResponse(refusal: SubRefusal): NextResponse {
+// ── Store builds ────────────────────────────────────────────────────────
+
+/**
+ * The support page in its app view (`?src=app`): nothing on it leads to the
+ * prices. A store build is never sent to the bot, which sells.
+ */
+export const STORE_SUPPORT_URL = "https://kovravpn.com/support?src=app";
+
+/**
+ * HAPP_UI for a store build: support is our page, and there is no link home,
+ * because the home page sells. Everything else is the same.
+ */
+export const STORE_FEED_UI: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HAPP_UI)
+    .filter(([name]) => name !== "profile-web-page-url")
+    .map(([name, value]) => [name, name === "support-url" ? STORE_SUPPORT_URL : value]),
+);
+
+/** The feed headers every 200 with servers starts from: HAPP_UI, or its store form when `store` is set. */
+export function feedUi(store: StoreLang | null): Readonly<Record<string, string>> {
+  return store === null ? HAPP_UI : STORE_FEED_UI;
+}
+
+/** The refusals a store build is shown a neutral text for. */
+export type StubKind = "deleted" | "second-device" | "no-plan" | "paused";
+
+interface StoreStub {
+  /**
+   * `profile-title`, which the app reads to name the refusal: "Device limit"
+   * and "Subscription removed" are its markers for a link taken by another
+   * device and for a dead link, and a title starting with ⚠ is "access
+   * ended". The Russian texts also carry the app's older Russian markers.
+   */
+  readonly title: string;
+  /** `announce` and `sub-info-text`: what happened and the next step, nothing about money. */
+  readonly text: string;
+  /** Name of the one dead server line. */
+  readonly server: string;
+}
+
+const STORE_STUBS: Readonly<Record<StubKind, Readonly<Record<StoreLang, StoreStub>>>> = {
+  "second-device": {
+    en: {
+      title: "Device limit",
+      text: "This link is already bound to another device. Reset the binding in your Kovra account, then refresh.",
+      server: "Reset the binding in your account",
+    },
+    ru: {
+      title: "Лимит устройств",
+      text: "Ссылка уже привязана к другому устройству. Сбросьте привязку в аккаунте Kovra и обновите подписку.",
+      server: "Сбросьте привязку в аккаунте",
+    },
+  },
+  deleted: {
+    en: {
+      title: "Subscription removed",
+      text: "This link no longer works: the device was removed. Sign in to your Kovra account again.",
+      server: "Sign in to your account again",
+    },
+    ru: {
+      title: "Подписка удалена",
+      text: "Эта ссылка больше не работает: устройство удалено. Войдите в аккаунт Kovra заново.",
+      server: "Войдите в аккаунт заново",
+    },
+  },
+  "no-plan": {
+    en: { title: "⚠️ Access has ended", text: "Access has ended.", server: "Access has ended" },
+    ru: { title: "⚠️ Доступ закончился", text: "Доступ закончился.", server: "Доступ закончился" },
+  },
+  paused: {
+    en: {
+      title: "Device paused",
+      text: "This device is paused: the account has more devices than it allows. Remove a device you no longer use in your Kovra account.",
+      server: "Device paused",
+    },
+    ru: {
+      title: "Устройство на паузе",
+      text: "Это устройство на паузе: устройств в аккаунте больше, чем он позволяет. Удалите лишнее устройство в аккаунте Kovra.",
+      server: "Устройство на паузе",
+    },
+  },
+};
+
+/**
+ * What a store build is told for a refusal, the `announce` text: also the
+ * `account.notice` of the app's signed list (src/app/api/watafast/v1), so the
+ * app says the same words whichever of the two it read.
+ */
+export function storeRefusalText(kind: StubKind, lang: StoreLang): string {
+  return STORE_STUBS[kind][lang].text;
+}
+
+const STUB_LINE_PREFIX = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#";
+
+function b64Header(text: string): string {
+  return "base64:" + Buffer.from(text, "utf-8").toString("base64");
+}
+
+function storeStubResponse(kind: StubKind, lang: StoreLang): NextResponse {
+  const stub = STORE_STUBS[kind][lang];
+  const text = b64Header(stub.text);
+  return new NextResponse(Buffer.from(STUB_LINE_PREFIX + encodeURIComponent(stub.server)).toString("base64"), {
+    status: 200,
+    headers: {
+      ...STORE_FEED_UI,
+      "sub-info-color": "red",
+      "sub-info-text": text,
+      announce: text,
+      "profile-title": b64Header(stub.title),
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-store",
+    },
+  });
+}
+
+/**
+ * The answer for a token that may not get servers (see lib/sub-access.ts).
+ * `store` is the language of a store build (lib/client-dist.ts), null for
+ * every other client.
+ */
+export function subRefusalResponse(refusal: SubRefusal, store: StoreLang | null = null): NextResponse {
+  if (store !== null && refusal.kind !== "invalid" && refusal.kind !== "not-found") {
+    return storeStubResponse(refusal.kind, store);
+  }
   switch (refusal.kind) {
     case "invalid":
       return new NextResponse("Invalid token", { status: 403 });

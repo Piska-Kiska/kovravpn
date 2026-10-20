@@ -65,6 +65,7 @@ import {
   type PaidKind,
 } from "@/lib/payment-return";
 import { AccountView, type UserInfo } from "./AccountView";
+import { AppCodeDialog } from "./AppCodeDialog";
 import { AppsSection } from "./AppsSection";
 import { BottomNav } from "./BottomNav";
 import { DashHeader } from "./DashHeader";
@@ -334,6 +335,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   const [resetDoneId, setResetDoneId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<string | null>(null);
+  const [appCodeFor, setAppCodeFor] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ uuid: string; name: string } | null>(null);
 
   // errors, one per section
@@ -1047,7 +1049,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
 
   const openSlotDialog = () => { setSlotError(null); setSlotDone(null); setShortCents(null); setSlotDialogOpen(true); };
   /** Something covers the view (a sheet or a confirmation): Telegram's bottom button steps aside. */
-  const overlayOpen = slotDialogOpen || topupOpen || confirmReset !== null || confirmDelete !== null;
+  const overlayOpen = slotDialogOpen || topupOpen || confirmReset !== null || confirmDelete !== null || appCodeFor !== null;
   /** A payment page of this kind is open in the browser (Mini App): what the order's action says and does. */
   const pendingFor = (kind: PaidKind) =>
     openedPayment?.kind === kind && paidPending && !paidDone && !paidSlow
@@ -1107,6 +1109,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
           onStartSetup={() => void handleCreate()}
           onPick={(id) => { setPendingDevice(id); void handleCreate(id); }}
           onCancelPick={() => setShowDevicePicker(false)}
+          onRequestAppCode={(uuid) => setAppCodeFor(uuid)}
           onRequestReset={(uuid) => setConfirmReset(uuid)}
           onRequestDelete={(uuid) => setConfirmDelete({ uuid, name: devLabel(profiles.findIndex((p) => p.uuid === uuid)) })}
           onDismissDeviceError={(uuid) => setDeviceErr(uuid, null)}
@@ -1231,6 +1234,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         </main>
         <BottomNav t={t} view={view} onNavigate={navigate} />
 
+        <AppCodeDialog uuid={appCodeFor} t={t} lang={lang} onClose={() => setAppCodeFor(null)} />
         <ConfirmDialog
           open={confirmReset !== null}
           title={t.reset_title}

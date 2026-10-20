@@ -50,7 +50,7 @@ function boot({ pathname, search = "", saved = null, explicit = null, languages 
   return { lang: attrs.lang, dataLang: attrs["data-lang"], pending: classes.has("kc-lang-pending") };
 }
 
-const PAGES = ["/", "/terms", "/privacy", "/guide", "/guide/", "/guides", "/guides/vpn-in-turkey", "/vless", "/vless/", "/crypto", "/login", "/register", "/dashboard", "/tg", "/promo", "/p/abcdefgh12", "/add/abcdefgh12", "/nope", "/termsx", "/pp"];
+const PAGES = ["/", "/terms", "/privacy", "/support", "/guide", "/guide/", "/guides", "/guides/vpn-in-turkey", "/vless", "/vless/", "/crypto", "/login", "/register", "/dashboard", "/tg", "/promo", "/p/abcdefgh12", "/add/abcdefgh12", "/nope", "/termsx", "/pp"];
 const VISITORS = [
   {},
   { languages: ["de-AT", "en"] },
@@ -183,7 +183,7 @@ test("the English-only landing pages say en for every visitor, like the guides",
 });
 
 test("the path helpers", () => {
-  for (const p of ["/terms", "/privacy", "/guide", "/guide/", "/login", "/tg/"]) assert.equal(isVisitorLangPath(p), true, p);
+  for (const p of ["/terms", "/privacy", "/support", "/guide", "/guide/", "/login", "/tg/"]) assert.equal(isVisitorLangPath(p), true, p);
   for (const p of ["/", "/guides", "/guides/x", "/vless", "/crypto", "/termsx", "/promo", "/p/x"]) assert.equal(isVisitorLangPath(p), false, p);
   for (const p of ["/guides", "/guides/x", "/vless", "/vless/", "/crypto", "/crypto/x"]) assert.equal(isEnglishOnlyPath(p), true, p);
   for (const p of ["/", "/guide", "/guide/", "/vlessx", "/cryptography", "/terms", "/login", "/promo"]) assert.equal(isEnglishOnlyPath(p), false, p);

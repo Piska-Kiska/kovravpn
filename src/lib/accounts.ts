@@ -129,8 +129,16 @@ export async function removeProfile(userId: string, uuid: string): Promise<void>
       await redis.del(`sub_prof:${removed.subToken}`);
       // Clear the HWID binding so the freed link can bind a new device later,
       // and flag the token so the client shows a "removed" notice (30d) rather
-      // than a stale 404 if it keeps polling.
-      await redis.del(`sub:${removed.subToken}:hwid`);
+      // than a stale 404 if it keeps polling. With the binding go the record
+      // of which app holds it, a waiting "code for the app" claim
+      // (lib/sub-access.ts ownAppHwidKey, claimedHwidKey) and the keys the
+      // link was given reserve credentials for (lib/watafast-device-keys.ts).
+      await redis.del(
+        `sub:${removed.subToken}:hwid`,
+        `sub:${removed.subToken}:hwid:own`,
+        `sub:${removed.subToken}:hwid:claim`,
+        `wfk:${removed.subToken}`,
+      );
       await redis.set(`sub_deleted:${removed.subToken}`, userId, {
         ex: 30 * 24 * 60 * 60,
       });
