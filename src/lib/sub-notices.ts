@@ -176,7 +176,8 @@ export function feedUi(store: StoreLang | null): Readonly<Record<string, string>
   return store === null ? HAPP_UI : STORE_FEED_UI;
 }
 
-type StubKind = "deleted" | "second-device" | "no-plan" | "paused";
+/** The refusals a store build is shown a neutral text for. */
+export type StubKind = "deleted" | "second-device" | "no-plan" | "paused";
 
 interface StoreStub {
   /**
@@ -234,6 +235,15 @@ const STORE_STUBS: Readonly<Record<StubKind, Readonly<Record<StoreLang, StoreStu
     },
   },
 };
+
+/**
+ * What a store build is told for a refusal, the `announce` text: also the
+ * `account.notice` of the app's signed list (src/app/api/watafast/v1), so the
+ * app says the same words whichever of the two it read.
+ */
+export function storeRefusalText(kind: StubKind, lang: StoreLang): string {
+  return STORE_STUBS[kind][lang].text;
+}
 
 const STUB_LINE_PREFIX = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:1?encryption=none&type=tcp&security=none#";
 
