@@ -641,3 +641,9 @@ input:checked + .kc-radio-dot::after, .kc-radio-row:has(input:checked) .kc-radio
   html:has(.kc-root) { scroll-behavior: auto; }
   .kc-root { transition: none; }
 }
+
+/* ── Code for the app (AppCodeDialog) ──────────────────────────────────── */
+.kc-appcode { display: flex; flex-direction: column; gap: 16px; }
+.kc-appcode > p { margin: 0; }
+.kc-appcode-left { margin: -4px 0 0; text-align: center; font-size: 13px; color: var(--kc-text-2); font-variant-numeric: tabular-nums; }
+.kc-appcode-wait { min-height: 132px; display: grid; place-items: center; color: var(--kc-text-2); }

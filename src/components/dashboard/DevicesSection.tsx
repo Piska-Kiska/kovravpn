@@ -48,6 +48,7 @@ export interface DevicesSectionProps {
   onStartSetup(): void;
   onPick(id: DeviceId): void;
   onCancelPick(): void;
+  onRequestAppCode(uuid: string): void;
   onRequestReset(uuid: string): void;
   onRequestDelete(uuid: string): void;
   onDismissDeviceError(uuid: string): void;
@@ -118,6 +119,7 @@ export function DevicesSection({ headingRef, ...p }: DevicesSectionProps) {
               slotPaused={!p.paused && pr.access === "paused"}
               resetDone={p.resetDoneId === pr.uuid}
               error={p.deviceError[pr.uuid] ?? null}
+              onRequestAppCode={() => p.onRequestAppCode(pr.uuid)}
               onRequestReset={() => p.onRequestReset(pr.uuid)}
               onRequestDelete={() => p.onRequestDelete(pr.uuid)}
               onDismissError={() => p.onDismissDeviceError(pr.uuid)}
