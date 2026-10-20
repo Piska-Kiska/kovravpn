@@ -1,8 +1,9 @@
 // src/app/api/sub/[token]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSubAccess, isSubGrant } from "@/lib/sub-access";
+import { isStoreClient, storeLangOf, type StoreLang } from "@/lib/client-dist";
 import { isOwnAppUa } from "@/lib/own-app";
-import { HAPP_UI, balanceInfoHeaders, subRefusalResponse } from "@/lib/sub-notices";
+import { balanceInfoHeaders, feedUi, subRefusalResponse } from "@/lib/sub-notices";
 import { buildVlessForClient } from "@/lib/xpanel";
 import { buildVlessForInbound } from "@/lib/xpanel-multi";
 import { getEnabledInbounds, getEnabledInboundsForUser, type InboundEntry } from "@/lib/inbounds";
@@ -77,9 +78,9 @@ async function buildLinesForProfile(
   return lines;
 }
 
-function plainHeaders(expireSec: number): HeadersInit {
+function plainHeaders(expireSec: number, store: StoreLang | null): HeadersInit {
   return {
-    ...HAPP_UI,
+    ...feedUi(store),
     ...balanceInfoHeaders(false),
     "Content-Type": "text/plain; charset=utf-8",
     "subscription-userinfo": `upload=0; download=0; total=0; expire=${expireSec}`,
@@ -87,9 +88,9 @@ function plainHeaders(expireSec: number): HeadersInit {
   };
 }
 
-function jsonHeaders(expireSec: number): HeadersInit {
+function jsonHeaders(expireSec: number, store: StoreLang | null): HeadersInit {
   return {
-    ...HAPP_UI,
+    ...feedUi(store),
     ...balanceInfoHeaders(false),
     "Content-Type": "application/json; charset=utf-8",
     "subscription-userinfo": `upload=0; download=0; total=0; expire=${expireSec}`,
@@ -101,6 +102,7 @@ async function respondXray(
   uuid: string,
   expireSec: number,
   multi: MultiFormat,
+  store: StoreLang | null,
   userId?: string
 ): Promise<NextResponse | null> {
   const profiles = await buildAllProfilesForUuid(uuid, userId);
@@ -109,14 +111,14 @@ async function respondXray(
   if (profiles.length === 1) {
     return new NextResponse(JSON.stringify(profiles[0]), {
       status: 200,
-      headers: jsonHeaders(expireSec),
+      headers: jsonHeaders(expireSec, store),
     });
   }
 
   if (multi === "array") {
     return new NextResponse(JSON.stringify(profiles), {
       status: 200,
-      headers: jsonHeaders(expireSec),
+      headers: jsonHeaders(expireSec, store),
     });
   }
 
@@ -127,13 +129,13 @@ async function respondXray(
   if (multi === "b64") {
     return new NextResponse(Buffer.from(ndjson).toString("base64"), {
       status: 200,
-      headers: plainHeaders(expireSec),
+      headers: plainHeaders(expireSec, store),
     });
   }
 
   return new NextResponse(ndjson, {
     status: 200,
-    headers: plainHeaders(expireSec),
+    headers: plainHeaders(expireSec, store),
   });
 }
 
@@ -146,7 +148,9 @@ export async function GET(
     // Deleted link, HWID binding, plan and slot: lib/sub-access.ts, shared
     // with /api/sub/<token>/vless so both feeds give the same answer.
     const access = await resolveSubAccess(token, req.headers.get("x-hwid"), Date.now(), isOwnAppUa(req.headers.get("user-agent")));
-    if (!isSubGrant(access)) return subRefusalResponse(access);
+    // A store build of our app gets every text in its neutral form (lib/client-dist.ts).
+    const store = isStoreClient(req.headers) ? storeLangOf(new URL(req.url).searchParams.get("lang")) : null;
+    if (!isSubGrant(access)) return subRefusalResponse(access, store);
 
     const format = resolveFormat(req);
     const multi = resolveMultiFormat(req);
@@ -161,7 +165,7 @@ export async function GET(
       const hasHy2 = userInbounds.some((e) => e.protocol === "hysteria2");
 
       if (format === "xray" && !hasHy2) {
-        const resp = await respondXray(profile.uuid, expire, multi, userId);
+        const resp = await respondXray(profile.uuid, expire, multi, store, userId);
         if (resp) return resp;
         console.warn("[sub] xray build empty, falling back to vless");
       }
@@ -170,14 +174,14 @@ export async function GET(
       const base64 = Buffer.from(lines.join("\n")).toString("base64");
       return new NextResponse(base64, {
         status: 200,
-        headers: plainHeaders(expire),
+        headers: plainHeaders(expire, store),
       });
     }
 
     const { userId, profiles: served, expireSec: expire } = access;
 
     if (format === "xray") {
-      const resp = await respondXray(served[0].uuid, expire, multi, userId);
+      const resp = await respondXray(served[0].uuid, expire, multi, store, userId);
       if (resp) return resp;
       console.warn(
         "[sub] xray build empty for legacy token, falling back to vless"
@@ -192,7 +196,7 @@ export async function GET(
     const base64 = Buffer.from(flat.join("\n")).toString("base64");
     return new NextResponse(base64, {
       status: 200,
-      headers: plainHeaders(expire),
+      headers: plainHeaders(expire, store),
     });
   } catch (err) {
     console.error("[sub]", err);
