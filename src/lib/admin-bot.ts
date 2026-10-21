@@ -56,6 +56,7 @@ import {
 import type { BroadcastMediaRef, BroadcastBtnRef } from "./admin-fsm";
 
 import { ADMIN_TG_ID } from "./bot-owner";
+import { LAVA_CREDIT_CALLBACK, LAVA_CREDIT_COMMAND, creditLavaContractByAdmin } from "./lava-admin-credit";
 import { applyAdminWalletChange, formatUsdCents, parseAdminWalletInput } from "./admin-wallet";
 
 export { ADMIN_TG_ID };
@@ -1373,6 +1374,14 @@ export async function tryHandleAdminCallback(
   if (!data.startsWith("adm:")) return false;
 
   const action = data.slice(4);
+
+  // "✅ Зачислить сейчас" under a lava.top alert (lib/lava-webhook-handler.ts):
+  // a new message with the outcome, the alert stays as it was.
+  if (action.startsWith(LAVA_CREDIT_CALLBACK)) {
+    await send(chatId, await creditLavaContractByAdmin(action.slice(LAVA_CREDIT_CALLBACK.length)));
+    return true;
+  }
+
   const state = await getAdminState(chatId);
 
   try {
@@ -1525,6 +1534,15 @@ export async function tryHandleAdminText(
 
   if (trimmed === "/admin") {
     await screenAdminMenu(chatId, send);
+    return true;
+  }
+
+  // `lava <contract id>`: credit a lava.top payment the webhook could not
+  // (lib/lava-admin-credit.ts). Before the FSM: it is read whatever screen
+  // the admin left open.
+  const lava = LAVA_CREDIT_COMMAND.exec(trimmed);
+  if (lava !== null) {
+    await send(chatId, await creditLavaContractByAdmin(lava[1]));
     return true;
   }
 
