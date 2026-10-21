@@ -370,7 +370,7 @@ describe("a success their API does not confirm is credited on the event (22.10.2
     lava.byId = () => Response.json(invoice(CONTRACT, { status: "FAILED" }));
     const res = await deliver();
     assert.equal(res.status, 503);
-    assert.deepEqual(await res.json(), { error: "status_lag" });
+    assert.deepEqual(await res.json(), { error: "status_lag", theirStatus: "FAILED" });
     assert.equal(walletCents(), 0);
     assert.equal(mem.store.has(DONE_KEY), false);
   });
