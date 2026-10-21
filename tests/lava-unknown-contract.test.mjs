@@ -14,6 +14,11 @@
 //     key released, so lava.top repeats the event, and the admin is told once;
 //   • a contract that is not ours is confirmed as before, with the key released.
 //
+// Since 22.10.2026 a success their API does not confirm is credited on the
+// event itself when the event carried our webhook secret, the contract is
+// ours and the sum is the one we recorded (lib/lava-lookup.ts, paidByEvent).
+// The cases above that expect a retry send an event that fails that check.
+//
 // POST (src/app/api/payment/lava-webhook/route.ts) runs against an in-memory
 // Redis; fetch is stubbed for lava.top and Telegram. Keys and ids are made up.
 
@@ -37,7 +42,7 @@ const mem = await import("./support/memory-redis.mjs");
 const { NextRequest } = await import("next/server");
 const { ADMIN_TG_ID } = await import("../src/lib/bot-owner.ts");
 const { findCompletedInvoice, listCompletedInvoices } = await import("../src/lib/lava.ts");
-const { listDate, readCompletedPage } = await import("../src/lib/lava-lookup.ts");
+const { listDate, paidByEvent, readCompletedPage } = await import("../src/lib/lava-lookup.ts");
 const { POST } = await import("../src/app/api/payment/lava-webhook/route.ts");
 
 const USER = "tg_100000001";
@@ -101,15 +106,18 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-function deliver(contractId = CONTRACT, eventType = "payment.success") {
+function deliver(contractId = CONTRACT, eventType = "payment.success", over = {}) {
   return POST(
     new NextRequest("https://kovra.test/api/payment/lava-webhook", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": HOOK_KEY },
-      body: JSON.stringify({ eventType, contractId, status: "completed", amount: 5, currency: "USD" }),
+      body: JSON.stringify({ eventType, contractId, status: "completed", amount: 5, currency: "USD", ...over }),
     }),
   );
 }
+
+/** An event the event-only path refuses: its sum is not the one we recorded. */
+const OFF_SUM = { amount: 4 };
 
 describe("their lookup by id answers 404 for a paid contract", () => {
   test("the contract is taken from the list and credited; the admin hears of the lookup once", async () => {
@@ -152,7 +160,7 @@ describe("their lookup by id answers 404 for a paid contract", () => {
   test("our contract that neither read shows asks for a retry, frees the key and tells the admin once", async () => {
     issue();
 
-    const first = await deliver();
+    const first = await deliver(CONTRACT, "payment.success", OFF_SUM);
     assert.equal(first.status, 503);
     assert.deepEqual(await first.json(), { error: "contract_not_visible" });
     assert.equal(walletCents(), 0);
@@ -160,20 +168,21 @@ describe("their lookup by id answers 404 for a paid contract", () => {
     assert.equal(adminAlerts().length, 1);
     assert.match(adminAlerts()[0], /оплата пришла, а их API счёт не показывает/);
     assert.match(adminAlerts()[0], new RegExp(CONTRACT));
+    assert.match(adminAlerts()[0], /По самому событию не зачислено: в событии 4 USD, а счёт был на 5 USD/);
 
     // lava.top repeats the event: the same answer, and no second message.
-    assert.equal((await deliver()).status, 503);
+    assert.equal((await deliver(CONTRACT, "payment.success", OFF_SUM)).status, 503);
     assert.equal(adminAlerts().length, 1);
 
     // Their list catches up: the repeat is credited exactly once.
     lava.list = () => Response.json({ items: [invoice()], total: 1 });
-    assert.deepEqual(await (await deliver()).json(), { ok: true, status: "credited" });
+    assert.deepEqual(await (await deliver(CONTRACT, "payment.success", OFF_SUM)).json(), { ok: true, status: "credited" });
     assert.equal(walletCents(), 500);
   });
 
   test("a contract known only by its expected sum is ours too", async () => {
     issue(CONTRACT, { pointer: false });
-    const res = await deliver();
+    const res = await deliver(CONTRACT, "payment.success", OFF_SUM);
     assert.equal(res.status, 503);
     assert.deepEqual(await res.json(), { error: "contract_not_visible" });
     assert.equal(mem.store.has(DONE_KEY), false);
@@ -200,7 +209,7 @@ describe("their lookup by id answers 404 for a paid contract", () => {
   test("a list that cannot be read asks for a retry and frees the key", async () => {
     issue();
     lava.list = () => Response.json({ error: "Forbidden" }, { status: 403 });
-    const res = await deliver();
+    const res = await deliver(CONTRACT, "payment.success", OFF_SUM);
     assert.equal(res.status, 503);
     assert.deepEqual(await res.json(), { error: "upstream_unavailable" });
     assert.equal(mem.store.has(DONE_KEY), false);
@@ -210,7 +219,7 @@ describe("their lookup by id answers 404 for a paid contract", () => {
   test("a list answer with no list in it is a failed read, not an unknown contract", async () => {
     issue();
     lava.list = () => Response.json({ message: "ok" });
-    const res = await deliver();
+    const res = await deliver(CONTRACT, "payment.success", OFF_SUM);
     assert.equal(res.status, 503);
     assert.deepEqual(await res.json(), { error: "upstream_unavailable" });
   });
@@ -319,5 +328,143 @@ describe("the list of executed contracts", () => {
       assert.throws(() => readCompletedPage(raw, new Set()), /no items/);
     }
     assert.equal(listDate(0), "1970-01-01T00:00:00Z");
+  });
+});
+
+describe("a success their API does not confirm is credited on the event (22.10.2026)", () => {
+  const credited = () => adminAlerts().filter((t) => t.includes("пополнение кошелька через lava.top"));
+
+  test("neither read shows the contract: credited at once, the admin's message says how, a repeat is a duplicate", async () => {
+    issue();
+    const res = await deliver();
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, status: "credited" });
+    assert.equal(walletCents(), 500);
+    assert.equal(mem.store.has(DONE_KEY), true, "the key stays held: a repeat must not credit twice");
+    assert.equal(credited().length, 1);
+    assert.match(credited()[0], /зачислено по событию lava: их API оплату не подтвердил \(unknown\)/);
+    assert.equal(adminAlerts().filter((t) => t.includes("не показывает")).length, 0);
+
+    assert.deepEqual(await (await deliver()).json(), { ok: true, ignored: "duplicate" });
+    assert.equal(walletCents(), 500);
+  });
+
+  test("their API cannot be read at all: credited on the event", async () => {
+    issue();
+    lava.byId = () => Response.json({ error: "down" }, { status: 502 });
+    assert.deepEqual(await (await deliver()).json(), { ok: true, status: "credited" });
+    assert.equal(walletCents(), 500);
+    assert.match(credited()[0], /\(failed\)/);
+  });
+
+  test("their API still says IN_PROGRESS: credited on the event instead of waiting", async () => {
+    issue();
+    lava.byId = () => Response.json(invoice(CONTRACT, { status: "IN_PROGRESS" }));
+    assert.deepEqual(await (await deliver()).json(), { ok: true, status: "credited" });
+    assert.equal(walletCents(), 500);
+    assert.match(credited()[0], /\(IN_PROGRESS\)/);
+  });
+
+  test("their API says FAILED: the event does not overrule it", async () => {
+    issue();
+    lava.byId = () => Response.json(invoice(CONTRACT, { status: "FAILED" }));
+    const res = await deliver();
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "status_lag" });
+    assert.equal(walletCents(), 0);
+    assert.equal(mem.store.has(DONE_KEY), false);
+  });
+
+  test("their API confirms: the event path is not taken and the message has no event line", async () => {
+    issue();
+    lava.byId = () => Response.json(invoice());
+    assert.deepEqual(await (await deliver()).json(), { ok: true, status: "credited" });
+    assert.doesNotMatch(credited()[0], /по событию/);
+  });
+
+  test("another currency or another sum in the event: nothing credited, a retry, the admin is told why", async () => {
+    issue();
+    const res = await deliver(CONTRACT, "payment.success", { currency: "EUR" });
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "contract_not_visible" });
+    assert.equal(walletCents(), 0);
+    assert.match(adminAlerts()[0], /в событии 5 EUR, а счёт был на 5 USD/);
+  });
+
+  test("a contract we did not issue is not credited on the event", async () => {
+    const res = await deliver();
+    assert.deepEqual(await res.json(), { ok: true, ignored: "unknown contract" });
+    assert.equal(walletCents(), 0);
+  });
+
+  test("our pointer and our record naming different orders: nothing credited", async () => {
+    issue();
+    mem.store.set(`store:lava:contract:${CONTRACT}`, `topup_${USER}_1790000000999`);
+    const res = await deliver();
+    assert.equal(res.status, 503);
+    assert.equal(walletCents(), 0);
+    assert.match(adminAlerts()[0], /указатель и запись счёта называют разные заказы/);
+  });
+
+  test("a pointer without the record of the charge: nothing credited on the event", async () => {
+    issue(CONTRACT, { charge: false });
+    const res = await deliver();
+    assert.equal(res.status, 503);
+    assert.equal(walletCents(), 0);
+    assert.match(adminAlerts()[0], /нет нашей записи о сумме счёта/);
+  });
+
+  test("Redis failing while the record is read asks for a retry and credits nothing", async () => {
+    issue();
+    mem.failNext("get", { key: `lava_charge:${CONTRACT}` });
+    const res = await deliver();
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "storage_unavailable" });
+    assert.equal(walletCents(), 0);
+    assert.equal(mem.store.has(DONE_KEY), false);
+  });
+
+  test("an event without our webhook secret never reaches the check", async () => {
+    issue();
+    const res = await POST(
+      new NextRequest("https://kovra.test/api/payment/lava-webhook", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": "wrong" },
+        body: JSON.stringify({ eventType: "payment.success", contractId: CONTRACT, status: "completed", amount: 5, currency: "USD" }),
+      }),
+    );
+    assert.equal(res.status, 401);
+    assert.equal(walletCents(), 0);
+  });
+
+  test("paidByEvent: what an event must carry", () => {
+    const rec = { amount: 5, currency: "USD" };
+    const ev = { eventType: "payment.success", contractId: CONTRACT, status: "completed", amount: 5, currency: "USD" };
+    assert.deepEqual(paidByEvent(ev, CONTRACT, rec), {
+      kind: "paid",
+      invoice: { id: CONTRACT, status: "COMPLETED", receipt: { amount: 5, currency: "USD" } },
+    });
+    // Spellings their sender might use.
+    assert.equal(paidByEvent({ ...ev, status: "COMPLETED", amount: "5.00", currency: "usd" }, CONTRACT, rec).kind, "paid");
+    assert.equal(paidByEvent({ ...ev, status: undefined }, CONTRACT, rec).kind, "paid");
+    assert.equal(paidByEvent({ ...ev, amount: 5.004 }, CONTRACT, rec).kind, "paid");
+    // Refusals, each with its reason.
+    const why = (payload, recorded = rec) => {
+      const proof = paidByEvent(payload, CONTRACT, recorded);
+      return proof.kind === "refused" ? proof.reason : "paid";
+    };
+    assert.equal(why({ ...ev, eventType: "payment.failed" }), "это не событие об успешной оплате");
+    assert.equal(why({ ...ev, contractId: OTHER }), "в теле события другой контракт");
+    assert.equal(why({ ...ev, status: "failed" }), "статус в событии: failed");
+    assert.equal(why({ ...ev, status: 7 }), "статус в событии: 7");
+    assert.equal(why(ev, null), "нет нашей записи о сумме счёта");
+    assert.equal(why(ev, { amount: "x", currency: "USD" }), "запись о сумме счёта повреждена");
+    assert.equal(why(ev, { amount: 5, currency: "dollars" }), "запись о сумме счёта повреждена");
+    for (const amount of [undefined, null, "", "abc", 0, -5, Number.NaN, Infinity]) {
+      assert.equal(why({ ...ev, amount }), "в событии нет суммы или валюты", String(amount));
+    }
+    assert.equal(why({ ...ev, currency: "US" }), "в событии нет суммы или валюты");
+    assert.equal(why({ ...ev, amount: 5.02 }), "в событии 5.02 USD, а счёт был на 5 USD");
+    assert.equal(why({ ...ev, currency: "RUB" }), "в событии 5 RUB, а счёт был на 5 USD");
   });
 });

@@ -114,3 +114,76 @@ export async function lookupContract(
     return { kind: "failed", error: reason(err) };
   }
 }
+
+// ── A success the event proves by itself ────────────────────────────────────
+//
+// WHY (22.10.2026). A wallet top-up was paid, lava.top delivered its
+// `payment.success` at once, and neither their lookup by id nor their list of
+// executed contracts showed the contract: nothing was credited, the person
+// watched "checking the payment" with the money gone. The owner's decision:
+// when the payment is seen, it is credited at once.
+//
+// What makes the event alone enough is not its body, which is not signed, but
+// three things the webhook checks around this function: the request carried
+// our webhook secret (a forged event without it is refused before this point),
+// the contract is one we issued (our own records, written before the payment
+// link left), and the sum and currency in the event are the ones we recorded
+// for that contract. This function checks the third and the event's shape.
+
+/** What we recorded when the invoice was issued, as far as this check needs it. */
+export interface RecordedCharge {
+  readonly amount: unknown;
+  readonly currency: unknown;
+}
+
+export type EventProof =
+  | { readonly kind: "paid"; readonly invoice: LavaInvoice }
+  | { readonly kind: "refused"; readonly reason: string };
+
+/** Lava spells sums with two decimals at most; a cent of rounding is not a different sum. */
+const SUM_TOLERANCE = 0.01;
+
+function sumOf(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function currencyOf(value: unknown): string | null {
+  return typeof value === "string" && /^[A-Za-z]{3}$/.test(value) ? value.toUpperCase() : null;
+}
+
+/**
+ * The executed contract a `payment.success` event proves for `contractId`,
+ * shaped as their API would return it, or why it does not.
+ *
+ * Refused: another event or another contract in the body, a status other than
+ * "completed" (a missing status is not refused: the event type already says
+ * success), no record of the charge, a sum or currency that is not a sum or a
+ * currency, and a sum or currency that differs from the record.
+ *
+ * Pure, never throws. O(1).
+ */
+export function paidByEvent(
+  payload: Readonly<Record<string, unknown>>,
+  contractId: string,
+  recorded: RecordedCharge | null,
+): EventProof {
+  if (payload.eventType !== "payment.success") return { kind: "refused", reason: "это не событие об успешной оплате" };
+  if (payload.contractId !== contractId) return { kind: "refused", reason: "в теле события другой контракт" };
+  if (payload.status !== undefined && payload.status !== null) {
+    if (typeof payload.status !== "string" || payload.status.toLowerCase() !== "completed") {
+      return { kind: "refused", reason: `статус в событии: ${String(payload.status).slice(0, 40)}` };
+    }
+  }
+  if (recorded === null) return { kind: "refused", reason: "нет нашей записи о сумме счёта" };
+  const wantSum = sumOf(recorded.amount);
+  const wantCurrency = currencyOf(recorded.currency);
+  if (wantSum === null || wantCurrency === null) return { kind: "refused", reason: "запись о сумме счёта повреждена" };
+  const paid = sumOf(payload.amount);
+  const currency = currencyOf(payload.currency);
+  if (paid === null || currency === null) return { kind: "refused", reason: "в событии нет суммы или валюты" };
+  if (currency !== wantCurrency || Math.abs(paid - wantSum) > SUM_TOLERANCE) {
+    return { kind: "refused", reason: `в событии ${paid} ${currency}, а счёт был на ${wantSum} ${wantCurrency}` };
+  }
+  return { kind: "paid", invoice: { id: contractId, status: "COMPLETED", receipt: { amount: paid, currency } } };
+}

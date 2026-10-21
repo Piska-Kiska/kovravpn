@@ -51,9 +51,10 @@ import {
   orderIdFor,
   ownOrderIdFor,
   verifyWebhookAuth,
+  type LavaInvoice,
 } from "@/lib/lava";
-import { lookupContract } from "@/lib/lava-lookup";
-import { chargeIn, getCharge, priceUsdForOrderId } from "@/lib/lava-purchase";
+import { lookupContract, paidByEvent, type EventProof } from "@/lib/lava-lookup";
+import { chargeIn, getCharge, priceUsdForOrderId, type ExpectedCharge } from "@/lib/lava-purchase";
 import { addBalanceUsd, parseTopupOrderId } from "@/lib/bot-wallet";
 import type { LavaCurrency } from "@/lib/lava-methods";
 import { redis } from "@/lib/redis";
@@ -222,28 +223,65 @@ export async function POST(req: NextRequest) {
     contractId,
     event,
   );
-  if (lookup.kind === "failed") {
+
+  // ── A success their API does not confirm (yet) ───────────────────────────
+  //
+  // Their API is asked first and its "executed" wins. When it cannot say so —
+  // the read failed, neither read knows the contract, or it is still NEW or
+  // IN_PROGRESS — a success is credited on the event itself, by the owner's
+  // decision of 22.10.2026: the payment is seen, so it is credited at once.
+  // Only an event that carried our webhook secret, for a contract we issued,
+  // with the sum we recorded for it (paidByEvent). A contract their API calls
+  // FAILED is not overruled by an event. Anything short of that keeps the old
+  // way: a retry, and the admin is told.
+  let invoice: LavaInvoice | null = lookup.kind === "found" ? lookup.invoice : null;
+  let byEvent = false;
+  let eventRefusal: string | null = null;
+  let ownOrderId: string | null = null;
+  const unconfirmed =
+    invoice === null || invoice.status === "NEW" || invoice.status === "IN_PROGRESS";
+  if (event === "payment.success" && unconfirmed) {
+    let pointer: string | null;
+    let recorded: ExpectedCharge | null;
+    try {
+      pointer = await ownOrderIdFor(contractId);
+      recorded = await getCharge(contractId);
+    } catch (err) {
+      console.error("[lava-webhook] contract lookup failed:", err);
+      return retry("storage_unavailable");
+    }
+    ownOrderId = pointer ?? recorded?.orderId ?? null;
+    if (ownOrderId !== null) {
+      const proof: EventProof =
+        auth !== "ok"
+          ? { kind: "refused", reason: "секрет вебхука не задан (LAVA_WEBHOOK_API_KEY)" }
+          : pointer !== null && recorded !== null && pointer !== recorded.orderId
+            ? { kind: "refused", reason: "указатель и запись счёта называют разные заказы" }
+            : paidByEvent(payload, contractId, recorded);
+      if (proof.kind === "paid") {
+        invoice = proof.invoice;
+        byEvent = true;
+        console.warn("[lava-webhook] credited on the event, their API does not confirm", contractId, lookup.kind);
+      } else {
+        eventRefusal = proof.reason;
+      }
+    }
+  }
+
+  if (!byEvent && lookup.kind === "failed") {
     console.error("[lava-webhook] invoice fetch failed:", lookup.error);
     return retry("upstream_unavailable");
   }
-  if (lookup.kind === "unknown") {
+  if (!byEvent && lookup.kind === "unknown") {
     // Их API контракта не знает. Чужой он или подделан — решают НАШИ записи
     // (указатель и ожидаемая сумма, обе пишутся при выставлении счёта), а не
     // их ответ: 404 по номеру они отдавали и на оплаченные контракты.
-    let ownOrderId: string | null = null;
-    if (event === "payment.success") {
-      try {
-        ownOrderId = (await ownOrderIdFor(contractId)) ?? (await getCharge(contractId))?.orderId ?? null;
-      } catch (err) {
-        console.error("[lava-webhook] contract lookup failed:", err);
-        return retry("storage_unavailable");
-      }
-    }
     if (ownOrderId !== null) {
-      // Счёт выставляли мы, лава говорит «оплачен», а показать его не может.
-      // Подтвердить — значит потерять оплату: просим повторить (у них
-      // девятнадцать попыток за пять часов) и говорим об этом вслух.
-      console.error("[lava-webhook] paid contract their API does not show", contractId);
+      // Счёт выставляли мы, лава говорит «оплачен», а показать его не может,
+      // и само событие зачислить не позволило. Подтвердить — значит потерять
+      // оплату: просим повторить (у них девятнадцать попыток за пять часов) и
+      // говорим об этом вслух.
+      console.error("[lava-webhook] paid contract their API does not show", contractId, eventRefusal);
       await alertOnce(`lava_not_visible_alert:${contractId}`, NOT_VISIBLE_ALERT_TTL_SEC, [
         `⚠️ <b>lava.top: оплата пришла, а их API счёт не показывает</b>`,
         ``,
@@ -251,6 +289,7 @@ export async function POST(req: NextRequest) {
         `contract <code>${esc(contractId)}</code>`,
         ``,
         `Событие об оплате пришло, но ни по номеру, ни в списке оплаченных счетов контракта нет. <b>Ничего НЕ выдано.</b>`,
+        `По самому событию не зачислено: ${esc(eventRefusal ?? "?")}.`,
         `Лава повторит событие в течение пяти часов; если выдача так и не пришла — проверить контракт в кабинете и выдать вручную.`,
       ]);
       return retry("contract_not_visible");
@@ -262,8 +301,16 @@ export async function POST(req: NextRequest) {
     await releaseDedupKey(dedupKey).catch(() => {});
     return NextResponse.json({ ok: true, ignored: "unknown contract" });
   }
-  const invoice = lookup.invoice;
-  if (lookup.via === "list") {
+  if (invoice === null) {
+    // Not reachable: a lookup that found nothing returned above unless the
+    // event was taken, and a taken event sets the invoice.
+    return retry("upstream_unavailable");
+  }
+  /** The line the admin's payment message gets when the event alone proved it. */
+  const proofLine = byEvent
+    ? `\n🔔 зачислено по событию lava: их API оплату не подтвердил (${esc(lookup.kind === "found" ? lookup.invoice.status : lookup.kind)}). Сверить контракт в кабинете lava.`
+    : "";
+  if (lookup.kind === "found" && lookup.via === "list") {
     console.warn("[lava-webhook] contract not found by id, taken from the list", contractId);
     await alertOnce("lava_by_id_404_alert", BY_ID_ALERT_TTL_SEC, [
       `ℹ️ <b>lava.top: счёт не находится по номеру, взят из списка</b>`,
@@ -318,7 +365,8 @@ export async function POST(req: NextRequest) {
 
   let orderId: string | null;
   try {
-    orderId = await orderIdFor(contractId, invoice);
+    // An event taken on its own names our order by our own records only.
+    orderId = byEvent ? ownOrderId : await orderIdFor(contractId, invoice);
   } catch (err) {
     console.error("[lava-webhook] contract lookup failed:", err);
     return retry("storage_unavailable");
@@ -380,6 +428,7 @@ export async function POST(req: NextRequest) {
             `их статус: <code>${esc(invoice.status)}</code> вместо COMPLETED`,
             ``,
             `Событие пришло ${attempts} раз, контракт так и не исполнен. Выдачи не было.`,
+            ...(eventRefusal === null ? [] : [`По самому событию не зачислено: ${esc(eventRefusal)}.`]),
           ].join("\n"),
         );
       }
@@ -484,7 +533,7 @@ export async function POST(req: NextRequest) {
         `+$${usd.toFixed(2)} · списано ${paid} ${esc(currency)}` +
           (Number.isFinite(feeTopup) ? ` · комиссия ${feeTopup}` : ""),
         `user <code>${esc(userId)}</code>`,
-        `contract <code>${esc(contractId)}</code>`,
+        `contract <code>${esc(contractId)}</code>` + proofLine,
       ].join("\n"),
     );
     return NextResponse.json({ ok: true, status: "credited" });
@@ -560,7 +609,7 @@ export async function POST(req: NextRequest) {
       `${summaryLine}`,
       `списано: ${paid} ${esc(currency)}` + (Number.isFinite(fee) ? ` · комиссия ${fee}` : ""),
       `user <code>${esc(grantee)}</code>`,
-      `contract <code>${esc(contractId)}</code>`,
+      `contract <code>${esc(contractId)}</code>` + proofLine,
     ].join("\n"),
   );
 
