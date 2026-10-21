@@ -55,6 +55,7 @@ import {
   lavaTakesAmount,
   type LavaCurrency,
   type LavaMethodId,
+  type LavaMethodSpec,
 } from "./lava-methods";
 import { listDate, readCompletedPage } from "./lava-lookup";
 import { redis } from "./redis";
@@ -190,16 +191,32 @@ export class LavaError extends Error {
   public readonly status: number;
   /** Тело ответа. Не перечислимое: иначе уезжает в журнал дважды. */
   public readonly body: unknown;
+  /**
+   * Их `x-request-id`. Единственное, по чему поддержка lava.top находит
+   * запрос у себя: «500 Something went wrong» без номера — разговор ни о чём.
+   */
+  public readonly requestId: string | null;
 
   // No parameter properties: Node's type stripping (unit tests) rejects them.
-  constructor(status: number, body: unknown) {
+  constructor(status: number, body: unknown, requestId: string | null = null) {
     // Текст ответа в message: линия настраивается один раз, и «lava 400» без
     // объяснения превращает настройку в гадание. Секретов в их ответе нет.
-    super(`lava.top ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+    // Номер запроса — после среза, чтобы длинное тело его не отрезало.
+    super(
+      `lava.top ${status}: ${JSON.stringify(body).slice(0, 300)}` +
+        (requestId === null ? "" : ` [x-request-id ${requestId}]`),
+    );
     this.status = status;
     this.name = "LavaError";
+    this.requestId = requestId;
     Object.defineProperty(this, "body", { value: body, enumerable: false });
   }
+}
+
+/** Их номер запроса из ответа. Идёт только в журнал, поэтому строго по форме. */
+function requestIdOf(res: Response): string | null {
+  const raw = res.headers.get("x-request-id");
+  return raw !== null && /^[\w.-]{1,80}$/.test(raw) ? raw : null;
 }
 
 async function call(
@@ -219,7 +236,7 @@ async function call(
     cache: "no-store",
   });
   const json: unknown = await res.json().catch(() => ({}));
-  if (!res.ok) throw new LavaError(res.status, json);
+  if (!res.ok) throw new LavaError(res.status, json, requestIdOf(res));
   return json;
 }
 
@@ -237,6 +254,32 @@ async function read(path: string): Promise<unknown> {
     await new Promise((r) => setTimeout(r, 1500));
     return call("GET", path);
   }
+}
+
+/**
+ * Запрос на счёт для журнала: ключ сюда не попадает (он в заголовке), от
+ * почты остаётся только домен, имя покупателя — только факт, что оно есть.
+ * Остальное — ровно то, что ушло, чтобы было с чем сравнить пробный запрос.
+ */
+function invoiceRequestSummary(
+  input: CreateLavaInvoiceInput,
+  spec: LavaMethodSpec,
+  mail: string | undefined,
+): string {
+  const at = mail === undefined ? -1 : mail.lastIndexOf("@");
+  return JSON.stringify({
+    offerId: `${(OFFER_ID ?? "").slice(0, 8)}…`,
+    email: mail !== undefined && at > 0 ? `*${mail.slice(at)}` : null,
+    currency: input.currency,
+    amount: input.amount,
+    buyerLanguage: buyerLanguage(input.locale),
+    paymentProvider: spec.provider,
+    paymentMethod: spec.method ?? null,
+    fullName: spec.needsFullName === true,
+    orderId: input.orderId,
+    successUrl: input.successUrl,
+    failUrl: input.failUrl,
+  });
 }
 
 /** Язык окна оплаты. У лавы их три; всё, что не русский и не испанский, — английский. */
@@ -346,15 +389,32 @@ export async function createInvoice(
    * Повтор здесь безопасен, несмотря на отсутствие идемпотентности: 400
    * означает, что контракт не создан, и второй запрос не заведёт второй.
    */
+  const postInvoice = async (): Promise<unknown> => {
+    try {
+      return await call("POST", "/api/v3/invoice", body(email));
+    } catch (err) {
+      const emailRejected =
+        err instanceof LavaError && err.status === 400 && /email/i.test(err.message);
+      if (!emailRejected || email === BUYER_EMAIL) throw err;
+      console.warn("[lava] buyer email refused by the gateway, retrying with the fallback address");
+      return call("POST", "/api/v3/invoice", body(BUYER_EMAIL));
+    }
+  };
+
   let raw: unknown;
   try {
-    raw = await call("POST", "/api/v3/invoice", body(email));
+    raw = await postInvoice();
   } catch (err) {
-    const emailRejected =
-      err instanceof LavaError && err.status === 400 && /email/i.test(err.message);
-    if (!emailRejected || email === BUYER_EMAIL) throw err;
-    console.warn("[lava] buyer email refused by the gateway, retrying with the fallback address");
-    raw = await call("POST", "/api/v3/invoice", body(BUYER_EMAIL));
+    // Что именно ушло к ним — без ключа и без почты. 22.10 их шлюз отвечал
+    // с боя «500 Something went wrong», а тот же запрос с другой машины
+    // принимал; без этой строки в журнале сравнивать было нечего.
+    console.error(
+      "[lava] invoice refused:",
+      invoiceRequestSummary(input, spec, email),
+      "—",
+      err instanceof Error ? err.message : String(err),
+    );
+    throw err;
   }
 
   const created = raw as {
