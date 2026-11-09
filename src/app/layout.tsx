@@ -71,7 +71,6 @@ const jetbrainsMono = JetBrains_Mono({
 
 const SITE_URL = "https://kovravpn.com";
 const SITE_NAME = "Kovra";
-const SITE_NAME_LATIN = "Kovra";
 // Title and description are the home page's (src/lib/site-meta.ts), where a
 // test holds them to the search-result limits and the price is computed.
 const DEFAULT_TITLE = HOME_META.title;
@@ -124,7 +123,9 @@ const BRAND_KEYWORDS = [
  * Root metadata.
  *
  * - `title.template` lets every page override only its own segment ("Войти")
- *   while we always append " | Kovra" for brand recall in SERPs.
+ *   while we always append " | Kovra" for brand recall in SERPs. Once: the
+ *   ProxysVPN fork's " | Name (Latin name)" read "| Kovra (Kovra)" here,
+ *   16 characters of every result line spent on the brand twice.
  * - `title.default` is what the homepage uses (it has no template arg).
  * - `metadataBase` makes relative OG/canonical URLs resolve against the
  *   production origin, fixes Yandex/Google complaining about bare paths.
@@ -147,11 +148,11 @@ const BRAND_KEYWORDS = [
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    template: `%s | ${SITE_NAME} (${SITE_NAME_LATIN})`,
+    template: `%s | ${SITE_NAME}`,
     default: DEFAULT_TITLE,
   },
   description: DEFAULT_DESC,
-  applicationName: `${SITE_NAME} (${SITE_NAME_LATIN})`,
+  applicationName: SITE_NAME,
   authors: [{ name: SITE_NAME, url: SITE_URL }],
   creator: SITE_NAME,
   publisher: SITE_NAME,
@@ -168,7 +169,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: `${SITE_NAME} (${SITE_NAME_LATIN})`,
+    siteName: SITE_NAME,
     locale: "en_US",
     url: SITE_URL,
     title: DEFAULT_TITLE,

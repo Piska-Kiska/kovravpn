@@ -46,7 +46,7 @@ export const LANDING_PAGES: readonly { path: string; meta: PageMeta }[] = [
 
 /**
  * Next.js metadata of a landing page. The title is absolute: the layout's
- * template would append " | Kovra (Kovra)" to a title that already ends in
+ * template would append " | Kovra" to a title that already ends in
  * "| Kovra". `path` is the canonical path, resolved against metadataBase.
  */
 export function landingMetadata(meta: PageMeta, path: string, ogTitle: string): Metadata {
