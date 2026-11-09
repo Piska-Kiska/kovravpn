@@ -12,7 +12,7 @@ import SupportView from "@/components/SupportView";
 import { isAppView, type PageSearchParams } from "@/lib/legal-routes";
 
 export const metadata = {
-  title: "Support — Kovra",
+  title: "Support",
   description: "How to reach Kovra support, sign in to the app, fix a connection that does not work and delete your account.",
   alternates: {
     canonical: "https://kovravpn.com/support",

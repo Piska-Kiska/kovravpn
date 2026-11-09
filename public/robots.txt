@@ -9,6 +9,10 @@ Allow: /api/og
 Disallow: /api/
 Disallow: /dashboard
 Disallow: /promo
+# Cloudflare's email obfuscation turns every mailto on the page into a link to
+# /cdn-cgi/l/email-protection, which answers 404 to a crawler: Search Console
+# listed it among the pages not found.
+Disallow: /cdn-cgi/
 
 # Answer engines. Explicitly welcomed: the /guides section is written to be
 # quoted, and being cited in an AI answer is now a discovery channel in its

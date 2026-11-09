@@ -10,7 +10,7 @@ import { isAppView, type PageSearchParams } from "@/lib/legal-routes";
 // the client (src/i18n/resolve.ts isVisitorLangPath, KP-08). The legal text
 // itself is src/i18n/legal.ts, in all five site languages.
 export const metadata = {
-  title: "Terms of Service — Kovra",
+  title: "Terms of Service",
   description:
     "Kovra terms of service: payment, refunds, liability and the referral program. Also available in Russian, Spanish, German and French.",
   alternates: {
