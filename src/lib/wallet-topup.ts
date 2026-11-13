@@ -16,7 +16,7 @@ import { buildTopupOrderId, usdToCents } from "./bot-wallet";
 import { createCryptoBotInvoice, cryptoBotConfigured } from "./cryptobot";
 import { cardPaymentsEnabled, createCardPayment } from "./cashera-order";
 import { createInvoice as createNowPaymentsInvoice, nowPaymentsConfigured } from "./nowpayments";
-import { createInvoice as createLavaInvoice, lavaConfigured, rememberContract } from "./lava";
+import { createInvoice as createLavaInvoice, lavaOffered, rememberContract } from "./lava";
 import { LAVA_MIN_AMOUNT, lavaMethodChoices, lavaMethod, type LavaCurrency, type LavaMethodId } from "./lava-methods";
 import { chargeIn, formatCharge } from "./lava-price";
 import { rememberCharge } from "./lava-purchase";
@@ -45,12 +45,12 @@ export function minTopupUsd(method: TopupMethod): number {
   return method === "cryptobot" ? MIN_TOPUP_CRYPTOBOT_USD : MIN_TOPUP_NOWPAY_USD;
 }
 
-/** Is the payment line configured on this deployment? */
+/** Is the payment line configured on this deployment and offered now? */
 export function topupMethodEnabled(method: TopupMethod): boolean {
   if (method === "card") return cardPaymentsEnabled();
   if (method === "cryptobot") return cryptoBotConfigured();
   if (method === "crypto") return nowPaymentsConfigured();
-  return lavaConfigured;
+  return lavaOffered;
 }
 
 export interface TopupMethodInfo {

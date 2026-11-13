@@ -28,7 +28,7 @@ import { safeEqual } from "@/lib/safe-compare";
 import { getReferralStats, resolveReferralCode, recordReferral, grantReferralReward } from "@/lib/referrals";
 import { isReferralCode } from "@/lib/telegram-login";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
-import { LAVA_MIN_AMOUNT, lavaConfigured } from "@/lib/lava";
+import { LAVA_MIN_AMOUNT, lavaOffered } from "@/lib/lava";
 import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
 import { formatCharge } from "@/lib/lava-price";
 import {
@@ -783,7 +783,7 @@ async function screenTopup(chatId: number, msgId: number) {
     [{ text: t("topup.m.card", lang) + ` · $${MIN_TOPUP_CARD_USD}+`, callback_data: "topup_m_card" }],
     [{ text: t("topup.m.cryptobot", lang) + ` · $${MIN_TOPUP_CRYPTOBOT_USD}+`, callback_data: "topup_m_cryptobot" }],
     [{ text: t("topup.m.crypto", lang) + ` · $${MIN_TOPUP_NOWPAY_USD}+`, callback_data: "topup_m_crypto" }],
-    ...(lavaConfigured
+    ...(lavaOffered
       ? [[{ text: t("topup.m.lava", lang) + ` · $${LAVA_MIN_AMOUNT.USD}+`, callback_data: "topup_m_lava" }]]
       : []),
     backBtn("account", lang),
@@ -1147,7 +1147,7 @@ export async function POST(req: NextRequest) {
       else if (data === "topup_m_cryptobot") await screenTopupAmount(chatId, msgId, "cryptobot");
       else if (data === "topup_m_card") await screenTopupAmount(chatId, msgId, "card");
       else if (data === "topup_m_lava") {
-        if (!lavaConfigured) await screenTopup(chatId, msgId);
+        if (!lavaOffered) await screenTopup(chatId, msgId);
         else await screenTopupAmount(chatId, msgId, "lava");
       }
       else if (data.startsWith("lv_")) {
