@@ -165,8 +165,21 @@ if (CONFIG_PROBLEM !== null && API_KEY !== undefined) {
   console.error("[lava] line disabled:", CONFIG_PROBLEM);
 }
 
-/** Готова ли линия. Проверять ДО показа кнопки покупателю. */
+/** Готова ли линия: ключ и настройки на месте. Приём платежей идёт по этому. */
 export const lavaConfigured = CONFIG_PROBLEM === null;
+
+/**
+ * Выключатель: линия настроена, но новые счета никому не предлагаются.
+ * Приём уже выставленных счетов (lib/lava-webhook-handler.ts, сверка, ручное
+ * зачисление) идёт по `lavaConfigured` и при паузе ПРОДОЛЖАЕТСЯ.
+ *
+ * 13.11.2026: lava.top скрыта по слову владельца из оплат во всех проектах на
+ * время. Вернуть — поставить false.
+ */
+const LAVA_ON_HOLD = true;
+
+/** Предлагать ли lava.top покупателю сейчас. Проверять ДО показа кнопки. */
+export const lavaOffered = lavaConfigured && !LAVA_ON_HOLD;
 
 /** Статус контракта по данным их API. */
 export type LavaInvoiceStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "FAILED";

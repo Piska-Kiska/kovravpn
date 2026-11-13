@@ -29,7 +29,7 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { paymentReturnFor } from "@/lib/bot-link";
 import {
   createInvoice,
-  lavaConfigured,
+  lavaOffered,
   lavaMethod,
   rememberContract,
   isLavaCurrency,
@@ -48,7 +48,7 @@ const SITE_URL = "https://kovravpn.com";
 
 export async function POST(req: NextRequest) {
   try {
-    if (!lavaConfigured) {
+    if (!lavaOffered) {
       return NextResponse.json({ error: "Payment method not available" }, { status: 503 });
     }
 
