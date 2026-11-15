@@ -29,7 +29,10 @@ import { getReferralStats, resolveReferralCode, recordReferral, grantReferralRew
 import { isReferralCode } from "@/lib/telegram-login";
 import { redeemPromoToWallet, PROMO_ERROR_TEXT, PROMO_MAX_USD, createPromo, listPromos, deletePromo } from "@/lib/promo";
 import { LAVA_MIN_AMOUNT, lavaOffered } from "@/lib/lava";
-import type { LavaCurrency, LavaMethodId } from "@/lib/lava-methods";
+import { checkPaymentEmail, maskEmail } from "@/lib/payment-email";
+import { defaultPaymentEmail } from "@/lib/payment-email-store";
+import { escapeHtml } from "@/lib/bot-v2/i18n";
+import { lavaMethod, type LavaCurrency, type LavaMethodId } from "@/lib/lava-methods";
 import { formatCharge } from "@/lib/lava-price";
 import {
   MAX_TOPUP_USD,
@@ -865,27 +868,91 @@ async function invoiceAllowed(chatId: number, msgId: number, userId: string, lan
   return false;
 }
 
-async function handleTopupLava(
+/** lava.top: the amount and method waiting for the customer's own e-mail (typed as the next message). */
+const lavaEmailAwaitKey = (chatId: number): string => `lava_email_await:${chatId}`;
+const LAVA_EMAIL_AWAIT_TTL_SEC = 900;
+
+interface LavaPick {
+  amountUsd: number;
+  method: LavaMethodId;
+  currency: LavaCurrency;
+}
+
+function lavaPickData(prefix: string, p: LavaPick): string {
+  return `${prefix}_${p.amountUsd}_${p.method}_${p.currency}`;
+}
+
+function parseLavaPick(raw: unknown): LavaPick | null {
+  try {
+    const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<LavaPick> | null;
+    if (!v || typeof v.amountUsd !== "number" || !Number.isFinite(v.amountUsd) || v.amountUsd <= 0) return null;
+    if (v.currency !== "USD" && v.currency !== "EUR") return null;
+    if (typeof v.method !== "string" || lavaMethod(v.method) === null) return null;
+    return { amountUsd: v.amountUsd, method: v.method as LavaMethodId, currency: v.currency };
+  } catch {
+    return null;
+  }
+}
+
+/** The method is chosen: before any invoice, ask for the customer's own e-mail (or confirm the saved one). */
+async function screenLavaEmail(
   chatId: number,
-  msgId: number,
-  amountUsd: number,
-  method: LavaMethodId,
-  currency: LavaCurrency,
+  msgId: number | null,
+  pick: LavaPick,
+  error: "email_invalid" | "email_rejected" | null,
+  allowSaved: boolean,
 ) {
   const userId = await getUserId(chatId);
   const lang = await resolveLang(userId);
-  if (!(await invoiceAllowed(chatId, msgId, userId, lang))) return;
+  const saved = allowSaved && error === null ? await defaultPaymentEmail(userId) : null;
+  const show = async (text: string, kb: InlineBtn[][]) => {
+    if (msgId === null) await send(chatId, text, kb);
+    else await edit(chatId, msgId, text, kb);
+  };
+  const back = backBtn("topup_m_lava", lang);
+  if (saved !== null) {
+    await show(t("lava.emailConfirm", lang, { email: escapeHtml(saved) }), [
+      [{ text: t("lava.emailPay", lang), callback_data: lavaPickData("lvp", pick) }],
+      [{ text: t("lava.emailChange", lang), callback_data: lavaPickData("lvc", pick) }],
+      back,
+    ]);
+    return;
+  }
+  await redis.set(lavaEmailAwaitKey(chatId), JSON.stringify(pick), { ex: LAVA_EMAIL_AWAIT_TTL_SEC });
+  const err = error === null ? "" : `${t(error === "email_rejected" ? "lava.emailRejected" : "lava.emailInvalid", lang)}\n\n`;
+  await show(err + t("lava.emailAsk", lang), [back]);
+}
+
+async function handleTopupLava(
+  chatId: number,
+  msgId: number | null,
+  pick: LavaPick,
+  email: string,
+) {
+  const userId = await getUserId(chatId);
+  const lang = await resolveLang(userId);
+  const show = async (text: string, kb: InlineBtn[][]) => {
+    if (msgId === null) await send(chatId, text, kb);
+    else await edit(chatId, msgId, text, kb);
+  };
+  const rl = await checkRateLimit(botInvoiceRateKey(userId), INVOICES_PER_MINUTE, 60);
+  if (!rl.allowed) {
+    console.warn(JSON.stringify({ evt: "bot.invoice_rate_limited", userId }));
+    await show(t("topup.err", lang), [backBtn("topup", lang)]);
+    return;
+  }
   const r = await createWalletTopupInvoice({
     userId,
     method: "lava",
-    amountUsd,
+    amountUsd: pick.amountUsd,
     returnTo: "bot",
-    lavaMethodId: method,
-    lavaCurrency: currency,
+    lavaMethodId: pick.method,
+    lavaCurrency: pick.currency,
     locale: lang === "ru" ? "ru" : "en",
+    email,
   });
   if (r.ok) {
-    await edit(chatId, msgId,
+    await show(
       t("topup.invoice", lang, { amount: r.amountUsd.toFixed(2) }),
       [
         [{ text: r.chargeLabel, url: r.payUrl }],
@@ -893,9 +960,12 @@ async function handleTopupLava(
       ]);
   } else if (r.error === "invalid_amount") {
     const min = minForMethod("lava");
-    await edit(chatId, msgId, t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+    await show(t("topup.bad", lang, { min, max: MAX_TOPUP_USD }), [backBtn("topup", lang)]);
+  } else if (r.error === "email_required" || r.error === "email_invalid" || r.error === "email_rejected") {
+    console.warn(JSON.stringify({ evt: "bot.lava_email_refused", userId, code: r.error, email: maskEmail(email) }));
+    await screenLavaEmail(chatId, msgId, pick, r.error === "email_rejected" ? "email_rejected" : r.error === "email_invalid" ? "email_invalid" : null, false);
   } else {
-    await edit(chatId, msgId, t("topup.err", lang), [backBtn("topup", lang)]);
+    await show(t("topup.err", lang), [backBtn("topup", lang)]);
   }
 }
 
@@ -1095,6 +1165,9 @@ export async function POST(req: NextRequest) {
 
       // The copy button answers with its own toast ("Link sent").
       if (!data.startsWith("copy_ref_")) await answerCb(cb.id);
+      // Any button closes a pending "send your e-mail" prompt; the lava
+      // screens open it again themselves.
+      await redis.del(lavaEmailAwaitKey(chatId)).catch(() => 0);
 
       if (data.startsWith("adm:")) {
         const handled = await tryHandleAdminCallback(chatId, msgId, data, send, edit);
@@ -1153,8 +1226,17 @@ export async function POST(req: NextRequest) {
       else if (data.startsWith("lv_")) {
         const [, amt, method, cur] = data.split("_");
         const n = Number(amt);
-        if (Number.isFinite(n) && method && cur) {
-          await handleTopupLava(chatId, msgId, n, method as LavaMethodId, cur as LavaCurrency);
+        const pick = parseLavaPick({ amountUsd: n, method, currency: cur });
+        if (pick !== null) await screenLavaEmail(chatId, msgId, pick, null, true);
+      }
+      else if (data.startsWith("lvp_") || data.startsWith("lvc_")) {
+        const [kind, amt, method, cur] = data.split("_");
+        const pick = parseLavaPick({ amountUsd: Number(amt), method, currency: cur });
+        if (pick !== null && kind === "lvc") await screenLavaEmail(chatId, msgId, pick, null, false);
+        else if (pick !== null) {
+          const email = await defaultPaymentEmail(await getUserId(chatId));
+          if (email === null) await screenLavaEmail(chatId, msgId, pick, null, false);
+          else await handleTopupLava(chatId, msgId, pick, email);
         }
       }
       else if (data.startsWith("tu_")) {
@@ -1378,6 +1460,7 @@ export async function POST(req: NextRequest) {
 
     // /start or /menu
     if (text === "/start" || text === "/menu") {
+      await redis.del(lavaEmailAwaitKey(chatId)).catch(() => 0);
       await screenMenu(chatId);
       return NextResponse.json({ ok: true });
     }
@@ -1413,6 +1496,22 @@ export async function POST(req: NextRequest) {
         await send(chatId, t("common.error", lang, { msg: err instanceof Error ? err.message : "Error" }), [backBtn("menu", lang)]);
       }
       return NextResponse.json({ ok: true });
+    }
+
+    // lava.top: the customer's own e-mail, asked before the invoice.
+    const lavaEmailAwait = await redis.get(lavaEmailAwaitKey(chatId));
+    if (lavaEmailAwait) {
+      await redis.del(lavaEmailAwaitKey(chatId));
+      const pick = parseLavaPick(lavaEmailAwait);
+      if (pick !== null) {
+        const checked = checkPaymentEmail(text);
+        if (!checked.ok) {
+          await screenLavaEmail(chatId, null, pick, checked.code === "email_rejected" ? "email_rejected" : "email_invalid", false);
+        } else {
+          await handleTopupLava(chatId, null, pick, checked.email);
+        }
+        return NextResponse.json({ ok: true });
+      }
     }
 
     // Своя сумма пополнения в долларах — для любого способа кошелька.

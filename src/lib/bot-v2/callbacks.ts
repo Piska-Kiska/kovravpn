@@ -60,6 +60,8 @@ export type V2Action =
   | { a: "topa"; method: TopupMethod; cents: number }
   | { a: "topx"; method: TopupMethod }
   | { a: "lava"; cents: number; method: LavaMethodId; currency: LavaCurrencyChoice }
+  | { a: "lavp"; cents: number; method: LavaMethodId; currency: LavaCurrencyChoice }
+  | { a: "lavc"; cents: number; method: LavaMethodId; currency: LavaCurrencyChoice }
   | { a: "promo" }
   | { a: "invite" }
   | { a: "help" }
@@ -178,6 +180,10 @@ function encodeBody(x: V2Action): string {
       return `topx:${x.method}`;
     case "lava":
       return `lava:${x.cents}:${x.method}:${x.currency}`;
+    case "lavp":
+      return `lavp:${x.cents}:${x.method}:${x.currency}`;
+    case "lavc":
+      return `lavc:${x.cents}:${x.method}:${x.currency}`;
     case "setlang":
       return `lang:${x.lang}`;
   }
@@ -249,11 +255,13 @@ function parseV2(body: string): V2Action | null {
       const cents = parseCents(p[2]);
       return p.length === 3 && isMethod(p[1]) && cents !== null ? { a: "topa", method: p[1], cents } : null;
     }
-    case "lava": {
+    case "lava":
+    case "lavp":
+    case "lavc": {
       const cents = parseCents(p[1]);
       const method = parseLavaMethod(p[2]);
       const currency = parseLavaCurrency(p[3]);
-      return p.length === 4 && cents !== null && method && currency ? { a: "lava", cents, method, currency } : null;
+      return p.length === 4 && cents !== null && method && currency ? { a: head, cents, method, currency } : null;
     }
     case "lang":
       return p.length === 2 && isLang(p[1]) ? { a: "setlang", lang: p[1] } : null;

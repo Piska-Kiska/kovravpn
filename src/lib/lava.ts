@@ -58,6 +58,8 @@ import {
   type LavaMethodSpec,
 } from "./lava-methods";
 import { listDate, readCompletedPage } from "./lava-lookup";
+import { checkPaymentEmail, LavaEmailError, maskEmail } from "./payment-email";
+export { LavaEmailError };
 import { redis } from "./redis";
 
 /**
@@ -93,14 +95,6 @@ const CONTRACT_TTL_SECONDS = 180 * 24 * 60 * 60;
 const API_KEY = envValue("LAVA_API_KEY");
 const OFFER_ID = envValue("LAVA_OFFER_ID");
 /**
- * Куда отправить чек, когда покупатель оставил телеграм, а не почту. Почта в
- * запросе на счёт обязательна: без неё лава не знает, кому открыть доступ к
- * товару-заглушке. Заказов из бота у нас большинство, поэтому запасной адрес
- * входит в признак настроенности линии — иначе половина покупателей упиралась
- * бы в «счёт не выставлен» без объяснения.
- */
-const BUYER_EMAIL = envValue("LAVA_BUYER_EMAIL");
-/**
  * УСТАРЕВШИЕ. Задавали провайдера и метод на всю линию, пока способ был один.
  * Теперь способ выбирает покупатель, и эти переменные ИГНОРИРУЮТСЯ — читаем их
  * только чтобы предупредить в журнале и не гадать потом, почему настройка «не
@@ -116,7 +110,6 @@ const WEBHOOK_BASIC_PASSWORD = envValue("LAVA_WEBHOOK_BASIC_PASSWORD");
 
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i;
 /**
  * Значение, пригодное для заголовка HTTP: видимый ASCII без пробелов.
  *
@@ -146,8 +139,6 @@ function configProblem(): string | null {
   }
   if (OFFER_ID === undefined) return "LAVA_OFFER_ID is not set";
   if (!UUID_RE.test(OFFER_ID)) return "LAVA_OFFER_ID is not a UUID";
-  if (BUYER_EMAIL === undefined) return "LAVA_BUYER_EMAIL is not set";
-  if (!EMAIL_RE.test(BUYER_EMAIL)) return "LAVA_BUYER_EMAIL is not an email";
   return null;
 }
 
@@ -279,10 +270,9 @@ function invoiceRequestSummary(
   spec: LavaMethodSpec,
   mail: string | undefined,
 ): string {
-  const at = mail === undefined ? -1 : mail.lastIndexOf("@");
   return JSON.stringify({
     offerId: `${(OFFER_ID ?? "").slice(0, 8)}…`,
-    email: mail !== undefined && at > 0 ? `*${mail.slice(at)}` : null,
+    email: mail === undefined ? null : maskEmail(mail),
     currency: input.currency,
     amount: input.amount,
     buyerLanguage: buyerLanguage(input.locale),
@@ -314,7 +304,10 @@ export interface CreateLavaInvoiceInput {
   /** Чем платит покупатель. Определяет провайдера и метод в запросе. */
   readonly methodId: LavaMethodId;
   readonly locale: string;
-  /** Почта покупателя. Пусто — уйдёт запасная из окружения. */
+  /**
+   * Почта покупателя, ВВЕДЁННАЯ ИМ САМИМ. Обязательна: lava.top просила, чтобы
+   * каждый платил со своей почты, общего запасного адреса больше нет.
+   */
   readonly email?: string;
   /** Имя покупателя. Обязательно для способов с `needsFullName`. */
   readonly fullName?: string;
@@ -354,10 +347,13 @@ export async function createInvoice(
     );
   }
 
-  const email =
-    input.email !== undefined && EMAIL_RE.test(input.email) ? input.email : BUYER_EMAIL;
+  // Почту проверяем ДО запроса и без подстановок: пустая или кривая — типизи-
+  // рованная ошибка, которую вызывающий превращает в вопрос к покупателю.
+  const checked = checkPaymentEmail(input.email);
+  if (!checked.ok) throw new LavaEmailError(checked.code);
+  const email = checked.email;
 
-  const body = (mail: string | undefined): Record<string, unknown> => ({
+  const body = (mail: string): Record<string, unknown> => ({
     email: mail,
     offerId: OFFER_ID,
     currency: input.currency,
@@ -390,27 +386,18 @@ export async function createInvoice(
   });
 
   /**
-   * Почта покупателя нужна лаве для чека, и только. Наша выдача от неё не
-   * зависит вовсе: доступ появляется на странице заказа, дублируется нашим же
-   * письмом и сообщением в боте.
-   *
-   * Поэтому почта, которая шлюзу не понравилась, не повод терять продажу.
-   * Ловилось на первом же боевом заказе: лава ответила 400 «Incorrect email to
-   * purchase» на адрес, с которого заведён сам аккаунт продавца — свой товар с
-   * него купить нельзя. Наверняка есть и другие адреса, которые она не примет.
-   *
-   * Повтор здесь безопасен, несмотря на отсутствие идемпотентности: 400
-   * означает, что контракт не создан, и второй запрос не заведёт второй.
+   * Почту, которую шлюз отверг (400 «Incorrect email»), повторно с чужим
+   * адресом НЕ отправляем: общего адреса нет, платит человек со своей почты.
+   * 400 значит «контракт не создан», поэтому покупатель просто вводит другую.
    */
   const postInvoice = async (): Promise<unknown> => {
     try {
       return await call("POST", "/api/v3/invoice", body(email));
     } catch (err) {
-      const emailRejected =
-        err instanceof LavaError && err.status === 400 && /email/i.test(err.message);
-      if (!emailRejected || email === BUYER_EMAIL) throw err;
-      console.warn("[lava] buyer email refused by the gateway, retrying with the fallback address");
-      return call("POST", "/api/v3/invoice", body(BUYER_EMAIL));
+      if (err instanceof LavaError && err.status === 400 && /email/i.test(err.message)) {
+        throw new LavaEmailError("email_rejected");
+      }
+      throw err;
     }
   };
 

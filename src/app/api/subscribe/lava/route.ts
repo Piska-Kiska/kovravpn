@@ -4,7 +4,8 @@
 // из-за рубежа чем-то, кроме криптовалюты: карта, PayPal, Apple Pay, Pix, а в
 // евро ещё SEPA, iDEAL и MB WAY.
 //
-// Тело: { what: "plan" | "device", kind?, term?, method, currency?, returnTo?: "miniapp" }
+// Тело: { what: "plan" | "device", kind?, term?, method, currency?, email, returnTo?: "miniapp" }
+// 400 { error: "email_required" | "email_invalid" | "email_rejected" } — почта покупателя.
 // (returnTo — оплата начата в Telegram Mini App: лава вернёт человека в него).
 // Ответ: { paymentUrl }
 //
@@ -24,7 +25,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { getAccount, getUserRecord } from "@/lib/accounts";
+import { getAccount } from "@/lib/accounts";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { paymentReturnFor } from "@/lib/bot-link";
 import {
@@ -33,8 +34,11 @@ import {
   lavaMethod,
   rememberContract,
   isLavaCurrency,
+  LavaEmailError,
   type LavaCurrency,
 } from "@/lib/lava";
+import { checkPaymentEmail } from "@/lib/payment-email";
+import { savePaymentEmail } from "@/lib/payment-email-store";
 import {
   chargeIn,
   purchasePayable,
@@ -73,8 +77,18 @@ export async function POST(req: NextRequest) {
       method?: unknown;
       currency?: unknown;
       fullName?: unknown;
+      email?: unknown;
       returnTo?: unknown;
     };
+
+    // Почта — ТОЛЬКО та, что ввёл покупатель (lava.top попросила платить с
+    // собственной почты, общего адреса больше нет). Форма подставляет сохранённую
+    // или адрес аккаунта, но отправляет её явно: сервер сам ничего не подставляет.
+    const checked = checkPaymentEmail(body.email);
+    if (!checked.ok) {
+      return NextResponse.json({ error: checked.code }, { status: 400 });
+    }
+    const email = checked.email;
 
     const purchase = resolvePurchase(userId, body);
     if (purchase === null) {
@@ -120,12 +134,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // Почта нужна лаве только для чека, и наша выдача от неё не зависит: если
-    // покупатель заходил через телеграм, почты у него нет вовсе — уйдёт
-    // запасной адрес из LAVA_BUYER_EMAIL.
-    const user = await getUserRecord(userId).catch(() => null);
-    const email = typeof user?.email === "string" ? user.email : undefined;
-
     const amount = chargeIn(purchase.priceUsd, currency);
     const back = paymentReturnFor(body);
     const invoice = await createInvoice({
@@ -153,9 +161,14 @@ export async function POST(req: NextRequest) {
       label: purchase.label,
       createdAt: Date.now(),
     });
+    // Только после удачного счёта и только в «платёжную» запись: адрес входа не трогаем.
+    await savePaymentEmail(userId, email);
 
     return NextResponse.json({ paymentUrl: invoice.paymentUrl });
   } catch (error) {
+    if (error instanceof LavaEmailError) {
+      return NextResponse.json({ error: error.code }, { status: 400 });
+    }
     const detail = error instanceof Error ? error.message : String(error);
     console.error("[subscribe/lava]", detail);
     return NextResponse.json(

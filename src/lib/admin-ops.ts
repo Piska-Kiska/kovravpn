@@ -460,6 +460,7 @@ export async function planWipe(userId: string): Promise<WipePlan> {
     `sub_token_of:${userId}`,
     `expiry_notified_1d:${userId}`,
     `expiry_notified_expired:${userId}`,
+    `lava_email:${userId}`, // the e-mail typed at a lava.top payment (lib/payment-email-store.ts)
   ];
 
   // Username index
@@ -589,6 +590,7 @@ async function wipeUserKeys(userId: string, tgUsername?: string): Promise<void> 
     `sub_token_of:${userId}`,
     `expiry_notified_1d:${userId}`,
     `expiry_notified_expired:${userId}`,
+    `lava_email:${userId}`,
   ];
   if (tgUsername) keys.push(`username:${tgUsername}`);
   await Promise.all(keys.map((k) => redis.del(k)));

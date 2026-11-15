@@ -17,6 +17,8 @@ import { createCryptoBotInvoice, cryptoBotConfigured } from "./cryptobot";
 import { cardPaymentsEnabled, createCardPayment } from "./cashera-order";
 import { createInvoice as createNowPaymentsInvoice, nowPaymentsConfigured } from "./nowpayments";
 import { createInvoice as createLavaInvoice, lavaOffered, rememberContract } from "./lava";
+import { checkPaymentEmail, LavaEmailError, type PaymentEmailCode } from "./payment-email";
+import { savePaymentEmail } from "./payment-email-store";
 import { LAVA_MIN_AMOUNT, lavaMethodChoices, lavaMethod, type LavaCurrency, type LavaMethodId } from "./lava-methods";
 import { chargeIn, formatCharge } from "./lava-price";
 import { rememberCharge } from "./lava-purchase";
@@ -109,6 +111,12 @@ export interface WalletTopupInput {
   lavaCurrency?: LavaCurrency;
   /** Bot/UI language, for the lava.top payment page. */
   locale?: string;
+  /**
+   * lava.top only: the e-mail the customer pays with, entered or confirmed by
+   * them. No default and no shared fallback: without it the answer is
+   * `email_required`.
+   */
+  email?: string;
 }
 
 export type WalletTopupResult =
@@ -123,7 +131,8 @@ export type WalletTopupResult =
       chargeLabel: string;
     }
   | { ok: false; error: "invalid_method" | "invalid_amount"; minUsd?: number; maxUsd?: number }
-  | { ok: false; error: "unavailable" | "provider_error" };
+  | { ok: false; error: "unavailable" | "provider_error" }
+  | { ok: false; error: PaymentEmailCode };
 
 function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL || "https://kovravpn.com").replace(/\/$/, "");
@@ -131,7 +140,9 @@ function siteUrl(): string {
 
 /**
  * Create a top-up invoice. Never throws: a provider failure is
- * `provider_error` (logged), a line without keys is `unavailable`.
+ * `provider_error` (logged), a line without keys is `unavailable`, a missing,
+ * bad or gateway-refused lava.top e-mail is `email_required` | `email_invalid` |
+ * `email_rejected`.
  */
 export async function createWalletTopupInvoice(input: WalletTopupInput): Promise<WalletTopupResult> {
   const { userId, method, returnTo } = input;
@@ -147,6 +158,14 @@ export async function createWalletTopupInvoice(input: WalletTopupInput): Promise
     return { ok: false, error: "invalid_amount", minUsd: min, maxUsd: MAX_TOPUP_USD };
   }
   if (!topupMethodEnabled(method)) return { ok: false, error: "unavailable" };
+
+  // lava.top: the customer's own address is checked before anything is created.
+  let lavaEmail: string | undefined;
+  if (method === "lava") {
+    const checked = checkPaymentEmail(input.email);
+    if (!checked.ok) return { ok: false, error: checked.code };
+    lavaEmail = checked.email;
+  }
 
   const site = siteUrl();
   const back = topupReturnUrls(returnTo, site);
@@ -194,6 +213,7 @@ export async function createWalletTopupInvoice(input: WalletTopupInput): Promise
       currency: choice.currency,
       methodId: choice.id,
       locale: input.locale ?? "en",
+      email: lavaEmail,
       successUrl: lavaBack.success,
       failUrl: lavaBack.fail,
     });
@@ -210,8 +230,10 @@ export async function createWalletTopupInvoice(input: WalletTopupInput): Promise
       label: `wallet top-up $${amountUsd.toFixed(2)}`,
       createdAt: Date.now(),
     });
+    if (lavaEmail !== undefined) await savePaymentEmail(userId, lavaEmail);
     return ok(method, amountUsd, cents, invoice.paymentUrl, formatCharge(amountUsd, choice.currency));
   } catch (err) {
+    if (err instanceof LavaEmailError) return { ok: false, error: err.code };
     console.error(`[wallet-topup] ${method} invoice failed:`, err instanceof Error ? err.message : err);
     return { ok: false, error: "provider_error" };
   }

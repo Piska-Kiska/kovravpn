@@ -51,6 +51,9 @@ import {
   type TopupMethod,
 } from "../wallet-topup";
 import { formatCharge } from "../lava-price";
+import { lavaMethod } from "../lava-methods";
+import { checkPaymentEmail, maskEmail } from "../payment-email";
+import { defaultPaymentEmail } from "../payment-email-store";
 import { deleteOwnProfile } from "../profile-delete";
 import { generateQR } from "../qr";
 import { DEVICE_KINDS, parseCallback, type DeviceKind, type V2Action } from "./callbacks";
@@ -80,6 +83,8 @@ import {
   plansScreen,
   productCents,
   promoAskScreen,
+  lavaEmailAskScreen,
+  lavaEmailConfirmScreen,
   promoResultScreen,
   qrFailScreen,
   qrPhoto,
@@ -177,6 +182,15 @@ const liveKey = (chatId: number) => `kovra:bot:live:${chatId}`;
 const promoAwaitKey = (chatId: number) => `promo_await:${chatId}`;
 const topupAwaitKey = (chatId: number) => `topup_usd_await:${chatId}`;
 const AWAIT_TTL_SEC = 300;
+/** lava.top: the amount and method waiting for the customer's own e-mail (typed as the next message). */
+const lavaEmailAwaitKey = (chatId: number) => `kovra:bot:lavaemail:${chatId}`;
+const LAVA_EMAIL_AWAIT_TTL_SEC = 900;
+
+interface LavaPick {
+  cents: number;
+  method: Extract<V2Action, { a: "lava" }>["method"];
+  currency: "USD" | "EUR";
+}
 
 // ─── Loading what a screen shows ────────────────────────────────────────────
 
@@ -309,7 +323,7 @@ async function showEdit(s: Session, messageId: number, screen: Screen): Promise<
 
 async function clearAwaits(chatId: number): Promise<void> {
   try {
-    await redis.del(promoAwaitKey(chatId), topupAwaitKey(chatId));
+    await redis.del(promoAwaitKey(chatId), topupAwaitKey(chatId), lavaEmailAwaitKey(chatId));
   } catch {
     /* a stale prompt expires by TTL */
   }
@@ -503,7 +517,30 @@ async function route(s: Session, msgId: number, x: V2Action, answer: Answer): Pr
       return;
     }
     case "lava": {
-      const screen = await lavaInvoice(s, x.cents, x.method, x.currency, answer);
+      // The method is chosen; before any invoice the customer's own e-mail:
+      // the saved one to confirm, or an empty prompt.
+      await answer();
+      const pick: LavaPick = { cents: x.cents, method: x.method, currency: x.currency };
+      const saved = await defaultPaymentEmail(s.userId);
+      if (saved !== null) return showEdit(s, msgId, lavaEmailConfirmScreen(pick, saved, lang));
+      await askLavaEmail(s, pick);
+      return showEdit(s, msgId, lavaEmailAskScreen(pick, lang));
+    }
+    case "lavc": {
+      await answer();
+      const pick: LavaPick = { cents: x.cents, method: x.method, currency: x.currency };
+      await askLavaEmail(s, pick);
+      return showEdit(s, msgId, lavaEmailAskScreen(pick, lang));
+    }
+    case "lavp": {
+      const email = await defaultPaymentEmail(s.userId);
+      const pick: LavaPick = { cents: x.cents, method: x.method, currency: x.currency };
+      if (email === null) {
+        await answer();
+        await askLavaEmail(s, pick);
+        return showEdit(s, msgId, lavaEmailAskScreen(pick, lang));
+      }
+      const screen = await lavaInvoice(s, pick, email, answer);
       if (screen) return showEdit(s, msgId, screen);
       return;
     }
@@ -738,13 +775,29 @@ async function topupAmount(s: Session, method: TopupMethod, cents: number, answe
   return invoiceErrorScreen(method, s.lang);
 }
 
-async function lavaInvoice(
-  s: Session,
-  cents: number,
-  method: Extract<V2Action, { a: "lava" }>["method"],
-  currency: "USD" | "EUR",
-  answer: Answer,
-): Promise<Screen | null> {
+/** Remember what the next message (the customer's e-mail) is for. */
+async function askLavaEmail(s: Session, pick: LavaPick): Promise<void> {
+  await redis.set(lavaEmailAwaitKey(s.chatId), JSON.stringify(pick), { ex: LAVA_EMAIL_AWAIT_TTL_SEC });
+}
+
+/** The pending pick, or null (also on a malformed record). */
+function parseLavaPick(raw: unknown): LavaPick | null {
+  try {
+    const v = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<LavaPick> | null;
+    if (!v || typeof v.cents !== "number" || !Number.isInteger(v.cents) || v.cents <= 0) return null;
+    if (v.currency !== "USD" && v.currency !== "EUR") return null;
+    const spec = typeof v.method === "string" ? lavaMethod(v.method) : null;
+    return spec ? { cents: v.cents, method: spec.id, currency: v.currency } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create the lava.top invoice with the customer's own e-mail. A refused
+ * address (ours or the gateway's) re-opens the prompt instead of failing.
+ */
+async function lavaInvoice(s: Session, pick: LavaPick, email: string, answer: Answer): Promise<Screen | null> {
   const rl = await rateLimit(botInvoiceRateKey(s.userId), INVOICES_PER_MINUTE, 60);
   if (!rl.ok) {
     await answer(tr("toast.paying", s.lang));
@@ -756,14 +809,20 @@ async function lavaInvoice(
   const r = await createWalletTopupInvoice({
     userId: s.userId,
     method: "lava",
-    amountUsd: cents / 100,
+    amountUsd: pick.cents / 100,
     returnTo: "bot",
-    lavaMethodId: method,
-    lavaCurrency: currency,
+    lavaMethodId: pick.method,
+    lavaCurrency: pick.currency,
     locale: s.lang === "ru" ? "ru" : "en",
+    email,
   });
   if (r.ok) return invoiceScreen("lava", r.amountCents, r.payUrl, r.chargeLabel, s.lang);
   if (r.error === "invalid_amount") return topupManualScreen("lava", minTopupUsd("lava"), MAX_TOPUP_USD, s.lang, true);
+  if (r.error === "email_required" || r.error === "email_invalid" || r.error === "email_rejected") {
+    console.warn(JSON.stringify({ evt: "bot.lava_email_refused", userId: s.userId, code: r.error, email: maskEmail(email) }));
+    await askLavaEmail(s, pick);
+    return lavaEmailAskScreen(pick, s.lang, r.error === "email_rejected" ? "email_rejected" : r.error === "email_invalid" ? "email_invalid" : null);
+  }
   return invoiceErrorScreen("lava", s.lang);
 }
 
@@ -861,10 +920,28 @@ const PROMO_RETRY_ERRORS: ReadonlySet<string> = new Set(["not_found", "expired",
  * when nothing was awaited, so the caller goes on with its own handling.
  */
 export async function handleV2Reply(chatId: number, text: string, deps: BotV2Deps = defaultBotV2Deps()): Promise<boolean> {
-  const [promoAwait, topupAwait] = await Promise.all([
+  const [promoAwait, topupAwait, lavaEmailAwait] = await Promise.all([
     redis.get<unknown>(promoAwaitKey(chatId)),
     redis.get<unknown>(topupAwaitKey(chatId)),
+    redis.get<unknown>(lavaEmailAwaitKey(chatId)),
   ]);
+  if (lavaEmailAwait) {
+    await redis.del(lavaEmailAwaitKey(chatId));
+    const pick = parseLavaPick(lavaEmailAwait);
+    if (pick === null) return false;
+    const s = await openSession(chatId, deps);
+    const checked = checkPaymentEmail(text);
+    if (!checked.ok) {
+      await askLavaEmail(s, pick);
+      const code = checked.code === "email_rejected" ? "email_rejected" : "email_invalid";
+      await showNew(s, lavaEmailAskScreen(pick, s.lang, code));
+      return true;
+    }
+    const noop: Answer = async () => undefined;
+    const screen = await lavaInvoice(s, pick, checked.email, noop);
+    await showNew(s, screen ?? errorScreen(s.lang, { a: "topup" }));
+    return true;
+  }
   if (promoAwait) {
     await redis.del(promoAwaitKey(chatId));
     // Something that cannot be a code ("how?", a sentence) is not an answer
