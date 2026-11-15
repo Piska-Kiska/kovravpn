@@ -79,6 +79,7 @@ function seedAccount() {
   put(`ref_code:${UID}`, "ab12cd34");
   put("ref_lookup:ab12cd34", UID);
   put(`has_topup:${UID}`, "1");
+  put(`lava_email:${UID}`, "pay@person.test");
   // A stranger whose records must survive.
   put(`account:${OTHER}`, { plan: "active", maxProfiles: 100, extraProfiles: 0, paidUntil: 0, createdAt: 1 });
   put(`user:${OTHER}`, { authMethod: "telegram", telegramId: "777000222", createdAt: 1 });
@@ -189,6 +190,7 @@ const ACCOUNT_KEYS = [
   `ref_code:${UID}`,
   "ref_lookup:ab12cd34",
   `has_topup:${UID}`,
+  `lava_email:${UID}`,
 ];
 
 // ── Gate ────────────────────────────────────────────────────────────────────

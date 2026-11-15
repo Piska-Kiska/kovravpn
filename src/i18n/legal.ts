@@ -118,7 +118,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Privacy Policy",
-      "updated": "Last updated: 2 October 2026",
+      "updated": "Last updated: 15 November 2026",
       "related": "Related documents",
       "sections": [
         {
@@ -160,13 +160,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
         {
           "h": "6. Payments",
           "p": [
-            "Payments are processed by third-party payment processors, for cards and for cryptocurrency. We do not store card details or wallet credentials. A card statement may show the processor's merchant name rather than Kovra. Blockchain transactions are public by nature, and on-chain data is outside our control."
+            "Payments are processed by third-party payment processors, for cards and for cryptocurrency. We do not store card details or wallet credentials. A card statement may show the processor's merchant name rather than Kovra. Blockchain transactions are public by nature, and on-chain data is outside our control. For payments through lava.top, the email address you enter at payment (which may differ from your login email) is passed to lava.top for the receipt, and is saved with your account to prefill the next payment for up to 365 days; it is removed when you delete your account."
           ]
         },
         {
           "h": "7. Sharing of Data",
           "p": [
-            "We do not sell your data. We share the minimum necessary data with payment processors to complete a transaction, with our hosting and analytics provider Vercel to run the website, with authorities where required by law through due process, and otherwise only with your explicit consent."
+            "We do not sell your data. We share the minimum necessary data with payment processors to complete a transaction, with our hosting and analytics provider Vercel to run the website, with authorities where required by law through due process, and otherwise only with your explicit consent. For payments through lava.top this includes the email address you enter at payment, which goes to lava.top for the receipt."
           ]
         },
         {
@@ -328,7 +328,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Политика конфиденциальности",
-      "updated": "Редакция от 2 октября 2026 г.",
+      "updated": "Редакция от 15 ноября 2026 г.",
       "related": "Связанные документы",
       "sections": [
         {
@@ -370,13 +370,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
         {
           "h": "6. Платежи",
           "p": [
-            "Платежи обрабатываются сторонними платёжными провайдерами — по картам и в криптовалюте. Мы не храним реквизиты карт или кошельков. В выписке по карте может стоять название продавца у провайдера, а не Kovra. Учтите, что транзакции в блокчейне по своей природе публичны, а данные в сети вне нашего контроля."
+            "Платежи обрабатываются сторонними платёжными провайдерами — по картам и в криптовалюте. Мы не храним реквизиты карт или кошельков. В выписке по карте может стоять название продавца у провайдера, а не Kovra. Учтите, что транзакции в блокчейне по своей природе публичны, а данные в сети вне нашего контроля. При оплате через lava.top адрес электронной почты, который вы вводите при оплате (он может отличаться от адреса для входа), передаётся lava.top для чека и сохраняется в вашем аккаунте для подстановки при следующей оплате на срок до 365 дней; при удалении аккаунта он удаляется."
           ]
         },
         {
           "h": "7. Передача данных",
           "p": [
-            "Мы не продаём ваши данные. Мы передаём минимально необходимые данные платёжным провайдерам для проведения транзакции, нашему хостинг-провайдеру и сервису аналитики Vercel для работы сайта, уполномоченным органам — когда это требуется по закону в установленном порядке, а в остальных случаях — только с вашего явного согласия."
+            "Мы не продаём ваши данные. Мы передаём минимально необходимые данные платёжным провайдерам для проведения транзакции, нашему хостинг-провайдеру и сервису аналитики Vercel для работы сайта, уполномоченным органам — когда это требуется по закону в установленном порядке, а в остальных случаях — только с вашего явного согласия. При оплате через lava.top сюда относится и адрес электронной почты, который вы вводите при оплате: он передаётся lava.top для чека."
           ]
         },
         {
@@ -538,7 +538,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Política de privacidad",
-      "updated": "Última actualización: 2 de octubre de 2026",
+      "updated": "Última actualización: 15 de noviembre de 2026",
       "related": "Documentos relacionados",
       "sections": [
         {
@@ -580,13 +580,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
         {
           "h": "6. Pagos",
           "p": [
-            "Los pagos son procesados por procesadores de pago externos, de tarjetas y de criptomonedas. No almacenamos datos de tarjetas ni credenciales de carteras. En el extracto de la tarjeta puede figurar el nombre comercial del procesador en lugar de Kovra. Ten en cuenta que las transacciones en la cadena de bloques son públicas por naturaleza y que los datos on-chain quedan fuera de nuestro control."
+            "Los pagos son procesados por procesadores de pago externos, de tarjetas y de criptomonedas. No almacenamos datos de tarjetas ni credenciales de carteras. En el extracto de la tarjeta puede figurar el nombre comercial del procesador en lugar de Kovra. Ten en cuenta que las transacciones en la cadena de bloques son públicas por naturaleza y que los datos on-chain quedan fuera de nuestro control. En los pagos a través de lava.top, el correo electrónico que introduces al pagar (puede ser distinto del de inicio de sesión) se transmite a lava.top para el recibo y se guarda en tu cuenta para rellenar el siguiente pago durante un máximo de 365 días; se elimina al borrar tu cuenta."
           ]
         },
         {
           "h": "7. Comunicación de datos",
           "p": [
-            "No vendemos tus datos. Comunicamos los datos mínimos necesarios a los procesadores de pago para completar una transacción, a nuestro proveedor de alojamiento y analítica Vercel para el funcionamiento del sitio web, a las autoridades cuando lo exige la ley mediante el procedimiento debido y, en los demás casos, solo con tu consentimiento explícito."
+            "No vendemos tus datos. Comunicamos los datos mínimos necesarios a los procesadores de pago para completar una transacción, a nuestro proveedor de alojamiento y analítica Vercel para el funcionamiento del sitio web, a las autoridades cuando lo exige la ley mediante el procedimiento debido y, en los demás casos, solo con tu consentimiento explícito. En los pagos a través de lava.top esto incluye el correo electrónico que introduces al pagar, que se transmite a lava.top para el recibo."
           ]
         },
         {
@@ -748,7 +748,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Datenschutzerklärung",
-      "updated": "Zuletzt aktualisiert: 2. Oktober 2026",
+      "updated": "Zuletzt aktualisiert: 15. November 2026",
       "related": "Zugehörige Dokumente",
       "sections": [
         {
@@ -790,13 +790,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
         {
           "h": "6. Zahlungen",
           "p": [
-            "Zahlungen werden von externen Zahlungsdienstleistern abgewickelt, für Karten und für Kryptowährung. Wir speichern keine Kartendaten oder Wallet-Zugangsdaten. Auf der Kartenabrechnung kann der Händlername des Zahlungsdienstleisters statt Kovra stehen. Beachten Sie, dass Blockchain-Transaktionen ihrer Natur nach öffentlich sind und On-Chain-Daten außerhalb unserer Kontrolle liegen."
+            "Zahlungen werden von externen Zahlungsdienstleistern abgewickelt, für Karten und für Kryptowährung. Wir speichern keine Kartendaten oder Wallet-Zugangsdaten. Auf der Kartenabrechnung kann der Händlername des Zahlungsdienstleisters statt Kovra stehen. Beachten Sie, dass Blockchain-Transaktionen ihrer Natur nach öffentlich sind und On-Chain-Daten außerhalb unserer Kontrolle liegen. Bei Zahlungen über lava.top wird die E-Mail-Adresse, die Sie bei der Zahlung eingeben (sie kann von Ihrer Anmelde-E-Mail abweichen), für den Beleg an lava.top übermittelt und zum Vorausfüllen der nächsten Zahlung bis zu 365 Tage in Ihrem Konto gespeichert; beim Löschen Ihres Kontos wird sie entfernt."
           ]
         },
         {
           "h": "7. Weitergabe von Daten",
           "p": [
-            "Wir verkaufen Ihre Daten nicht. Wir geben die mindestens erforderlichen Daten an Zahlungsdienstleister weiter, um eine Transaktion abzuschließen, an unseren Hosting- und Analyseanbieter Vercel für den Betrieb der Website, an Behörden, soweit dies gesetzlich im ordnungsgemäßen Verfahren erforderlich ist, und im Übrigen nur mit Ihrer ausdrücklichen Einwilligung."
+            "Wir verkaufen Ihre Daten nicht. Wir geben die mindestens erforderlichen Daten an Zahlungsdienstleister weiter, um eine Transaktion abzuschließen, an unseren Hosting- und Analyseanbieter Vercel für den Betrieb der Website, an Behörden, soweit dies gesetzlich im ordnungsgemäßen Verfahren erforderlich ist, und im Übrigen nur mit Ihrer ausdrücklichen Einwilligung. Bei Zahlungen über lava.top gehört dazu auch die E-Mail-Adresse, die Sie bei der Zahlung eingeben und die für den Beleg an lava.top übermittelt wird."
           ]
         },
         {
@@ -958,7 +958,7 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
     },
     "privacy": {
       "title": "Politique de confidentialité",
-      "updated": "Dernière mise à jour : 2 octobre 2026",
+      "updated": "Dernière mise à jour : 15 novembre 2026",
       "related": "Documents associés",
       "sections": [
         {
@@ -1000,13 +1000,13 @@ export const LEGAL: Record<Lang, Record<LegalDocId, LegalDoc>> = {
         {
           "h": "6. Paiements",
           "p": [
-            "Les paiements sont traités par des prestataires de paiement tiers, pour les cartes et pour les cryptomonnaies. Nous ne conservons aucune donnée de carte ni identifiant de portefeuille. Le relevé de carte peut indiquer le nom commercial du prestataire plutôt que Kovra. Notez que les transactions sur la blockchain sont par nature publiques et que les données on-chain échappent à notre contrôle."
+            "Les paiements sont traités par des prestataires de paiement tiers, pour les cartes et pour les cryptomonnaies. Nous ne conservons aucune donnée de carte ni identifiant de portefeuille. Le relevé de carte peut indiquer le nom commercial du prestataire plutôt que Kovra. Notez que les transactions sur la blockchain sont par nature publiques et que les données on-chain échappent à notre contrôle. Pour les paiements via lava.top, l'adresse e-mail que vous saisissez au moment du paiement (elle peut différer de votre e-mail de connexion) est transmise à lava.top pour le reçu et enregistrée dans votre compte pour préremplir le paiement suivant, pendant 365 jours au plus ; elle est supprimée lorsque vous supprimez votre compte."
           ]
         },
         {
           "h": "7. Partage des données",
           "p": [
-            "Nous ne vendons pas vos données. Nous communiquons le minimum de données nécessaire aux prestataires de paiement pour réaliser une transaction, à notre hébergeur et fournisseur d'analyse Vercel pour faire fonctionner le site, aux autorités lorsque la loi l'exige selon la procédure appropriée et, à défaut, uniquement avec votre consentement explicite."
+            "Nous ne vendons pas vos données. Nous communiquons le minimum de données nécessaire aux prestataires de paiement pour réaliser une transaction, à notre hébergeur et fournisseur d'analyse Vercel pour faire fonctionner le site, aux autorités lorsque la loi l'exige selon la procédure appropriée et, à défaut, uniquement avec votre consentement explicite. Pour les paiements via lava.top, cela inclut l'adresse e-mail que vous saisissez au moment du paiement, transmise à lava.top pour le reçu."
           ]
         },
         {
