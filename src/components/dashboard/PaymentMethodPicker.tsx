@@ -12,6 +12,7 @@ import { Icon, cx } from "@/components/cabinet";
 import { fmt, type Lang } from "@/lib/cabinet-lang";
 import type { DashDict } from "@/lib/dash-i18n";
 import type { PayOption } from "@/lib/dashboard/pay-methods";
+import { PayEmailField } from "./PayEmail";
 
 export interface PaymentMethodPickerProps {
   t: DashDict;
@@ -62,6 +63,7 @@ export function PaymentMethodPicker({ t, lang, name, options, value, onChange, d
   const promoted = !open && selectedMore ? [selectedMore] : [];
   const hiddenCount = more.length - promoted.length;
   const lavaInMore = more.some((o) => o.route.kind === "lava");
+  const lavaSelected = options.find((o) => o.key === value)?.route.kind === "lava";
 
   return (
     <fieldset className="kc-pay" aria-labelledby={legendId}>
@@ -92,6 +94,7 @@ export function PaymentMethodPicker({ t, lang, name, options, value, onChange, d
           ) : null}
         </>
       ) : null}
+      {lavaSelected ? <PayEmailField t={t} id={`${uid}-email`} disabled={disabled} /> : null}
     </fieldset>
   );
 }

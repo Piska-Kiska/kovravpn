@@ -9,12 +9,13 @@
 //     amountUsd: number (per-method minimum … 1000),
 //     returnTo: "web" | "miniapp",
 //     lavaMethod?: "card" | "paypal" | "applepay" | "pix" | "sepa" | "ideal" | "mbway",
-//     lavaCurrency?: "USD" | "EUR" }
+//     lavaCurrency?: "USD" | "EUR",
+//     email?: string  (lava only: the customer's own address, required) }
 // Return addresses: web → /dashboard?paid=1; miniapp → https://t.me/<bot>?startapp=paid.
 //
 // Answers (always Cache-Control: no-store):
 //   200 { ok: true, method, amountUsd, amountCents, payUrl, chargeLabel }
-//   400 { ok: false, error: "invalid_request" | "invalid_method" | "invalid_amount", minUsd?, maxUsd? }
+//   400 { ok: false, error: "invalid_request" | "invalid_method" | "invalid_amount" | "email_required" | "email_invalid" | "email_rejected", minUsd?, maxUsd? }
 //   401 unauthorized   429 rate limited
 //   503 { ok: false, error: "unavailable" }      (the line has no keys here)
 //   502 { ok: false, error: "provider_error" }   (the provider refused or timed out)
@@ -23,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { rateLimit } from "@/lib/ratelimit";
 import { resolveLang } from "@/lib/bot-i18n";
+import { isPaymentEmailCode } from "@/lib/payment-email";
 import { isLavaCurrency, lavaMethod } from "@/lib/lava-methods";
 import { createWalletTopupInvoice, isTopupMethod, type TopupReturn } from "@/lib/wallet-topup";
 
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
       returnTo?: unknown;
       lavaMethod?: unknown;
       lavaCurrency?: unknown;
+      email?: unknown;
     };
     if (!isTopupMethod(b.method)) return reply(400, { ok: false, error: "invalid_method" });
     if (b.returnTo !== "web" && b.returnTo !== "miniapp") return reply(400, { ok: false, error: "invalid_request" });
@@ -83,6 +86,7 @@ export async function POST(req: NextRequest) {
       returnTo,
       ...(lavaMethodId ? { lavaMethodId } : {}),
       ...(b.lavaCurrency === "USD" || b.lavaCurrency === "EUR" ? { lavaCurrency: b.lavaCurrency } : {}),
+      ...(typeof b.email === "string" ? { email: b.email } : {}),
       locale: await resolveLang(userId),
     });
     if (r.ok) {
@@ -96,6 +100,7 @@ export async function POST(req: NextRequest) {
         chargeLabel: r.chargeLabel,
       });
     }
+    if (isPaymentEmailCode(r.error)) return reply(400, { ok: false, error: r.error });
     if (r.error === "unavailable") return reply(503, { ok: false, error: "unavailable" });
     if (r.error === "provider_error") return reply(502, { ok: false, error: "provider_error" });
     return reply(400, {

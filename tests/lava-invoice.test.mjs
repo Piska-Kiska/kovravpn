@@ -17,13 +17,15 @@ import assert from "node:assert/strict";
 const API_KEY = ["test", "lava", "key"].join("-");
 process.env.LAVA_API_KEY = API_KEY;
 process.env.LAVA_OFFER_ID = "0a1b2c3d-0000-4000-8000-00000000000f";
+// The shared address is gone from the code; it may still be set in the
+// environment, and then it must not be accepted as an answer.
 process.env.LAVA_BUYER_EMAIL = "receipts@kovra.test";
 delete process.env.LAVA_PAYMENT_PROVIDER;
 delete process.env.LAVA_PAYMENT_METHOD;
 
 import { setRedisModule } from "./support/load-ts.mjs";
 setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
-const { createInvoice, LavaError, lavaConfigured } = await import("../src/lib/lava.ts");
+const { createInvoice, LavaError, LavaEmailError, lavaConfigured } = await import("../src/lib/lava.ts");
 
 const ENDPOINT = "https://gate.lava.top/api/v3/invoice";
 const CONTRACT = "0a1b2c3d-0000-4000-8000-0000000000a1";
@@ -34,6 +36,7 @@ const INPUT = {
   currency: "USD",
   methodId: "card",
   locale: "ru",
+  email: "buyer@kovra.test",
   successUrl: "https://kovra.test/dashboard?paid=1",
   failUrl: "https://kovra.test/dashboard",
 };
@@ -107,7 +110,7 @@ describe("lava.top invoice", () => {
     assert.equal(calls[0].url, ENDPOINT);
     assert.equal(calls[0].headers["X-Api-Key"], API_KEY);
     assert.deepEqual(calls[0].body, {
-      email: "receipts@kovra.test",
+      email: "buyer@kovra.test",
       offerId: process.env.LAVA_OFFER_ID,
       currency: "USD",
       amount: 5,
@@ -154,7 +157,7 @@ describe("lava.top invoice", () => {
       assert.ok(line.includes(expected), `${expected} missing from: ${line}`);
     }
     assert.ok(!line.includes(API_KEY), "the API key never reaches the log");
-    assert.ok(!line.includes("receipts@"), "the buyer's address never reaches the log");
+    assert.ok(!line.includes("buyer@"), "the buyer's address never reaches the log");
     assert.ok(!line.includes(process.env.LAVA_OFFER_ID), "the full offer id is not logged");
   });
 
@@ -177,14 +180,11 @@ describe("lava.top invoice", () => {
     assert.ok(!errors[0].includes(odd));
   });
 
-  test("400 about the buyer's address: one retry with the fallback address, nothing logged as refused", async () => {
+  test("400 about the buyer's address: email_rejected, one request, never a retry on another address", async () => {
     answers = [() => refused(400, { error: "Incorrect email to purchase" }), created];
-    const r = await createInvoice({ ...INPUT, email: "buyer@kovra.test" });
-    assert.equal(r.contractId, CONTRACT);
-    assert.equal(calls.length, 2);
+    await assert.rejects(createInvoice(INPUT), (e) => e instanceof LavaEmailError && e.code === "email_rejected");
+    assert.equal(calls.length, 1);
     assert.equal(calls[0].body.email, "buyer@kovra.test");
-    assert.equal(calls[1].body.email, "receipts@kovra.test");
-    assert.deepEqual(errors, []);
   });
 
   test("any other 400: no retry, logged once with their text", async () => {

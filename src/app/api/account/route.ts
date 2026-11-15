@@ -16,6 +16,7 @@ import {
   DEVICE_ADDON_DAYS,
 } from "@/lib/subscriptions";
 import { lavaOffered } from "@/lib/lava";
+import { defaultPaymentEmail } from "@/lib/payment-email-store";
 import { isHappEncryptedEnabled } from "@/lib/feature-flags";
 import { authenticateRequest } from "@/lib/auth";
 import { getBalanceCents } from "@/lib/bot-wallet";
@@ -38,8 +39,11 @@ export async function POST(req: NextRequest) {
       balanceUsdCents: Math.max(0, await getBalanceCents(userId)),
       topup: walletTopupConfig(),
     };
+    // What the lava.top e-mail field starts with (the saved payment address, else
+    // the account's own). Only when the line is offered: no Redis read otherwise.
+    const payEmail = lavaOffered ? await defaultPaymentEmail(userId) : null;
     const account = await getAccount(userId);
-    if (!account) return NextResponse.json({ account: null, profiles: [], wallet });
+    if (!account) return NextResponse.json({ account: null, profiles: [], wallet, payEmail });
 
     const rawProfiles = await getProfiles(userId);
 
@@ -109,6 +113,7 @@ export async function POST(req: NextRequest) {
       profiles: profilesWithAccess,
       subUrl,
       wallet,
+      payEmail,
     });
   } catch (error) {
     console.error("[account]", error);

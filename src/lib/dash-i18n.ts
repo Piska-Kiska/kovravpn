@@ -118,6 +118,11 @@ export interface DashDict {
   m_lava_sub: Str;
   m_lava_note: Str;
   m_lava_ru_hint: Str;
+  pay_email_label: Str;
+  pay_email_hint: Str;
+  pay_email_required: Str;
+  pay_email_invalid: Str;
+  pay_email_rejected: Str;
   // ── subscriptions ──
   your_subs: Str;
   subs_title: Str;
@@ -459,6 +464,11 @@ const en: DashDict = {
   m_lava_sub: "Charged {amount}",
   m_lava_note: "You’ll be charged exactly {amount}.",
   m_lava_ru_hint: "International methods: a Russian card won’t work here.",
+  pay_email_label: "Your e-mail for the payment",
+  pay_email_hint: "The payment page and its receipt go to this address. Use your own.",
+  pay_email_required: "Enter your e-mail to pay.",
+  pay_email_invalid: "That does not look like an e-mail. Check it and try again.",
+  pay_email_rejected: "The payment service did not accept this e-mail. Enter a different one.",
 
   your_subs: "Active subscriptions",
   subs_title: "Your subscriptions",
@@ -796,6 +806,11 @@ const ru: DashDict = {
   m_lava_sub: "Спишется {amount}",
   m_lava_note: "Спишется ровно {amount}.",
   m_lava_ru_hint: "Зарубежные способы: российская карта здесь не подойдёт.",
+  pay_email_label: "Ваша почта для оплаты",
+  pay_email_hint: "На этот адрес придёт чек от платёжного сервиса. Укажите свою почту.",
+  pay_email_required: "Укажите почту, чтобы оплатить.",
+  pay_email_invalid: "Это не похоже на почту. Проверьте адрес и попробуйте ещё раз.",
+  pay_email_rejected: "Платёжный сервис не принял эту почту. Укажите другую.",
 
   your_subs: "Активные подписки",
   subs_title: "Ваши подписки",
@@ -1128,6 +1143,11 @@ const es: DashDict = {
   m_lava_sub: "Se cobrará {amount}",
   m_lava_note: "Se te cobrará exactamente {amount}.",
   m_lava_ru_hint: "Métodos internacionales: una tarjeta rusa no funcionará aquí.",
+  pay_email_label: "Tu correo para el pago",
+  pay_email_hint: "La página de pago y su recibo llegan a esta dirección. Usa la tuya.",
+  pay_email_required: "Introduce tu correo para pagar.",
+  pay_email_invalid: "Eso no parece un correo. Revísalo e inténtalo de nuevo.",
+  pay_email_rejected: "El servicio de pago no aceptó este correo. Introduce otro.",
 
   your_subs: "Suscripciones activas",
   subs_title: "Tus suscripciones",
@@ -1460,6 +1480,11 @@ const de: DashDict = {
   m_lava_sub: "Abbuchung {amount}",
   m_lava_note: "Abgebucht werden genau {amount}.",
   m_lava_ru_hint: "Internationale Zahlungsarten: Eine russische Karte funktioniert hier nicht.",
+  pay_email_label: "Deine E-Mail für die Zahlung",
+  pay_email_hint: "Die Zahlungsseite und der Beleg gehen an diese Adresse. Nimm deine eigene.",
+  pay_email_required: "Gib deine E-Mail ein, um zu bezahlen.",
+  pay_email_invalid: "Das sieht nicht nach einer E-Mail aus. Prüfe sie und versuche es erneut.",
+  pay_email_rejected: "Der Zahlungsdienst hat diese E-Mail nicht akzeptiert. Gib eine andere ein.",
 
   your_subs: "Aktive Abos",
   subs_title: "Deine Abos",
@@ -1792,6 +1817,11 @@ const fr: DashDict = {
   m_lava_sub: "Débité {amount}",
   m_lava_note: "Vous serez débité exactement de {amount}.",
   m_lava_ru_hint: "Moyens internationaux : une carte russe ne fonctionnera pas ici.",
+  pay_email_label: "Votre e-mail pour le paiement",
+  pay_email_hint: "La page de paiement et son reçu sont envoyés à cette adresse. Utilisez la vôtre.",
+  pay_email_required: "Saisissez votre e-mail pour payer.",
+  pay_email_invalid: "Cela ne ressemble pas à un e-mail. Vérifiez-le et réessayez.",
+  pay_email_rejected: "Le service de paiement n’a pas accepté cet e-mail. Saisissez-en un autre.",
 
   your_subs: "Abonnements actifs",
   subs_title: "Vos abonnements",

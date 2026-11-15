@@ -650,6 +650,38 @@ export function lavaMethodsScreen(amountCents: number, choices: readonly LavaCho
   };
 }
 
+/**
+ * lava.top wants the customer's OWN e-mail. Asked before the invoice exists;
+ * `error` is set when the last answer was not accepted. Parent: the lava methods.
+ */
+export function lavaEmailAskScreen(
+  x: { cents: number; method: LavaMethodId; currency: LavaCurrencyChoice },
+  lang: BotLang,
+  error: "email_invalid" | "email_rejected" | null = null,
+): Screen {
+  const err = error === null ? null : tr(error === "email_rejected" ? "lava.emailRejected" : "lava.emailInvalid", lang);
+  return {
+    text: lines(err, err ? "" : null, tr("lava.emailAsk", lang)),
+    kb: [back(lang, { a: "topa", method: "lava", cents: x.cents })],
+  };
+}
+
+/** A saved payment e-mail: pay with it or change it. Parent: the lava methods. */
+export function lavaEmailConfirmScreen(
+  x: { cents: number; method: LavaMethodId; currency: LavaCurrencyChoice },
+  email: string,
+  lang: BotLang,
+): Screen {
+  return {
+    text: tr("lava.emailConfirm", lang, { email }),
+    kb: [
+      [b(tr("btn.lavaPay", lang), { a: "lavp", ...x })],
+      [b(tr("btn.lavaChange", lang), { a: "lavc", ...x })],
+      back(lang, { a: "topa", method: "lava", cents: x.cents }),
+    ],
+  };
+}
+
 // ─── Promo, invite, help, language ──────────────────────────────────────────
 
 /** Parent: wallet. */

@@ -81,6 +81,8 @@ import { TopupDialog, type TopupConfig } from "./TopupDialog";
 import { WalletChip, fmtCents } from "./WalletPanel";
 import { WEB_HOST, type DashHost } from "./host";
 import { FirstVisitProvider } from "./shared";
+import { PayEmailContext, payEmailMessage, type PayEmailState } from "./PayEmail";
+import { checkPaymentEmail, type PaymentEmailCode } from "@/lib/payment-email";
 import { isDashView, replaceDashUrl, useDashView, type DashView } from "./useDashView";
 import "@/app/dashboard/dashboard.css";
 
@@ -299,6 +301,9 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   // Какая именно кнопка lava.top сейчас крутится. Не булево: способов
   // несколько, и крутиться должен только нажатый.
   const [buyingLava, setBuyingLava] = useState<string | null>(null);
+  // The e-mail for lava.top: prefilled by /api/account, edited by the person.
+  const [payEmail, setPayEmail] = useState("");
+  const [payEmailError, setPayEmailError] = useState<PaymentEmailCode | null>(null);
   const [buyingCardDevice, setBuyingCardDevice] = useState(false);
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
 
@@ -479,6 +484,8 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         });
       }
       if (d.pricing) setPricing(d.pricing);
+      // Prefill only: never overwrite what the person has already typed.
+      if (typeof d.payEmail === "string") setPayEmail((cur) => (cur.length > 0 ? cur : d.payEmail));
       setWallet(parseWallet(d.wallet));
       // attach profiles via a parallel field
       setProfiles(d.profiles || []);
@@ -674,18 +681,22 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   ) => {
     const isSlot = tag.startsWith("device:");
     const setError = isSlot ? setSlotError : setPlanError;
-    setBuyingLava(tag); setError(null);
+    // The address is asked for BEFORE the invoice exists, and it is the person's own.
+    const mail = checkPaymentEmail(payEmail);
+    if (!mail.ok) { setPayEmailError(mail.code); return; }
+    setBuyingLava(tag); setError(null); setPayEmailError(null);
     try {
       const r = await fetch("/api/subscribe/lava", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, method: id, currency, ...returnTo }),
+        body: JSON.stringify({ ...body, method: id, currency, email: mail.email, ...returnTo }),
       });
       const d = await r.json();
       if (d.paymentUrl) {
         trackEvent("payment_initiated", { ...body, method: id, currency, provider: "lava" });
         openPayment(d.paymentUrl, isSlot ? "slot" : "plan");
-      } else setError(errText(d.error, r.status, t.err_pay));
+      } else if (payEmailMessage(t, d.error) !== null) setPayEmailError(d.error as PaymentEmailCode);
+      else setError(errText(d.error, r.status, t.err_pay));
     } catch { setError(t.err_conn); } finally { setBuyingLava(null); }
   };
 
@@ -797,7 +808,13 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
   };
 
   const startTopup = async (route: TopupRoute, amountUsd: number) => {
-    setTopupBusy(true); setTopupError(null);
+    let lavaMail: string | undefined;
+    if (route.kind === "lava") {
+      const mail = checkPaymentEmail(payEmail);
+      if (!mail.ok) { setPayEmailError(mail.code); return; }
+      lavaMail = mail.email;
+    }
+    setTopupBusy(true); setTopupError(null); setPayEmailError(null);
     try {
       if (MOCK) {
         await new Promise((r) => setTimeout(r, 700));
@@ -814,7 +831,7 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
           method: route.kind,
           amountUsd,
           returnTo: embedded ? "miniapp" : "web",
-          ...(route.kind === "lava" ? { lavaMethod: route.id, lavaCurrency: route.currency } : {}),
+          ...(route.kind === "lava" ? { lavaMethod: route.id, lavaCurrency: route.currency, email: lavaMail } : {}),
         }),
       });
       const d = await readJson(r);
@@ -822,6 +839,9 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         trackEvent("payment_initiated", { type: "topup", method: route.kind, amountUsd });
         if (embedded) setTopupOpen(false);
         openPayment(d.payUrl, "topup");
+      } else if (payEmailMessage(t, d.error) !== null) {
+        setPayEmailError(d.error as PaymentEmailCode);
+        host.haptic?.("error");
       } else {
         setTopupError(topupErrText(r.status, d));
         host.haptic?.("error");
@@ -1180,7 +1200,10 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
     );
   }
 
+  const payEmailState: PayEmailState = { email: payEmail, error: payEmailError, setEmail: setPayEmail, setError: setPayEmailError };
+
   return (
+    <PayEmailContext.Provider value={payEmailState}>
     <BackStackProvider stack={backStack}>
       <CabinetRoot variant="dash" className={embedded ? "kc-embedded" : undefined}>
         {embedded ? (
@@ -1304,5 +1327,6 @@ export function DashboardView({ host = WEB_HOST }: DashboardViewProps) {
         ) : null}
       </CabinetRoot>
     </BackStackProvider>
+    </PayEmailContext.Provider>
   );
 }
