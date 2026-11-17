@@ -28,14 +28,14 @@ const lava = await import("../src/lib/lava.ts");
 
 const read = (rel) => readFileSync(fileURLToPath(new URL(`../${rel}`, import.meta.url)), "utf8");
 
-test("the line is configured and is not offered", () => {
+test("the line is configured and offered again (reopened 17.11.2026)", () => {
   assert.equal(lava.lavaConfigured, true);
-  assert.equal(lava.lavaOffered, false);
+  assert.equal(lava.lavaOffered, true);
 });
 
 test("the switch is one line in lib/lava.ts", () => {
   const src = read("src/lib/lava.ts");
-  assert.match(src, /const LAVA_ON_HOLD = true;/);
+  assert.match(src, /const LAVA_ON_HOLD = false;/);
   assert.match(src, /export const lavaOffered = lavaConfigured && !LAVA_ON_HOLD;/);
 });
 
@@ -62,4 +62,17 @@ test("the receiver of lava.top events keeps crediting by lavaConfigured", () => 
   const src = read("src/lib/lava-webhook-handler.ts");
   assert.match(src, /if \(!lavaConfigured\) \{/);
   assert.doesNotMatch(src, /\blavaOffered\b/);
+});
+
+test("without a session the purchase route answers 401, not 503", async () => {
+  const { NextRequest } = await import("next/server");
+  const { POST } = await import("../src/app/api/subscribe/lava/route.ts");
+  const res = await POST(
+    new NextRequest("http://localhost/api/subscribe/lava", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }),
+  );
+  assert.equal(res.status, 401);
 });
