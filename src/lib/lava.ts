@@ -166,8 +166,11 @@ export const lavaConfigured = CONFIG_PROBLEM === null;
  *
  * 13.11.2026: lava.top скрыта по слову владельца из оплат во всех проектах на
  * время. Вернуть — поставить false.
+ *
+ * REOPENED (17.11.2026) on the owner's word: the foreign card line is offered
+ * again. Kovra has no rouble lava line (only USD/EUR methods are offered).
  */
-const LAVA_ON_HOLD = true;
+const LAVA_ON_HOLD = false;
 
 /** Предлагать ли lava.top покупателю сейчас. Проверять ДО показа кнопки. */
 export const lavaOffered = lavaConfigured && !LAVA_ON_HOLD;

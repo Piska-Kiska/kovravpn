@@ -6,14 +6,12 @@
 // with another address, the routes answer 400 {error: email_*}, the address is
 // saved per account after an invoice, and both bots ask for it first.
 //
-// The lava hold (`LAVA_ON_HOLD = true`, the owner's switch) stays as it is in
-// the source: this file lifts it only inside the test process by rewriting that
-// one line while the module loads. fetch is stubbed, Redis is in memory, keys
-// and addresses are made up.
+// The lava hold was lifted on 17.11.2026 (`LAVA_ON_HOLD = false`), so the
+// module is loaded as is. fetch is stubbed, Redis is in memory, keys and
+// addresses are made up.
 
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 
 process.env.LAVA_API_KEY = ["test", "lava", "key"].join("-");
 process.env.LAVA_OFFER_ID = "0a1b2c3d-0000-4000-8000-00000000000f";
@@ -31,18 +29,6 @@ delete process.env.KOVRA_STATIC_PANELS;
 import { setRedisModule } from "./support/load-ts.mjs";
 setRedisModule(new URL("./support/memory-redis.mjs", import.meta.url));
 const mem = await import("./support/memory-redis.mjs");
-
-registerHooks({
-  load(url, context, nextLoad) {
-    const out = nextLoad(url, context);
-    if (url.endsWith("/src/lib/lava.ts") && out.source != null) {
-      const text = String(out.source);
-      assert.match(text, /const LAVA_ON_HOLD = true;/);
-      return { ...out, source: text.replace("const LAVA_ON_HOLD = true;", "const LAVA_ON_HOLD = false;") };
-    }
-    return out;
-  },
-});
 
 const { NextRequest } = await import("next/server");
 const { createSession } = await import("../src/lib/session.ts");
@@ -159,7 +145,7 @@ describe("checkPaymentEmail", () => {
 
 describe("createInvoice", () => {
   test("the line is configured without LAVA_BUYER_EMAIL", () => {
-    assert.equal(lavaOffered, true, "the test lifts the hold for itself only");
+    assert.equal(lavaOffered, true, "lava.top is offered again (hold reopened 17.11.2026)");
   });
 
   test("no e-mail: email_required, nothing is sent, the shared address is never used", async () => {
